@@ -1,0 +1,17 @@
+{
+  "name": "@fitquest-rebuild/api",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fitquest-rebuild/contracts": "0.0.0",
+    "fastify": "5.12.5"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "fitquest-rebuild",
+  "version": "0.0.0",
+  "private": true,
+  "engines": { "node": ">=22.13.0" },
+  "workspaces": ["apps/*", "services/*", "packages/*"],
+  "scripts": {
+    "dev:mobile": "npm run start --workspace @fitquest-rebuild/mobile",
+    "dev:api": "npm run dev --workspace @fitquest-rebuild/api",
+    "build:contracts": "npm run build --workspace @fitquest-rebuild/contracts",
+    "build:api": "npm run build:contracts && npm run build --workspace @fitquest-rebuild/api",
+    "typecheck": "npm run build:contracts && npm run typecheck --workspace @fitquest-rebuild/contracts && npm run typecheck --workspace @fitquest-rebuild/api && npm run typecheck --workspace @fitquest-rebuild/mobile",
+    "lint": "eslint apps/mobile services/api packages/contracts",
+    "test": "npm run build:contracts && npm run test --workspace @fitquest-rebuild/api && npm run test --workspace @fitquest-rebuild/contracts && npm run test --workspace @fitquest-rebuild/mobile",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build:api"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.12.0",
+    "eslint": "10.11.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.1"
+  }
+}
