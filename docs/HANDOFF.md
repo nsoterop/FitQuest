@@ -20,7 +20,8 @@ On 2026-09-24, the owner approved creating a fresh **private** FitQuest GitHub r
 
 ## Current state and verification
 
-- Repository setup, 2026-09-24: Git started with no commits or remote. HQ verified GitHub identity `nsoterop`, checked that `nsoterop/FitQuest` was not accessible, created [nsoterop/FitQuest](https://github.com/nsoterop/FitQuest), and verified **PRIVATE** visibility. The reviewed initial commit/push is being prepared; no successful push is claimed yet.
+- Repository setup verified, 2026-09-24: HQ created [nsoterop/FitQuest](https://github.com/nsoterop/FitQuest), verified **PRIVATE** visibility, and pushed initial baseline commit `1ddec34ae52865cdae62f09660edd3df90fc8ff6` to `main`. GitHub's commit API returned the same SHA as local HEAD. `origin` is `https://github.com/nsoterop/FitQuest.git`; local `main` tracks `origin/main`, also the GitHub default branch. Subsequent documentation-only commits record this verification; consult Git history for the latest revision.
+- Baseline review: 66 staged files; allowlist, excluded-path, conflict-marker, and basic secret-pattern checks found no issues. `git diff --cached --check` passed after normalizing Markdown hard breaks. All 151 local links across 26 Markdown files resolve to included files; source links were made portable for GitHub. All ten images contain only scaffold/synthetic evidence. These are bounded repository checks, not a complete security or application acceptance audit.
 - No rebuild application code, migration, installation, hosted change, deployment, or private-data import performed by HQ.
 - Current independent HQ baseline, 2026-09-24: `npm run check` in `rebuild/` passed typechecks, lint, **24 tests** (API 2, contracts 7, mobile 15), and contracts/API builds after correction delivery. Node reports its expected experimental SQLite warning. The original [M1a review](reviews/M1A_REVIEW.md) remains open until finding-by-finding correction acceptance. Real auth, backend sync, and coaching remain unimplemented. No application source was changed by HQ.
 - Initial source-of-truth documentation checks passed: eight documents, eight local Markdown links, twelve unique acceptance criteria, final newlines, conflict-marker/basic secret-pattern checks, and removal of superseded early-HealthKit requirements. HQ reviewed remaining Swift/HealthKit references as historical or deferred. These are not comprehensive security scans or application tests; the M0 review adds a separate evidence record.
@@ -71,7 +72,7 @@ Render connection is owner-reported; hosted services/billing/data were not inspe
 - Closed at design level: the two M1 recovery clarifications and lock/claim-order guardrail. Failure/race tests are still required during implementation; a proposal is not passing runtime evidence.
 - Closed: owner approval of the initial UX and provisional visual direction. Rendered review/accessibility evidence follows M1a; the final coach dashboard is not specified by Sessions-first M1.
 - Open: M1a acceptance findings. Correct and reverify the source/recovery/UI gaps before assigning backend synchronization or real authentication. Passing the existing baseline does not close these findings.
-- Establish a reviewed, secret-safe Git baseline before worktree-based parallel implementation. Never stage the entire untracked prototype without review.
+- Closed: reviewed private GitHub baseline and matching remote commit verified. Future worktree-based implementation still requires scoped ownership; never stage the retained prototype or assume ignored files exist in a fresh clone.
 
 ## Outstanding choices
 

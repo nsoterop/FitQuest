@@ -42,7 +42,7 @@ This is the first reliable data slice, not the finished AI coach. Keep multimoda
 - **M1b — Local API/database synchronization: planned, not dispatched.** Separately scoped disposable PostgreSQL/API transaction, retry/conflict, isolation, and client synchronization evidence. Fixtures still cannot close production authentication.
 - **M1c — Real authentication and device integration: planned, not dispatched.** Verify actual identity/credential lifecycle and authenticated flow on device, with separate approval for Apple configuration, transport, and any hosted changes. Complete all M1 acceptance gates before declaring durable authenticated logging done.
 
-HQ reviews each result before the next assignment. A live timer is outside M1a; manual timed logging already exercises the required modality. On 2026-09-24, the owner separately approved private GitHub creation and a reviewed baseline push; HQ is executing that setup after the correction delivery. It excludes the locally retained prototype, secrets, private data, and generated artifacts. See HANDOFF for verified repository state. Worktrees remain subject to explicit scope and integration ownership.
+HQ reviews each result before the next assignment. A live timer is outside M1a; manual timed logging already exercises the required modality. The owner-approved private GitHub baseline was pushed and verified on 2026-09-24 after correction delivery. It excludes the locally retained prototype, secrets, private data, and generated artifacts. See HANDOFF for repository evidence. Worktrees are now possible from a committed baseline but remain subject to explicit scope and integration ownership.
 
 ## M2 — Athlete intent, nutrition, and subjective context
 
