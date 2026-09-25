@@ -2,7 +2,7 @@
 
 Date: 2026-09-25 · Owner: Project HQ
 
-Status: Owner-authorized continuation dispatched on 2026-09-25 to **Engineering**, task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host; turn `01a0d9e8-9b0a-7dd3-a065-063d878a10c6`. Only this local increment is authorized; stop for HQ review.
+Status: **Accepted by HQ on 2026-09-25; [F1/F2 closed](reviews/M1C2_REVIEW.md)** with 137 independently passing tests and bounded native evidence. Engineering task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host, is idle after correction turn `01a0da03-9a05-79b2-a945-7ae489ceddcc`. Initial delivery: `01a0d9e8-9b0a-7dd3-a065-063d878a10c6`. This completed handoff does not authorize M1c.3 or AI implementation.
 
 ## Outcome and baseline
 

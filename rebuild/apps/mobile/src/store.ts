@@ -4,6 +4,8 @@ import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 import { CommandSchema, OperationOutcomeSchema, ProfileSchema, ProfileSnapshotSchema, ResultSchema, SessionSchema, SessionSnapshotSchema, canonicalCommand, commandTarget, validateSessionTransition, type Command, type OperationOutcome, type Profile, type Session } from '@fitquest-rebuild/contracts';
 import { fixtureAccessBoundary, type AccountAccessBoundary, type FixtureId } from './access';
+import { fixtureStoreIdentity, SyntheticAccountStoreSchema, syntheticAccountNamespace, type SyntheticAccountStore } from './ownership';
+import { SyntheticLocalLatch, type ProtectedRecordPort, type SyntheticIdentityAuthority, type LatchFault } from './auth/localLatch';
 
 const schema = `CREATE TABLE owner (environment TEXT NOT NULL, account_id TEXT NOT NULL);
 CREATE TABLE migrations (version INTEGER PRIMARY KEY, checksum TEXT NOT NULL);
@@ -22,22 +24,22 @@ CREATE TABLE sync_bases (kind TEXT NOT NULL, id TEXT NOT NULL, revision INTEGER 
 CREATE TABLE sync_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
 INSERT INTO sync_meta(key,value) VALUES('edit_sequence',0);
 INSERT INTO sync_delivery(operation_id,state) SELECT operation_id,'queued' FROM commands;`;
-const environment = 'm1a.synthetic.v1';
-const syntheticAccountId = (account: FixtureId) => account === 'A' ? '11111111-1111-4111-8111-111111111111' : '22222222-2222-4222-8222-222222222222';
+const accountMigration = `CREATE TABLE store_metadata (id INTEGER PRIMARY KEY CHECK(id=1), environment TEXT NOT NULL, account_id TEXT NOT NULL, store_id TEXT NOT NULL, install_instance_id TEXT NOT NULL);
+CREATE TABLE local_auth_latch (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);`;
 const keyOptions = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
-const nameFor = (id: FixtureId) => `fitquest-m1a-synthetic-${id}.db`;
-const keyFor = (id: FixtureId) => `fitquest.m1a.fixture.${id}.dbkey`;
+const nameFor = (id: FixtureId) => fixtureStoreIdentity(id).database;
+const keyFor = (id: FixtureId) => fixtureStoreIdentity(id).key;
 type ProjectionRow = { revision: number; document: string };
 type CommandRow = { operation_id: string; content: string };
 type DeliveryRow = { operation_id: string; content: string; depends_on: string | null; state: DeliveryState; attempts: number; next_attempt_at: string | null };
 export type DeliveryState = 'queued' | 'sending' | 'outcome_unknown' | 'acknowledged' | 'blocked' | 'superseded';
 export type SyncWork = { command: Command; state: DeliveryState; attempts: number };
 export type SyncSummary = { pending: number; sending: number; unknown: number; blocked: number; acknowledged: number };
-export type RecoveryReview = { account: FixtureId; generation: number; editSequence: number; kind: 'profile' | 'session'; id: string; local: Profile | Session | null; base: { revision: number; document: Profile | Session | null } | null; server: { revision: number; document: Profile | Session | null }; blockedIds: string[] };
+export type RecoveryReview<Account extends string = FixtureId> = { account: Account; generation: number; editSequence: number; kind: 'profile' | 'session'; id: string; local: Profile | Session | null; base: { revision: number; document: Profile | Session | null } | null; server: { revision: number; document: Profile | Session | null }; blockedIds: string[] };
 export type DraftRecord = { raw: string; sequence: number };
 export type FailurePhase = 'after_projection' | 'after_revision' | 'after_command';
 
-async function verifyMetadata(db: SQLite.SQLiteDatabase, account: FixtureId, checksums: readonly string[]) {
+async function verifyMetadata(db: SQLite.SQLiteDatabase, environment: string, account: string, checksums: readonly string[]) {
   const rows = await db.getAllAsync<{ version: number; checksum: string }>('SELECT version,checksum FROM migrations ORDER BY version');
   if (rows.length < 1 || rows.length > checksums.length || rows.some((row, i) => row.version !== i + 1 || row.checksum !== checksums[i])) throw new Error('Unknown or changed local migration');
   const owner = await db.getFirstAsync<{ environment: string; account_id: string }>('SELECT environment,account_id FROM owner');
@@ -45,15 +47,30 @@ async function verifyMetadata(db: SQLite.SQLiteDatabase, account: FixtureId, che
   if (owners?.n !== 1 || owner?.environment !== environment || owner.account_id !== account) throw new Error('Local store ownership mismatch');
 }
 
-export class LocalStore {
+async function verifyAccountMetadata(db: SQLite.SQLiteDatabase, owner: SyntheticAccountStore) {
+  const row = await db.getFirstAsync<{ environment: string; account_id: string; store_id: string; install_instance_id: string }>('SELECT environment,account_id,store_id,install_instance_id FROM store_metadata WHERE id=1');
+  const count = await db.getFirstAsync<{ n: number }>('SELECT count(*) AS n FROM store_metadata');
+  if (count?.n !== 1 || row?.environment !== owner.environment || row.account_id !== owner.accountId || row.store_id !== owner.storeId || row.install_instance_id !== owner.installInstanceId) throw new Error('Local store ownership mismatch');
+}
+
+export interface SyntheticStoreResources {
+  exists(name: string): boolean;
+  readKey(key: string): Promise<string | null>;
+  writeKey(key: string, value: string): Promise<void>;
+  openDatabase(name: string): Promise<SQLite.SQLiteDatabase>;
+  randomKey(): Promise<string>;
+}
+
+export class LocalStore<Account extends string = FixtureId> {
   private pending: Promise<unknown> = Promise.resolve();
   private closed = false;
   private failOnce: FailurePhase | null = null;
   private failSyncAckOnce = false;
-  private constructor(private db: SQLite.SQLiteDatabase, private key: string, readonly account: FixtureId, readonly generation: number, private access: AccountAccessBoundary<FixtureId>) {}
+  private constructor(private db: SQLite.SQLiteDatabase, private key: string, readonly account: Account, readonly generation: number, readonly serverAccountId: string, private readonly assertAccess: (db?: SQLite.SQLiteDatabase) => Promise<void>, readonly latch: SyntheticLocalLatch | null = null, private readonly fixtureAccess?: AccountAccessBoundary<FixtureId>) {}
 
-  static async open(account: FixtureId, generation: number, access: AccountAccessBoundary<FixtureId> = fixtureAccessBoundary): Promise<LocalStore> {
+  static async open(account: FixtureId, generation: number, access: AccountAccessBoundary<FixtureId> = fixtureAccessBoundary): Promise<LocalStore<FixtureId>> {
     if (!__DEV__) throw new Error('Synthetic stores are unavailable in this build');
+    fixtureStoreIdentity(account);
     await access.assertLocalAccess(account, generation);
     const name = nameFor(account);
     const file = new File(SQLite.defaultDatabaseDirectory, name);
@@ -84,9 +101,9 @@ export class LocalStore {
           if (existed) throw new Error('Existing database has no migration ledger');
           await tx.execAsync(schema);
           await tx.runAsync('INSERT INTO migrations(version,checksum) VALUES(?,?)', 1, checksums[0]);
-          await tx.runAsync('INSERT INTO owner(environment,account_id) VALUES(?,?)', environment, account);
+          await tx.runAsync('INSERT INTO owner(environment,account_id) VALUES(?,?)', 'm1a.synthetic.v1', account);
         }
-        await verifyMetadata(tx, account, checksums);
+        await verifyMetadata(tx, 'm1a.synthetic.v1', account, checksums);
         const version = await tx.getFirstAsync<{ version: number }>('SELECT MAX(version) AS version FROM migrations');
         if (version?.version === 1) {
           await tx.execAsync(draftMigration);
@@ -97,16 +114,63 @@ export class LocalStore {
           await tx.execAsync(syncMigration);
           await tx.runAsync('INSERT INTO migrations(version,checksum) VALUES(?,?)', 3, checksums[2]);
         }
-        await verifyMetadata(tx, account, checksums);
+        await verifyMetadata(tx, 'm1a.synthetic.v1', account, checksums);
       });
       await access.assertLocalAccess(account, generation);
-      return new LocalStore(db, key, account, generation, access);
+      return new LocalStore(db, key, account, generation, fixtureStoreIdentity(account).serverAccountId, () => access.assertLocalAccess(account, generation), null, access);
     } catch (error) { await db.closeAsync(); throw error; }
   }
 
-  private async guard() {
+  /** Invented UUID-owned stores only. No runtime UI or real-account adapter calls this entrypoint. */
+  static async openSyntheticAccountTest(rawOwner: SyntheticAccountStore, resources: SyntheticStoreResources, protectedPort: ProtectedRecordPort, authority: SyntheticIdentityAuthority, fault?: LatchFault): Promise<LocalStore<string>> {
+    if (!__DEV__) throw new Error('Synthetic account test stores are unavailable in this build');
+    const owner = SyntheticAccountStoreSchema.parse(rawOwner);
+    if (!authority.current(owner)) throw new Error('Trusted account context changed');
+    const namespace = syntheticAccountNamespace(owner), existed = resources.exists(namespace.database);
+    let key = await resources.readKey(namespace.key);
+    if (!key && existed) throw new Error('Encryption key missing; existing records have not been removed');
+    if (!key) { key = await resources.randomKey(); if (!/^[a-f0-9]{64}$/.test(key)) throw new Error('Invalid encryption key'); await resources.writeKey(namespace.key, key); }
+    if (!/^[a-f0-9]{64}$/.test(key)) throw new Error('Invalid encryption key');
+    const db = await resources.openDatabase(namespace.database);
+    try {
+      await db.execAsync(`PRAGMA key = '${key}'`);
+      const cipher = await db.getFirstAsync<{ cipher_version: string }>('PRAGMA cipher_version');
+      if (!cipher?.cipher_version) throw new Error('SQLCipher is unavailable in this native build');
+      await db.getFirstAsync('SELECT count(*) AS n FROM sqlite_master');
+      await db.execAsync('PRAGMA foreign_keys = ON');
+      await db.execAsync('PRAGMA journal_mode = WAL');
+      await db.execAsync('PRAGMA synchronous = FULL');
+      const checksums = await Promise.all([schema, draftMigration, syncMigration, accountMigration].map(value => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value)));
+      await db.withExclusiveTransactionAsync(async tx => {
+        await tx.execAsync(`PRAGMA key = '${key}'`);
+        const table = await tx.getFirstAsync<{ name: string }>("SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'");
+        if (!table) {
+          if (existed) throw new Error('Existing database has no migration ledger');
+          await tx.execAsync(schema);
+          await tx.runAsync('INSERT INTO migrations(version,checksum) VALUES(?,?)', 1, checksums[0]);
+          await tx.runAsync('INSERT INTO owner(environment,account_id) VALUES(?,?)', owner.environment, owner.accountId);
+          await tx.execAsync(draftMigration);
+          await tx.runAsync('INSERT INTO migrations(version,checksum) VALUES(?,?)', 2, checksums[1]);
+          await tx.execAsync(syncMigration);
+          await tx.runAsync('INSERT INTO migrations(version,checksum) VALUES(?,?)', 3, checksums[2]);
+          await tx.execAsync(accountMigration);
+          await tx.runAsync('INSERT INTO migrations(version,checksum) VALUES(?,?)', 4, checksums[3]);
+          await tx.runAsync('INSERT INTO store_metadata(id,environment,account_id,store_id,install_instance_id) VALUES(1,?,?,?,?)', owner.environment, owner.accountId, owner.storeId, owner.installInstanceId);
+        }
+        await verifyMetadata(tx, owner.environment, owner.accountId, checksums);
+        const version = await tx.getFirstAsync<{ version: number }>('SELECT MAX(version) AS version FROM migrations');
+        if (version?.version !== 4) throw new Error('Incomplete account-store migration');
+        await verifyAccountMetadata(tx, owner);
+      });
+      if (!authority.current(owner)) throw new Error('Trusted account context changed');
+      const latch = new SyntheticLocalLatch(owner, db, key, protectedPort, authority, fault);
+      return new LocalStore(db, key, owner.accountId, owner.localEpoch, owner.accountId, database => latch.assertAuthorized(database), latch);
+    } catch (error) { await db.closeAsync(); throw error; }
+  }
+
+  private async guard(database?: SQLite.SQLiteDatabase) {
     if (this.closed) throw new Error('Store closed');
-    await this.access.assertLocalAccess(this.account, this.generation);
+    await this.assertAccess(database);
   }
   private serial<T>(fn: () => Promise<T>): Promise<T> {
     const next = this.pending.then(fn, fn);
@@ -121,11 +185,13 @@ export class LocalStore {
   async profile(): Promise<Profile | null> {
     await this.guard();
     const row = await this.db.getFirstAsync<ProjectionRow>("SELECT revision,document FROM projections WHERE kind='profile' AND id='profile'");
+    await this.guard();
     return row ? ProfileSchema.parse(JSON.parse(row.document)) : null;
   }
   async sessions(): Promise<Session[]> {
     await this.guard();
     const rows = await this.db.getAllAsync<{ document: string }>("SELECT document FROM projections WHERE kind='session' ORDER BY json_extract(document,'$.startedAt') DESC");
+    await this.guard();
     return rows.map(row => SessionSchema.parse(JSON.parse(row.document)));
   }
   async draft(id: string): Promise<string | null> {
@@ -133,7 +199,9 @@ export class LocalStore {
   }
   async draftRecord(id: string): Promise<DraftRecord | null> {
     await this.guard();
-    return this.db.getFirstAsync<DraftRecord>('SELECT raw,sequence FROM drafts WHERE id=?', id);
+    const row = await this.db.getFirstAsync<DraftRecord>('SELECT raw,sequence FROM drafts WHERE id=?', id);
+    await this.guard();
+    return row;
   }
   async saveDraft(id: string, raw: string, sequence?: number): Promise<number> {
     return this.serial(async () => {
@@ -143,10 +211,10 @@ export class LocalStore {
       if (!Number.isSafeInteger(next) || next < 0) throw new Error('Invalid draft sequence');
       await this.db.withExclusiveTransactionAsync(async tx => {
         await tx.execAsync(`PRAGMA key = '${this.key}'`);
-        await this.guard();
+        await this.guard(tx);
         const written = await tx.runAsync('INSERT INTO drafts(id,raw,updated_at,sequence) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET raw=excluded.raw,updated_at=excluded.updated_at,sequence=excluded.sequence WHERE excluded.sequence > drafts.sequence', id, raw, new Date().toISOString(), next);
         if (written.changes > 0) await tx.runAsync("UPDATE sync_meta SET value=value+1 WHERE key='edit_sequence'");
-        await this.guard();
+        await this.guard(tx);
       });
       await this.guard();
       const saved = await this.draftRecord(id);
@@ -156,12 +224,14 @@ export class LocalStore {
   async pendingCommands(): Promise<Command[]> {
     await this.guard();
     const rows = await this.db.getAllAsync<{ content: string }>("SELECT c.content FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE d.state NOT IN ('acknowledged','superseded') ORDER BY c.rowid");
+    await this.guard();
     return rows.map(row => CommandSchema.parse(JSON.parse(row.content)));
   }
 
   async syncSummary(): Promise<SyncSummary> {
     await this.guard();
     const rows = await this.db.getAllAsync<{ state: DeliveryState; n: number }>('SELECT state,count(*) AS n FROM sync_delivery GROUP BY state');
+    await this.guard();
     const count = (state: DeliveryState) => rows.find(row => row.state === state)?.n ?? 0;
     return { pending: count('queued') + count('sending') + count('outcome_unknown') + count('blocked'), sending: count('sending'), unknown: count('outcome_unknown'), blocked: count('blocked'), acknowledged: count('acknowledged') };
   }
@@ -170,7 +240,12 @@ export class LocalStore {
   async recoverInterruptedSends(): Promise<void> {
     return this.serial(async () => {
       await this.guard();
-      await this.db.runAsync("UPDATE sync_delivery SET state='outcome_unknown',next_attempt_at=NULL WHERE state='sending'");
+      await this.db.withExclusiveTransactionAsync(async tx => {
+        await tx.execAsync(`PRAGMA key = '${this.key}'`);
+        await this.guard(tx);
+        await tx.runAsync("UPDATE sync_delivery SET state='outcome_unknown',next_attempt_at=NULL WHERE state='sending'");
+        await this.guard(tx);
+      });
       await this.guard();
     });
   }
@@ -181,7 +256,7 @@ export class LocalStore {
       let selected: SyncWork | null = null;
       await this.db.withExclusiveTransactionAsync(async tx => {
         await tx.execAsync(`PRAGMA key = '${this.key}'`);
-        await this.guard();
+        await this.guard(tx);
         const rows = await tx.getAllAsync<DeliveryRow>(`SELECT c.operation_id,c.content,c.depends_on,d.state,d.attempts,d.next_attempt_at
           FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id
           WHERE d.state IN ('queued','outcome_unknown') ORDER BY c.rowid`);
@@ -195,7 +270,7 @@ export class LocalStore {
           if (updated.changes === 1) selected = { command: CommandSchema.parse(JSON.parse(row.content)), state: row.state, attempts: row.attempts + 1 };
           break;
         }
-        await this.guard();
+        await this.guard(tx);
       });
       return selected;
     });
@@ -204,10 +279,15 @@ export class LocalStore {
   async markOutcomeUnknown(operationId: string): Promise<void> {
     return this.serial(async () => {
       await this.guard();
-      const row = await this.db.getFirstAsync<{ attempts: number }>("SELECT attempts FROM sync_delivery WHERE operation_id=? AND state='sending'", operationId);
-      if (!row) return;
-      const delay = Math.min(60_000, 2_000 * 2 ** Math.min(row.attempts - 1, 5));
-      await this.db.runAsync("UPDATE sync_delivery SET state='outcome_unknown',next_attempt_at=? WHERE operation_id=? AND state='sending'", new Date(Date.now() + delay).toISOString(), operationId);
+      await this.db.withExclusiveTransactionAsync(async tx => {
+        await tx.execAsync(`PRAGMA key = '${this.key}'`);
+        await this.guard(tx);
+        const row = await tx.getFirstAsync<{ attempts: number }>("SELECT attempts FROM sync_delivery WHERE operation_id=? AND state='sending'", operationId);
+        if (!row) return;
+        const delay = Math.min(60_000, 2_000 * 2 ** Math.min(row.attempts - 1, 5));
+        await tx.runAsync("UPDATE sync_delivery SET state='outcome_unknown',next_attempt_at=? WHERE operation_id=? AND state='sending'", new Date(Date.now() + delay).toISOString(), operationId);
+        await this.guard(tx);
+      });
       await this.guard();
     });
   }
@@ -217,13 +297,13 @@ export class LocalStore {
       await this.guard();
       await this.db.withExclusiveTransactionAsync(async tx => {
         await tx.execAsync(`PRAGMA key = '${this.key}'`);
-        await this.guard();
+        await this.guard(tx);
         await tx.runAsync("UPDATE sync_delivery SET state='blocked',resolution=? WHERE operation_id=? AND state='sending'", code, operationId);
         await tx.runAsync(`WITH RECURSIVE children(operation_id) AS (
           SELECT operation_id FROM commands WHERE depends_on=?
           UNION ALL SELECT c.operation_id FROM commands c JOIN children p ON c.depends_on=p.operation_id
         ) UPDATE sync_delivery SET state='blocked' WHERE operation_id IN (SELECT operation_id FROM children) AND state NOT IN ('acknowledged','superseded')`, operationId);
-        await this.guard();
+        await this.guard(tx);
       });
     });
   }
@@ -237,11 +317,11 @@ export class LocalStore {
       const command = CommandSchema.parse(JSON.parse(row.content));
       const target = commandTarget(command);
       const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, canonicalCommand(command));
-      if (outcome.accountId !== syntheticAccountId(this.account) || outcome.operationId !== operationId || outcome.kind !== command.kind || outcome.aggregateId !== target.id || outcome.requestHash !== hash) throw new Error('Mismatched sync outcome');
-      if (outcome.state === 'committed' && (outcome.receipt.accountId !== syntheticAccountId(this.account) || outcome.receipt.operationId !== operationId || outcome.receipt.kind !== command.kind || outcome.receipt.aggregateId !== target.id || outcome.receipt.requestHash !== hash || outcome.receipt.revision !== command.expectedRevision + 1)) throw new Error('Mismatched sync receipt');
+      if (outcome.accountId !== this.serverAccountId || outcome.operationId !== operationId || outcome.kind !== command.kind || outcome.aggregateId !== target.id || outcome.requestHash !== hash) throw new Error('Mismatched sync outcome');
+      if (outcome.state === 'committed' && (outcome.receipt.accountId !== this.serverAccountId || outcome.receipt.operationId !== operationId || outcome.receipt.kind !== command.kind || outcome.receipt.aggregateId !== target.id || outcome.receipt.requestHash !== hash || outcome.receipt.revision !== command.expectedRevision + 1)) throw new Error('Mismatched sync receipt');
       await this.db.withExclusiveTransactionAsync(async tx => {
         await tx.execAsync(`PRAGMA key = '${this.key}'`);
-        await this.guard();
+        await this.guard(tx);
         const delivery = await tx.getFirstAsync<{ state: DeliveryState; outcome: string | null }>('SELECT state,outcome FROM sync_delivery WHERE operation_id=?', operationId);
         if (!delivery || delivery.state === 'superseded') throw new Error('Sync operation superseded');
         if (delivery.state === 'acknowledged' || delivery.state === 'blocked') {
@@ -264,35 +344,38 @@ export class LocalStore {
           ) UPDATE sync_delivery SET state='blocked',next_attempt_at=NULL
           WHERE operation_id IN (SELECT operation_id FROM children) AND state NOT IN ('acknowledged','superseded')`, operationId);
         }
-        await this.guard();
+        await this.guard(tx);
       });
     });
   }
 
   async recoveryTargets(): Promise<Array<{ kind: 'profile' | 'session'; id: string }>> {
     await this.guard();
-    return this.db.getAllAsync<{ kind: 'profile' | 'session'; id: string }>("SELECT DISTINCT c.kind,c.aggregate_id AS id FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE d.state='blocked' ORDER BY c.kind,c.aggregate_id");
+    const rows = await this.db.getAllAsync<{ kind: 'profile' | 'session'; id: string }>("SELECT DISTINCT c.kind,c.aggregate_id AS id FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE d.state='blocked' ORDER BY c.kind,c.aggregate_id");
+    await this.guard();
+    return rows;
   }
 
-  async prepareRecovery(kind: 'profile' | 'session', id: string, rawServer: { revision: number; document: Profile | Session | null }): Promise<RecoveryReview> {
+  async prepareRecovery(kind: 'profile' | 'session', id: string, rawServer: { revision: number; document: Profile | Session | null }): Promise<RecoveryReview<Account>> {
     await this.guard();
     const server = kind === 'profile' ? ProfileSnapshotSchema.parse(rawServer) : SessionSnapshotSchema.parse(rawServer);
     const localRow = await this.db.getFirstAsync<ProjectionRow>('SELECT revision,document FROM projections WHERE kind=? AND id=?', kind, id);
     const baseRow = await this.db.getFirstAsync<{ revision: number; document: string | null }>('SELECT revision,document FROM sync_bases WHERE kind=? AND id=?', kind, id);
     const meta = await this.db.getFirstAsync<{ value: number }>("SELECT value FROM sync_meta WHERE key='edit_sequence'");
     const blocked = await this.db.getAllAsync<{ operation_id: string }>("SELECT c.operation_id FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE c.kind=? AND c.aggregate_id=? AND d.state='blocked' ORDER BY c.rowid", kind, id);
+    await this.guard();
     if (!meta || !blocked.length) throw new Error('No blocked local work to review');
     const parse = (document: string | null) => document === null ? null : kind === 'profile' ? ProfileSchema.parse(JSON.parse(document)) : SessionSchema.parse(JSON.parse(document));
     return { account: this.account, generation: this.generation, editSequence: meta.value, kind, id, local: parse(localRow?.document ?? null), base: baseRow ? { revision: baseRow.revision, document: parse(baseRow.document) } : null, server, blockedIds: blocked.map(row => row.operation_id) };
   }
 
-  async resolveRecovery(review: RecoveryReview, choice: 'apply_local' | 'adopt_server', replacementId: string): Promise<void> {
+  async resolveRecovery(review: RecoveryReview<Account>, choice: 'apply_local' | 'adopt_server', replacementId: string): Promise<void> {
     return this.serial(async () => {
       await this.guard();
       if (review.account !== this.account || review.generation !== this.generation) throw new Error('LOCAL_RESOLUTION_STALE');
       await this.db.withExclusiveTransactionAsync(async tx => {
         await tx.execAsync(`PRAGMA key = '${this.key}'`);
-        await this.guard();
+        await this.guard(tx);
         const meta = await tx.getFirstAsync<{ value: number }>("SELECT value FROM sync_meta WHERE key='edit_sequence'");
         const blocked = await tx.getAllAsync<{ operation_id: string }>("SELECT c.operation_id FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE c.kind=? AND c.aggregate_id=? AND d.state='blocked' ORDER BY c.rowid", review.kind, review.id);
         if (meta?.value !== review.editSequence || JSON.stringify(blocked.map(row => row.operation_id)) !== JSON.stringify(review.blockedIds)) throw new Error('LOCAL_RESOLUTION_STALE');
@@ -318,7 +401,7 @@ export class LocalStore {
           } else await tx.runAsync('DELETE FROM projections WHERE kind=? AND id=?', review.kind, review.id);
           await tx.runAsync("UPDATE sync_meta SET value=value+1 WHERE key='edit_sequence'");
         }
-        await this.guard();
+        await this.guard(tx);
       });
     });
   }
@@ -326,13 +409,15 @@ export class LocalStore {
   /** Developer-only, synthetic-store native checks. Adds one no-op profile revision. */
   async runNativeChecks(): Promise<string[]> {
     if (!__DEV__) throw new Error('Unavailable');
+    if ((this.account !== 'A' && this.account !== 'B') || !this.fixtureAccess) throw new Error('Fixture diagnostics only');
+    const fixture = this.account as FixtureId;
     await this.guard();
     const findings: string[] = [];
     const cipher = await this.db.getFirstAsync<{ cipher_version: string }>('PRAGMA cipher_version');
     if (!cipher?.cipher_version) throw new Error('SQLCipher absent');
     findings.push(`SQLCipher ${cipher.cipher_version}`);
     const checksums = await Promise.all([schema, draftMigration, syncMigration].map(value => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value)));
-    await verifyMetadata(this.db, this.account, checksums);
+    await verifyMetadata(this.db, 'm1a.synthetic.v1', fixture, checksums);
     findings.push('Owner and migration ledger verified');
     for (const failure of ['owner', 'migration'] as const) {
       try {
@@ -340,13 +425,13 @@ export class LocalStore {
           await tx.execAsync(`PRAGMA key = '${this.key}'`);
           if (failure === 'owner') await tx.runAsync("UPDATE owner SET account_id='wrong-synthetic-owner'");
           else await tx.runAsync("UPDATE migrations SET checksum='wrong-synthetic-checksum'");
-          await verifyMetadata(tx, this.account, checksums);
+          await verifyMetadata(tx, 'm1a.synthetic.v1', fixture, checksums);
           throw new Error(`Metadata check did not reject ${failure}`);
         });
       } catch (error) {
         if (!String(error).includes(failure === 'owner' ? 'ownership mismatch' : 'local migration')) throw error;
       }
-      await verifyMetadata(this.db, this.account, checksums);
+      await verifyMetadata(this.db, 'm1a.synthetic.v1', fixture, checksums);
       findings.push(`${failure} mismatch rejected; original metadata retained`);
     }
     const profile = await this.profile();
@@ -376,14 +461,14 @@ export class LocalStore {
     await this.saveDraft(draftId, raw);
     if (await this.draft(draftId) !== raw || (await this.pendingCommands()).length !== commandsBeforeDraft) throw new Error('Draft separation failed');
     findings.push('Invalid raw draft persisted without a command');
-    const reopened = await LocalStore.open(this.account, this.generation, this.access);
+    const reopened = await LocalStore.open(fixture, this.generation, this.fixtureAccess);
     try {
       const savedCommand = await reopened.db.getFirstAsync<{ operation_id: string }>('SELECT operation_id FROM commands WHERE operation_id=?', [operation]);
       if (await reopened.draft(draftId) !== raw || savedCommand?.operation_id !== operation) throw new Error('Reopen durability failed');
     } finally { await reopened.close(); }
     findings.push('Reopen recovered draft and immutable command');
     for (const mode of ['missing', 'wrong'] as const) {
-      const wrong = await SQLite.openDatabaseAsync(nameFor(this.account), { useNewConnection: true });
+      const wrong = await SQLite.openDatabaseAsync(nameFor(fixture), { useNewConnection: true });
       try {
         if (mode === 'wrong') await wrong.execAsync("PRAGMA key = 'definitely-wrong-synthetic-key'");
         let rejected = false;
@@ -414,7 +499,7 @@ export class LocalStore {
       await this.guard();
       await this.db.withExclusiveTransactionAsync(async tx => {
         await tx.execAsync(`PRAGMA key = '${this.key}'`);
-        await this.guard();
+        await this.guard(tx);
         const row = await tx.getFirstAsync<ProjectionRow>("SELECT revision,document FROM projections WHERE kind='session' AND id=?", sessionId);
         if (!row) throw new Error('Session not found');
         const previous = SessionSchema.parse(JSON.parse(row.document));
@@ -441,7 +526,7 @@ export class LocalStore {
         }
         // A newer edit survives this commit. Retain the sequence as a tombstone so a late older write cannot recreate the draft.
         await tx.runAsync("UPDATE drafts SET raw='',updated_at=? WHERE id=? AND sequence=?", new Date().toISOString(), draftId, sequence);
-        await this.guard();
+        await this.guard(tx);
       });
       await this.guard();
     });
@@ -454,12 +539,13 @@ export class LocalStore {
       await this.guard();
       await this.db.withExclusiveTransactionAsync(async tx => {
         await tx.execAsync(`PRAGMA key = '${this.key}'`);
-        await this.guard();
+        await this.guard(tx);
         const existing = await tx.getFirstAsync<CommandRow>('SELECT operation_id,content FROM commands WHERE operation_id=?', operationId);
         if (existing) {
           const prior = CommandSchema.parse(JSON.parse(existing.content));
           if (prior.kind !== `${kind}.put` || JSON.stringify(prior.payload) !== JSON.stringify(document)) throw new Error('Operation ID reused with different content');
           if (draft) await this.finalizeDraft(tx, draft);
+          await this.guard(tx);
           return;
         }
         const current = await tx.getFirstAsync<ProjectionRow>('SELECT revision,document FROM projections WHERE kind=? AND id=?', kind, id);
@@ -470,7 +556,7 @@ export class LocalStore {
         }
         await this.write(tx, kind, id, document, operationId, current);
         if (draft) await this.finalizeDraft(tx, draft);
-        await this.guard();
+        await this.guard(tx);
       });
       await this.guard();
     });
@@ -494,6 +580,6 @@ export class LocalStore {
         await tx.runAsync('INSERT INTO sync_delivery(operation_id,state) VALUES(?,?)', operationId, (priorCommand?.state === 'blocked' || profileCommand?.state === 'blocked') ? 'blocked' : 'queued');
         await tx.runAsync("UPDATE sync_meta SET value=value+1 WHERE key='edit_sequence'");
         this.fail('after_command');
-        await this.guard();
+        await this.guard(tx);
   }
 }

@@ -10,7 +10,8 @@ import { restoreProfileEditor, type ProfileEditorFields } from './src/profileEdi
 import { AccountTransitions } from './src/accountTransitions';
 import { chooseResultIntent, submitResultIntent, type ResultIntent } from './src/resultIntent';
 import { enterDetails, presentLocalStatus, resultInputActive, syncStatusLabel, type LocalStatus } from './src/status';
-import { LocalHttpTransport, SyncSender, type SyncView } from './src/sync';
+import { SyncSender, type SyncView } from './src/sync';
+import { LocalHttpTransport } from './src/fixtureSync';
 
 const c = { bg: '#F5F7F6', white: '#FFFFFF', ink: '#142A2A', muted: '#526363', teal: '#17685E', error: '#AF303C', line: '#798989' };
 const uuid = () => Crypto.randomUUID();
@@ -55,7 +56,7 @@ function Main() {
   const [pendingCount, setPendingCount] = useState(0);
   const [syncView, setSyncView] = useState<SyncView>(emptySyncView), [syncTokenInput, setSyncTokenInput] = useState(''), [syncEnabled, setSyncEnabled] = useState(false), [hasSyncToken, setHasSyncToken] = useState(false);
   const [recoveryTargets, setRecoveryTargets] = useState<Array<{ kind: 'profile' | 'session'; id: string }>>([]), [review, setReview] = useState<RecoveryReview | null>(null);
-  const syncRef = useRef<SyncSender | null>(null);
+  const syncRef = useRef<SyncSender<FixtureId> | null>(null);
   const syncAttachEpoch = useRef(0);
   const lifecycleEpoch = useRef(0);
   const session = sessions.find(s => s.id === selected) ?? null, activity = session?.activities.find(a => a.id === activityId) ?? null;

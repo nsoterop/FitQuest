@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CommandSchema, type Command, type OperationOutcome } from '@fitquest-rebuild/contracts';
-import { LocalHttpTransport, SyncSender, type SyncStore, type SyncTransport, type SyncView } from './sync';
+import { SyncSender, type SyncStore, type SyncTransport, type SyncView } from './sync';
+import { LocalHttpTransport } from './fixtureSync';
 
 vi.stubGlobal('__DEV__', true);
 const command = (id: string, expectedRevision: number): Command => CommandSchema.parse({
@@ -21,7 +22,7 @@ function harness() {
   let deliver: (outcome: OperationOutcome) => void = () => undefined;
   let commandMode: 'direct' | 'deferred' | 'malformed' = 'direct';
   const store: SyncStore = {
-    account: 'A', generation: 1,
+    serverAccountId: '11111111-1111-4111-8111-111111111111', generation: 1,
     recoverInterruptedSends: async () => { for (const [id, state] of states) if (state === 'sending') states.set(id, 'outcome_unknown'); },
     takeNextSyncWork: async () => {
       const item = states.get(a.operationId) === 'queued' || states.get(a.operationId) === 'outcome_unknown' ? a : states.get(a.operationId) === 'acknowledged' && (states.get(b.operationId) === 'queued' || states.get(b.operationId) === 'outcome_unknown') ? b : null;
