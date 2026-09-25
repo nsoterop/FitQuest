@@ -2,7 +2,7 @@ import * as Crypto from 'expo-crypto';
 import { File } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
-import { CommandSchema, ProfileSchema, ResultSchema, SessionSchema, validateSessionTransition, type Command, type Profile, type Session } from '@fitquest-rebuild/contracts';
+import { CommandSchema, OperationOutcomeSchema, ProfileSchema, ProfileSnapshotSchema, ResultSchema, SessionSchema, SessionSnapshotSchema, canonicalCommand, commandTarget, validateSessionTransition, type Command, type OperationOutcome, type Profile, type Session } from '@fitquest-rebuild/contracts';
 import { fixtureAccessBoundary, type AccountAccessBoundary, type FixtureId } from './access';
 
 const schema = `CREATE TABLE owner (environment TEXT NOT NULL, account_id TEXT NOT NULL);
@@ -17,12 +17,23 @@ CREATE TRIGGER commands_immutable_update BEFORE UPDATE ON commands BEGIN SELECT 
 CREATE TRIGGER commands_immutable_delete BEFORE DELETE ON commands BEGIN SELECT RAISE(ABORT,'immutable command'); END;`;
 export const localMigrationV1Sql = schema;
 const draftMigration = 'ALTER TABLE drafts ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0;';
+const syncMigration = `CREATE TABLE sync_delivery (operation_id TEXT PRIMARY KEY REFERENCES commands(operation_id), state TEXT NOT NULL CHECK(state IN ('queued','sending','outcome_unknown','acknowledged','blocked','superseded')), attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, outcome TEXT, replacement_of TEXT, replaced_by TEXT, resolution TEXT);
+CREATE TABLE sync_bases (kind TEXT NOT NULL, id TEXT NOT NULL, revision INTEGER NOT NULL, document TEXT, operation_id TEXT, PRIMARY KEY(kind,id));
+CREATE TABLE sync_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
+INSERT INTO sync_meta(key,value) VALUES('edit_sequence',0);
+INSERT INTO sync_delivery(operation_id,state) SELECT operation_id,'queued' FROM commands;`;
 const environment = 'm1a.synthetic.v1';
+const syntheticAccountId = (account: FixtureId) => account === 'A' ? '11111111-1111-4111-8111-111111111111' : '22222222-2222-4222-8222-222222222222';
 const keyOptions = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
 const nameFor = (id: FixtureId) => `fitquest-m1a-synthetic-${id}.db`;
 const keyFor = (id: FixtureId) => `fitquest.m1a.fixture.${id}.dbkey`;
 type ProjectionRow = { revision: number; document: string };
 type CommandRow = { operation_id: string; content: string };
+type DeliveryRow = { operation_id: string; content: string; depends_on: string | null; state: DeliveryState; attempts: number; next_attempt_at: string | null };
+export type DeliveryState = 'queued' | 'sending' | 'outcome_unknown' | 'acknowledged' | 'blocked' | 'superseded';
+export type SyncWork = { command: Command; state: DeliveryState; attempts: number };
+export type SyncSummary = { pending: number; sending: number; unknown: number; blocked: number; acknowledged: number };
+export type RecoveryReview = { account: FixtureId; generation: number; editSequence: number; kind: 'profile' | 'session'; id: string; local: Profile | Session | null; base: { revision: number; document: Profile | Session | null } | null; server: { revision: number; document: Profile | Session | null }; blockedIds: string[] };
 export type DraftRecord = { raw: string; sequence: number };
 export type FailurePhase = 'after_projection' | 'after_revision' | 'after_command';
 
@@ -38,6 +49,7 @@ export class LocalStore {
   private pending: Promise<unknown> = Promise.resolve();
   private closed = false;
   private failOnce: FailurePhase | null = null;
+  private failSyncAckOnce = false;
   private constructor(private db: SQLite.SQLiteDatabase, private key: string, readonly account: FixtureId, readonly generation: number, private access: AccountAccessBoundary<FixtureId>) {}
 
   static async open(account: FixtureId, generation: number, access: AccountAccessBoundary<FixtureId> = fixtureAccessBoundary): Promise<LocalStore> {
@@ -63,7 +75,7 @@ export class LocalStore {
       await db.execAsync('PRAGMA foreign_keys = ON');
       await db.execAsync('PRAGMA journal_mode = WAL');
       await db.execAsync('PRAGMA synchronous = FULL');
-      const checksums = await Promise.all([schema, draftMigration].map(value => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value)));
+      const checksums = await Promise.all([schema, draftMigration, syncMigration].map(value => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value)));
       await db.withExclusiveTransactionAsync(async tx => {
         // Expo's exclusive transaction opens a second native connection. It needs its own key.
         await tx.execAsync(`PRAGMA key = '${key}'`);
@@ -79,6 +91,11 @@ export class LocalStore {
         if (version?.version === 1) {
           await tx.execAsync(draftMigration);
           await tx.runAsync('INSERT INTO migrations(version,checksum) VALUES(?,?)', 2, checksums[1]);
+        }
+        const afterDraft = await tx.getFirstAsync<{ version: number }>('SELECT MAX(version) AS version FROM migrations');
+        if (afterDraft?.version === 2) {
+          await tx.execAsync(syncMigration);
+          await tx.runAsync('INSERT INTO migrations(version,checksum) VALUES(?,?)', 3, checksums[2]);
         }
         await verifyMetadata(tx, account, checksums);
       });
@@ -97,6 +114,7 @@ export class LocalStore {
     return next;
   }
   injectFailureOnce(phase: FailurePhase) { if (!__DEV__) throw new Error('Unavailable'); this.failOnce = phase; }
+  injectSyncAcknowledgementFailureOnce() { if (!__DEV__) throw new Error('Unavailable'); this.failSyncAckOnce = true; }
   private fail(phase: FailurePhase) { if (this.failOnce === phase) { this.failOnce = null; throw new Error(`Injected local write failure: ${phase}`); } }
   async close() { await this.pending; this.closed = true; await this.db.closeAsync(); }
 
@@ -123,7 +141,13 @@ export class LocalStore {
       const previous = await this.draftRecord(id);
       const next = sequence ?? (previous?.sequence ?? 0) + 1;
       if (!Number.isSafeInteger(next) || next < 0) throw new Error('Invalid draft sequence');
-      await this.db.runAsync('INSERT INTO drafts(id,raw,updated_at,sequence) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET raw=excluded.raw,updated_at=excluded.updated_at,sequence=excluded.sequence WHERE excluded.sequence > drafts.sequence', id, raw, new Date().toISOString(), next);
+      await this.db.withExclusiveTransactionAsync(async tx => {
+        await tx.execAsync(`PRAGMA key = '${this.key}'`);
+        await this.guard();
+        const written = await tx.runAsync('INSERT INTO drafts(id,raw,updated_at,sequence) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET raw=excluded.raw,updated_at=excluded.updated_at,sequence=excluded.sequence WHERE excluded.sequence > drafts.sequence', id, raw, new Date().toISOString(), next);
+        if (written.changes > 0) await tx.runAsync("UPDATE sync_meta SET value=value+1 WHERE key='edit_sequence'");
+        await this.guard();
+      });
       await this.guard();
       const saved = await this.draftRecord(id);
       return saved?.sequence ?? -1;
@@ -131,8 +155,172 @@ export class LocalStore {
   }
   async pendingCommands(): Promise<Command[]> {
     await this.guard();
-    const rows = await this.db.getAllAsync<{ content: string }>("SELECT content FROM commands WHERE state='queued' ORDER BY ordinal");
+    const rows = await this.db.getAllAsync<{ content: string }>("SELECT c.content FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE d.state NOT IN ('acknowledged','superseded') ORDER BY c.rowid");
     return rows.map(row => CommandSchema.parse(JSON.parse(row.content)));
+  }
+
+  async syncSummary(): Promise<SyncSummary> {
+    await this.guard();
+    const rows = await this.db.getAllAsync<{ state: DeliveryState; n: number }>('SELECT state,count(*) AS n FROM sync_delivery GROUP BY state');
+    const count = (state: DeliveryState) => rows.find(row => row.state === state)?.n ?? 0;
+    return { pending: count('queued') + count('sending') + count('outcome_unknown') + count('blocked'), sending: count('sending'), unknown: count('outcome_unknown'), blocked: count('blocked'), acknowledged: count('acknowledged') };
+  }
+
+  /** A process death cannot establish whether a sent request committed. */
+  async recoverInterruptedSends(): Promise<void> {
+    return this.serial(async () => {
+      await this.guard();
+      await this.db.runAsync("UPDATE sync_delivery SET state='outcome_unknown',next_attempt_at=NULL WHERE state='sending'");
+      await this.guard();
+    });
+  }
+
+  async takeNextSyncWork(force = false): Promise<SyncWork | null> {
+    return this.serial(async () => {
+      await this.guard();
+      let selected: SyncWork | null = null;
+      await this.db.withExclusiveTransactionAsync(async tx => {
+        await tx.execAsync(`PRAGMA key = '${this.key}'`);
+        await this.guard();
+        const rows = await tx.getAllAsync<DeliveryRow>(`SELECT c.operation_id,c.content,c.depends_on,d.state,d.attempts,d.next_attempt_at
+          FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id
+          WHERE d.state IN ('queued','outcome_unknown') ORDER BY c.rowid`);
+        for (const row of rows) {
+          if (!force && row.next_attempt_at && row.next_attempt_at > new Date().toISOString()) continue;
+          if (row.depends_on) {
+            const dependency = await tx.getFirstAsync<{ state: DeliveryState }>('SELECT state FROM sync_delivery WHERE operation_id=?', row.depends_on);
+            if (dependency?.state !== 'acknowledged') continue;
+          }
+          const updated = await tx.runAsync("UPDATE sync_delivery SET state='sending',attempts=attempts+1,next_attempt_at=NULL WHERE operation_id=? AND state IN ('queued','outcome_unknown')", row.operation_id);
+          if (updated.changes === 1) selected = { command: CommandSchema.parse(JSON.parse(row.content)), state: row.state, attempts: row.attempts + 1 };
+          break;
+        }
+        await this.guard();
+      });
+      return selected;
+    });
+  }
+
+  async markOutcomeUnknown(operationId: string): Promise<void> {
+    return this.serial(async () => {
+      await this.guard();
+      const row = await this.db.getFirstAsync<{ attempts: number }>("SELECT attempts FROM sync_delivery WHERE operation_id=? AND state='sending'", operationId);
+      if (!row) return;
+      const delay = Math.min(60_000, 2_000 * 2 ** Math.min(row.attempts - 1, 5));
+      await this.db.runAsync("UPDATE sync_delivery SET state='outcome_unknown',next_attempt_at=? WHERE operation_id=? AND state='sending'", new Date(Date.now() + delay).toISOString(), operationId);
+      await this.guard();
+    });
+  }
+
+  async blockProtocolFailure(operationId: string, code: string): Promise<void> {
+    return this.serial(async () => {
+      await this.guard();
+      await this.db.withExclusiveTransactionAsync(async tx => {
+        await tx.execAsync(`PRAGMA key = '${this.key}'`);
+        await this.guard();
+        await tx.runAsync("UPDATE sync_delivery SET state='blocked',resolution=? WHERE operation_id=? AND state='sending'", code, operationId);
+        await tx.runAsync(`WITH RECURSIVE children(operation_id) AS (
+          SELECT operation_id FROM commands WHERE depends_on=?
+          UNION ALL SELECT c.operation_id FROM commands c JOIN children p ON c.depends_on=p.operation_id
+        ) UPDATE sync_delivery SET state='blocked' WHERE operation_id IN (SELECT operation_id FROM children) AND state NOT IN ('acknowledged','superseded')`, operationId);
+        await this.guard();
+      });
+    });
+  }
+
+  async applySyncOutcome(operationId: string, raw: OperationOutcome): Promise<void> {
+    const outcome = OperationOutcomeSchema.parse(raw);
+    return this.serial(async () => {
+      await this.guard();
+      const row = await this.db.getFirstAsync<{ content: string }>('SELECT content FROM commands WHERE operation_id=?', operationId);
+      if (!row) throw new Error('Unknown local operation');
+      const command = CommandSchema.parse(JSON.parse(row.content));
+      const target = commandTarget(command);
+      const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, canonicalCommand(command));
+      if (outcome.accountId !== syntheticAccountId(this.account) || outcome.operationId !== operationId || outcome.kind !== command.kind || outcome.aggregateId !== target.id || outcome.requestHash !== hash) throw new Error('Mismatched sync outcome');
+      if (outcome.state === 'committed' && (outcome.receipt.accountId !== syntheticAccountId(this.account) || outcome.receipt.operationId !== operationId || outcome.receipt.kind !== command.kind || outcome.receipt.aggregateId !== target.id || outcome.receipt.requestHash !== hash || outcome.receipt.revision !== command.expectedRevision + 1)) throw new Error('Mismatched sync receipt');
+      await this.db.withExclusiveTransactionAsync(async tx => {
+        await tx.execAsync(`PRAGMA key = '${this.key}'`);
+        await this.guard();
+        const delivery = await tx.getFirstAsync<{ state: DeliveryState; outcome: string | null }>('SELECT state,outcome FROM sync_delivery WHERE operation_id=?', operationId);
+        if (!delivery || delivery.state === 'superseded') throw new Error('Sync operation superseded');
+        if (delivery.state === 'acknowledged' || delivery.state === 'blocked') {
+          if (delivery.outcome !== JSON.stringify(outcome)) throw new Error('Terminal local outcome mismatch');
+          return;
+        }
+        if (delivery.state !== 'sending' && delivery.state !== 'outcome_unknown') throw new Error('Sync outcome arrived without a send');
+        if (outcome.state === 'committed') {
+          const base = await tx.getFirstAsync<{ revision: number }>('SELECT revision FROM sync_bases WHERE kind=? AND id=?', target.kind, target.id);
+          if (base && base.revision !== command.expectedRevision) throw new Error('Receipt does not follow acknowledged base');
+          if (!base && command.expectedRevision !== 0) throw new Error('Missing acknowledged predecessor');
+          await tx.runAsync('INSERT INTO sync_bases(kind,id,revision,document,operation_id) VALUES(?,?,?,?,?) ON CONFLICT(kind,id) DO UPDATE SET revision=excluded.revision,document=excluded.document,operation_id=excluded.operation_id', target.kind, target.id, outcome.receipt.revision, JSON.stringify(command.payload), operationId);
+          if (this.failSyncAckOnce) { this.failSyncAckOnce = false; throw new Error('Injected local acknowledgement failure'); }
+          await tx.runAsync("UPDATE sync_delivery SET state='acknowledged',outcome=?,next_attempt_at=NULL WHERE operation_id=?", JSON.stringify(outcome), operationId);
+        } else {
+          await tx.runAsync("UPDATE sync_delivery SET state='blocked',outcome=?,next_attempt_at=NULL WHERE operation_id=?", JSON.stringify(outcome), operationId);
+          await tx.runAsync(`WITH RECURSIVE children(operation_id) AS (
+            SELECT operation_id FROM commands WHERE depends_on=?
+            UNION ALL SELECT c.operation_id FROM commands c JOIN children p ON c.depends_on=p.operation_id
+          ) UPDATE sync_delivery SET state='blocked',next_attempt_at=NULL
+          WHERE operation_id IN (SELECT operation_id FROM children) AND state NOT IN ('acknowledged','superseded')`, operationId);
+        }
+        await this.guard();
+      });
+    });
+  }
+
+  async recoveryTargets(): Promise<Array<{ kind: 'profile' | 'session'; id: string }>> {
+    await this.guard();
+    return this.db.getAllAsync<{ kind: 'profile' | 'session'; id: string }>("SELECT DISTINCT c.kind,c.aggregate_id AS id FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE d.state='blocked' ORDER BY c.kind,c.aggregate_id");
+  }
+
+  async prepareRecovery(kind: 'profile' | 'session', id: string, rawServer: { revision: number; document: Profile | Session | null }): Promise<RecoveryReview> {
+    await this.guard();
+    const server = kind === 'profile' ? ProfileSnapshotSchema.parse(rawServer) : SessionSnapshotSchema.parse(rawServer);
+    const localRow = await this.db.getFirstAsync<ProjectionRow>('SELECT revision,document FROM projections WHERE kind=? AND id=?', kind, id);
+    const baseRow = await this.db.getFirstAsync<{ revision: number; document: string | null }>('SELECT revision,document FROM sync_bases WHERE kind=? AND id=?', kind, id);
+    const meta = await this.db.getFirstAsync<{ value: number }>("SELECT value FROM sync_meta WHERE key='edit_sequence'");
+    const blocked = await this.db.getAllAsync<{ operation_id: string }>("SELECT c.operation_id FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE c.kind=? AND c.aggregate_id=? AND d.state='blocked' ORDER BY c.rowid", kind, id);
+    if (!meta || !blocked.length) throw new Error('No blocked local work to review');
+    const parse = (document: string | null) => document === null ? null : kind === 'profile' ? ProfileSchema.parse(JSON.parse(document)) : SessionSchema.parse(JSON.parse(document));
+    return { account: this.account, generation: this.generation, editSequence: meta.value, kind, id, local: parse(localRow?.document ?? null), base: baseRow ? { revision: baseRow.revision, document: parse(baseRow.document) } : null, server, blockedIds: blocked.map(row => row.operation_id) };
+  }
+
+  async resolveRecovery(review: RecoveryReview, choice: 'apply_local' | 'adopt_server', replacementId: string): Promise<void> {
+    return this.serial(async () => {
+      await this.guard();
+      if (review.account !== this.account || review.generation !== this.generation) throw new Error('LOCAL_RESOLUTION_STALE');
+      await this.db.withExclusiveTransactionAsync(async tx => {
+        await tx.execAsync(`PRAGMA key = '${this.key}'`);
+        await this.guard();
+        const meta = await tx.getFirstAsync<{ value: number }>("SELECT value FROM sync_meta WHERE key='edit_sequence'");
+        const blocked = await tx.getAllAsync<{ operation_id: string }>("SELECT c.operation_id FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE c.kind=? AND c.aggregate_id=? AND d.state='blocked' ORDER BY c.rowid", review.kind, review.id);
+        if (meta?.value !== review.editSequence || JSON.stringify(blocked.map(row => row.operation_id)) !== JSON.stringify(review.blockedIds)) throw new Error('LOCAL_RESOLUTION_STALE');
+        const unknown = await tx.getFirstAsync<{ n: number }>("SELECT count(*) AS n FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE c.kind=? AND c.aggregate_id=? AND d.state IN ('sending','outcome_unknown')", review.kind, review.id);
+        if ((unknown?.n ?? 0) > 0) throw new Error('Resolve unknown operation outcome first');
+        const current = await tx.getFirstAsync<ProjectionRow>('SELECT revision,document FROM projections WHERE kind=? AND id=?', review.kind, review.id);
+        if (JSON.stringify(current?.document ? JSON.parse(current.document) : null) !== JSON.stringify(review.local)) throw new Error('LOCAL_RESOLUTION_STALE');
+        if (choice === 'apply_local') {
+          if (!review.local) throw new Error('No local record to apply');
+          if (review.kind === 'session') validateSessionTransition(review.server.document as Session | null, review.local as Session);
+        }
+        await tx.runAsync("UPDATE sync_delivery SET state='superseded',replaced_by=?,resolution=? WHERE operation_id IN (SELECT c.operation_id FROM commands c WHERE c.kind=? AND c.aggregate_id=?) AND state='blocked'", choice === 'apply_local' ? replacementId : null, choice, review.kind, review.id);
+        await tx.runAsync('INSERT INTO sync_bases(kind,id,revision,document,operation_id) VALUES(?,?,?,?,NULL) ON CONFLICT(kind,id) DO UPDATE SET revision=excluded.revision,document=excluded.document,operation_id=NULL', review.kind, review.id, review.server.revision, review.server.document ? JSON.stringify(review.server.document) : null);
+        if (choice === 'apply_local') {
+          await this.write(tx, review.kind, review.id, review.local!, replacementId, current);
+          await tx.runAsync('UPDATE sync_delivery SET replacement_of=? WHERE operation_id=?', review.blockedIds[0], replacementId);
+        } else {
+          if (review.server.document) {
+            const history = await tx.getFirstAsync<{ revision: number | null }>('SELECT MAX(revision) AS revision FROM revisions WHERE kind=? AND id=?', review.kind, review.id);
+            const revision = Math.max(current?.revision ?? 0, history?.revision ?? 0) + 1;
+            await tx.runAsync('INSERT INTO projections(kind,id,revision,document) VALUES(?,?,?,?) ON CONFLICT(kind,id) DO UPDATE SET revision=excluded.revision,document=excluded.document', review.kind, review.id, revision, JSON.stringify(review.server.document));
+            await tx.runAsync('INSERT INTO revisions(kind,id,revision,document,operation_id,captured_at) VALUES(?,?,?,?,?,?)', review.kind, review.id, revision, JSON.stringify(review.server.document), replacementId, new Date().toISOString());
+          } else await tx.runAsync('DELETE FROM projections WHERE kind=? AND id=?', review.kind, review.id);
+          await tx.runAsync("UPDATE sync_meta SET value=value+1 WHERE key='edit_sequence'");
+        }
+        await this.guard();
+      });
+    });
   }
 
   /** Developer-only, synthetic-store native checks. Adds one no-op profile revision. */
@@ -143,7 +331,7 @@ export class LocalStore {
     const cipher = await this.db.getFirstAsync<{ cipher_version: string }>('PRAGMA cipher_version');
     if (!cipher?.cipher_version) throw new Error('SQLCipher absent');
     findings.push(`SQLCipher ${cipher.cipher_version}`);
-    const checksums = await Promise.all([schema, draftMigration].map(value => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value)));
+    const checksums = await Promise.all([schema, draftMigration, syncMigration].map(value => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value)));
     await verifyMetadata(this.db, this.account, checksums);
     findings.push('Owner and migration ledger verified');
     for (const failure of ['owner', 'migration'] as const) {
@@ -190,9 +378,10 @@ export class LocalStore {
     findings.push('Invalid raw draft persisted without a command');
     const reopened = await LocalStore.open(this.account, this.generation, this.access);
     try {
-      if (await reopened.draft(draftId) !== raw || !(await reopened.pendingCommands()).some(c => c.operationId === operation)) throw new Error('Reopen durability failed');
+      const savedCommand = await reopened.db.getFirstAsync<{ operation_id: string }>('SELECT operation_id FROM commands WHERE operation_id=?', [operation]);
+      if (await reopened.draft(draftId) !== raw || savedCommand?.operation_id !== operation) throw new Error('Reopen durability failed');
     } finally { await reopened.close(); }
-    findings.push('Reopen recovered draft and pending command');
+    findings.push('Reopen recovered draft and immutable command');
     for (const mode of ['missing', 'wrong'] as const) {
       const wrong = await SQLite.openDatabaseAsync(nameFor(this.account), { useNewConnection: true });
       try {
@@ -288,10 +477,13 @@ export class LocalStore {
   }
   private async write(tx: SQLite.SQLiteDatabase, kind: 'profile' | 'session', id: string, document: Profile | Session, operationId: string, current: ProjectionRow | null): Promise<void> {
         if (kind === 'session') validateSessionTransition(current ? SessionSchema.parse(JSON.parse(current.document)) : null, document as Session);
-        const revision = (current?.revision ?? 0) + 1;
-        const command = CommandSchema.parse({ contractVersion: 1, operationId, kind: `${kind}.put`, expectedRevision: revision - 1, payload: document });
-        const priorCommand = await tx.getFirstAsync<{ operation_id: string }>('SELECT operation_id FROM commands WHERE kind=? AND aggregate_id=? ORDER BY ordinal DESC LIMIT 1', kind, id);
-        const profileCommand = kind === 'session' ? await tx.getFirstAsync<{ operation_id: string }>("SELECT operation_id FROM commands WHERE kind='profile' ORDER BY ordinal LIMIT 1") : null;
+        const history = await tx.getFirstAsync<{ revision: number | null }>('SELECT MAX(revision) AS revision FROM revisions WHERE kind=? AND id=?', kind, id);
+        const revision = Math.max(current?.revision ?? 0, history?.revision ?? 0) + 1;
+        const base = await tx.getFirstAsync<{ revision: number }>('SELECT revision FROM sync_bases WHERE kind=? AND id=?', kind, id);
+        const outstanding = await tx.getFirstAsync<{ n: number }>("SELECT count(*) AS n FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE c.kind=? AND c.aggregate_id=? AND d.state NOT IN ('acknowledged','superseded')", kind, id);
+        const command = CommandSchema.parse({ contractVersion: 1, operationId, kind: `${kind}.put`, expectedRevision: (base?.revision ?? 0) + (outstanding?.n ?? 0), payload: document });
+        const priorCommand = await tx.getFirstAsync<{ operation_id: string; state: DeliveryState }>("SELECT c.operation_id,d.state FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE c.kind=? AND c.aggregate_id=? AND d.state NOT IN ('acknowledged','superseded') ORDER BY c.rowid DESC LIMIT 1", kind, id);
+        const profileCommand = kind === 'session' && !await tx.getFirstAsync('SELECT 1 FROM sync_bases WHERE kind=? AND id=? AND revision>0 AND document IS NOT NULL', 'profile', 'profile') ? await tx.getFirstAsync<{ operation_id: string; state: DeliveryState }>("SELECT c.operation_id,d.state FROM commands c JOIN sync_delivery d ON d.operation_id=c.operation_id WHERE c.kind='profile' AND d.state NOT IN ('acknowledged','superseded') ORDER BY c.rowid DESC LIMIT 1") : null;
         const dependency = priorCommand?.operation_id ?? profileCommand?.operation_id ?? null;
         const capturedAt = new Date().toISOString();
         await tx.runAsync('INSERT INTO projections(kind,id,revision,document) VALUES(?,?,?,?) ON CONFLICT(kind,id) DO UPDATE SET revision=excluded.revision,document=excluded.document', kind, id, revision, JSON.stringify(document));
@@ -299,6 +491,8 @@ export class LocalStore {
         await tx.runAsync('INSERT INTO revisions(kind,id,revision,document,operation_id,captured_at) VALUES(?,?,?,?,?,?)', kind, id, revision, JSON.stringify(document), operationId, capturedAt);
         this.fail('after_revision');
         await tx.runAsync('INSERT INTO commands(operation_id,kind,aggregate_id,ordinal,depends_on,content,state) VALUES(?,?,?,?,?,?,?)', operationId, kind, id, revision, dependency, JSON.stringify(command), 'queued');
+        await tx.runAsync('INSERT INTO sync_delivery(operation_id,state) VALUES(?,?)', operationId, (priorCommand?.state === 'blocked' || profileCommand?.state === 'blocked') ? 'blocked' : 'queued');
+        await tx.runAsync("UPDATE sync_meta SET value=value+1 WHERE key='edit_sequence'");
         this.fail('after_command');
         await this.guard();
   }

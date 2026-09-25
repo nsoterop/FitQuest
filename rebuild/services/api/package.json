@@ -5,13 +5,20 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:local": "tsx src/local-server.ts",
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run --exclude src/postgres.integration.test.ts",
+    "test:pg": "vitest run src/postgres.integration.test.ts"
   },
   "dependencies": {
     "@fitquest-rebuild/contracts": "0.0.0",
-    "fastify": "5.12.5"
+    "fastify": "5.12.5",
+    "pg": "8.21.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/pg": "8.18.0"
   }
 }

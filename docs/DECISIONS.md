@@ -1,6 +1,6 @@
 # FitQuest — Decisions
 
-Updated: 2026-09-24 · Maintainer: Project HQ
+Updated: 2026-09-25 · Maintainer: Project HQ
 
 Status meanings: **Approved** = owner-approved direction; **Execution choice** = reversible HQ scoping within that direction; **Pending** = not approved or not yet specified. Approval does not mean implemented or verified.
 
@@ -100,3 +100,19 @@ Manual time entry is sufficient for M1a; a live timer and server conflict UI are
 GitHub account verified as `nsoterop`; HQ created [nsoterop/FitQuest](https://github.com/nsoterop/FitQuest), verified private visibility, and pushed the reviewed baseline to `main`. Local and GitHub commit IDs matched; see HANDOFF for evidence. The baseline includes `rebuild/`, curated shared documentation, a current root README, and ignore rules. The prototype is preserved locally but excluded from Git; its previous README is retained as ignored `README.prototype.md`. No prototype code/configuration was migrated or deleted.
 
 Public visibility, Render deployment/connection changes, paid services, remote migrations, secrets, and real health data are outside this authorization. Future implementation still needs a bounded assignment; a Git baseline is not blanket permission for parallel edits or roadmap execution.
+
+## D-015 — Accepted M1a checkpoint and local synchronization increment
+
+**Explicitly approved by the owner, 2026-09-25.** HQ may commit/push the reviewed accepted M1a work to the existing private repository and assign [M1b local API/PostgreSQL synchronization](ENGINEERING_M1B_HANDOFF.md) to Engineering. M1a checkpoint `192dbfb0f32fb26ea27a15a1a48d6370b8eec321` is pushed and remotely verified. Publishing this coordinating handoff/status documentation is included; unreviewed future M1b source publication is not.
+
+M1b permits project-local code/dependencies, guarded migrations on explicitly identified disposable local synthetic databases, loopback-only API/client integration, and focused simulator evidence. It uses an explicit isolated test identity boundary, disabled in normal/production/default Release paths; it is not approval for a production auth bypass. Engineering remains the only implementation writer under `rebuild/`; HQ owns shared docs and checkpoint Git operations. Accepted architecture/recovery mechanics apply; real Apple authentication and device integration remain M1c.
+
+The owner declined the proposed phone-testing detour. No phone signing/install, Apple configuration, Render/hosted change, remote migration, deployment, real private data, global software installation, prototype retirement, or later roadmap milestone is included. Routine in-scope work does not require repeated approval; material scope/tooling expansion does.
+
+Execution update, 2026-09-25: an earlier coordination-doc commit/push was blocked before staging. HQ subsequently accepted M1b after its bounded F1/F2 corrections; 49 baseline tests and 9 PostgreSQL integration tests independently pass, with native/device evidence limits retained in the [review](reviews/M1B_REVIEW.md). The owner has now explicitly approved publication of accepted M1b and updated docs; D-016 supersedes the earlier publication blocker. Engineering is idle and M1c is not dispatched.
+
+## D-016 — Routine private-repository commits and pushes
+
+**Explicitly approved by the owner, 2026-09-25:** commit and push the accepted M1b implementation and updated project documents. Routine commits and pushes for authorized project work to the existing private `nsoterop/FitQuest` repository no longer require repeated owner approval. HQ retains checkpoint/integration ownership unless explicitly delegated; this does not create concurrent source writers or authorize unrelated implementation.
+
+Inspect changes and exact remote/branch before publication; exclude secrets, health records, databases, generated output, and the retained prototype. Preserve unrelated user changes. This approval does not authorize force pushes, destructive history changes, public visibility, new repositories/remotes, deployment, hosted-service changes, remote migrations, or paid provisioning. Tool-required permission gates still apply. Current M1b checkpoint is prepared from `192dbfb`; use Git history and remote verification for its resulting SHA rather than embedding a self-referential commit ID here.

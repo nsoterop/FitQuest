@@ -98,6 +98,46 @@ export const CommandSchema = z.discriminatedUnion('kind', [
 ]);
 export type Command = z.infer<typeof CommandSchema>;
 
+export const CommandReceiptSchema = z.object({
+  accountId: uuid,
+  operationId: uuid, kind: z.enum(['profile.put', 'session.put']), aggregateId: z.string().min(1),
+  revision: z.number().int().min(1), requestHash: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+export type CommandReceipt = z.infer<typeof CommandReceiptSchema>;
+
+export const DomainRejectionSchema = z.object({
+  code: z.enum(['REVISION_CONFLICT', 'PROFILE_REQUIRED', 'INVALID_TRANSITION']),
+  message: z.string().max(200), currentRevision: z.number().int().min(0),
+}).strict();
+export type DomainRejection = z.infer<typeof DomainRejectionSchema>;
+
+const outcomeIdentity = z.object({
+  accountId: uuid,
+  operationId: uuid, kind: z.enum(['profile.put', 'session.put']), aggregateId: z.string().min(1),
+  requestHash: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export const OperationOutcomeSchema = z.discriminatedUnion('state', [
+  outcomeIdentity.extend({ state: z.literal('committed'), receipt: CommandReceiptSchema }).strict(),
+  outcomeIdentity.extend({ state: z.literal('rejected'), error: DomainRejectionSchema }).strict(),
+]);
+export type OperationOutcome = z.infer<typeof OperationOutcomeSchema>;
+
+export const ApiErrorSchema = z.object({ code: z.enum(['UNAUTHORIZED', 'NOT_FOUND', 'BAD_REQUEST', 'OPERATION_ID_REUSED', 'INTERNAL_ERROR']), message: z.string().max(200) }).strict();
+export type ApiError = z.infer<typeof ApiErrorSchema>;
+
+export const ProfileSnapshotSchema = z.object({ revision: z.number().int().min(0), document: ProfileSchema.nullable() }).strict();
+export const SessionSnapshotSchema = z.object({ revision: z.number().int().min(0), document: SessionSchema.nullable() }).strict();
+export const SessionListSchema = z.object({ items: z.array(SessionSnapshotSchema).max(50) }).strict();
+export const IdentityResponseSchema = z.object({ accountId: uuid }).strict();
+export type ProfileSnapshot = z.infer<typeof ProfileSnapshotSchema>;
+export type SessionSnapshot = z.infer<typeof SessionSnapshotSchema>;
+
+/** Parsing fixes object key order on both client and server before hashing. */
+export function canonicalCommand(command: Command): string { return JSON.stringify(CommandSchema.parse(command)); }
+export function commandTarget(command: Command): { kind: 'profile' | 'session'; id: string } {
+  return command.kind === 'profile.put' ? { kind: 'profile', id: 'profile' } : { kind: 'session', id: command.payload.id };
+}
+
 /** Saved results retain their IDs. Removal requires an explicit voided correction. */
 export function validateSessionTransition(previous: Session | null, next: Session): Session {
   const parsed = SessionSchema.parse(next);

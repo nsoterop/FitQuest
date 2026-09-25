@@ -1,4 +1,5 @@
 import type { EditorState } from './editor';
+import type { SyncConnection, SyncView } from './sync';
 
 export type LocalStatus = EditorState | 'Saved on this device' | 'Saved on this device · Waiting to sync' | 'No saved records on this device';
 export type DetailsOrigin = 'home' | 'profile' | 'session';
@@ -19,9 +20,24 @@ export function resultInputActive(form: {
     draftStatus === 'Draft saved on this device' || draftStatus === 'Saving on this device…' || draftStatus === 'Couldn’t save latest changes';
 }
 
-export function recordStatus(hasSavedRecords: boolean, pendingCount: number): LocalStatus {
+export function recordStatus(hasSavedRecords: boolean, pendingCount: number, syncConnection?: SyncConnection): LocalStatus {
   if (!hasSavedRecords) return 'No saved records on this device';
+  if (syncConnection && ['blocked', 'unknown', 'unavailable', 'sign_in_needed'].includes(syncConnection)) return 'Saved on this device';
   return pendingCount > 0 ? 'Saved on this device · Waiting to sync' : 'Saved on this device';
+}
+
+export function syncStatusLabel(view: SyncView): string {
+  switch (view.connection) {
+    case 'disabled': return 'Not enabled for this local test';
+    case 'no_records': return 'No server-confirmed records yet';
+    case 'pending': return `${view.summary.pending} pending`;
+    case 'sending': return `${view.summary.pending} pending · Sending`;
+    case 'confirmed': return 'Confirmed on local API';
+    case 'blocked': return `${view.summary.blocked} blocked · Review required`;
+    case 'unknown': return 'Outcome unknown · Retry same operation';
+    case 'unavailable': return 'Local API unavailable · Will retry';
+    case 'sign_in_needed': return 'Fixture authority needed · Sending paused';
+  }
 }
 
 /** The same presentation drives the header and Details. The input focus survives navigation. */
@@ -32,8 +48,9 @@ export function presentLocalStatus(input: {
   saveAttemptCurrent: boolean;
   hasSavedRecords: boolean;
   pendingCount: number;
+  syncConnection?: SyncConnection;
 }) {
-  const records = recordStatus(input.hasSavedRecords, input.pendingCount);
+  const records = recordStatus(input.hasSavedRecords, input.pendingCount, input.syncConnection);
   const savingOrFailed = input.saveAttemptCurrent &&
     (input.saveStatus === 'Saving on this device…' || input.saveStatus === 'Couldn’t save latest changes')
     ? input.saveStatus : null;

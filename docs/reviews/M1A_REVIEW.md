@@ -4,6 +4,8 @@ Date: 2026-09-24 · Status: **M1a accepted by HQ for local synthetic-data scope*
 
 ## Outcome
 
+Checkpoint update, 2026-09-25: the owner approved checkpointing and M1b dispatch. Accepted M1a source/evidence was pushed as `192dbfb0f32fb26ea27a15a1a48d6370b8eec321`; GitHub private visibility and matching remote commit were verified. HQ freshly reran all 31 tests, typechecks, lint, and builds successfully. The uncommitted-state statements below describe the earlier acceptance review, not current checkpoint status. See [current handoff](../HANDOFF.md) and [M1b assignment](../ENGINEERING_M1B_HANDOFF.md); M1a evidence limits remain unchanged.
+
 **Latest decision: accepted, 2026-09-24.** HQ accepts the bounded M1a local logging slice after review of the corrections and final repeated-Details follow-up. This is not acceptance of full M1, production authentication, synchronization, real private-record use, or release readiness. The historical findings and review rounds below are retained for traceability; this decision supersedes their open/withheld status.
 
 Final Engineering delivery: turn `01a0d3bc-6513-7a51-a4c5-6a0e91520d5e`. HQ inspected `App.tsx`, `status.ts`, `status.test.ts`, the final report, and the empty-B, failed-save/durable-draft, and repeated-session-Details screenshots. HQ independently reran `npm run check`: **31 tests** (API 2, contracts 7, mobile 22), typechecks, lint, and contracts/API builds passed. Node's experimental SQLite warning remains. `git diff --check -- rebuild` passed.

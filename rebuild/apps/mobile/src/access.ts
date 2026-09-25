@@ -7,6 +7,7 @@ export interface AccountAccessBoundary<AccountId extends string = string> {
 }
 type AccessState = { version: 1; optIn: true; active: FixtureId | null; generation: number; revoked: FixtureId[]; expired: FixtureId[] };
 const accessKey = 'fitquest.m1a.fixture.access';
+const syncKey = (id: FixtureId) => `fitquest.m1b.fixture.${id}.local-api-token`;
 const options = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
 
 function parse(value: string | null): AccessState | null {
@@ -38,7 +39,23 @@ export async function optIn(): Promise<AccessState> {
 export async function selectFixture(id: FixtureId): Promise<AccessState> {
   const previous = await readAccess();
   if (!previous?.optIn || previous.revoked.includes(id)) throw new Error('Synthetic identity is locked');
-  return write({ ...previous, active: id, generation: previous.generation + 1 });
+  return write({ ...previous, active: id, generation: previous.generation + 1, expired: previous.expired.filter(value => value !== id) });
+}
+
+/** Explicit synthetic authority; Release cannot read or write it. */
+export async function setLocalSyncToken(id: FixtureId, generation: number, token: string): Promise<void> {
+  if (!__DEV__ || !/^[a-f0-9]{64}$/.test(token)) throw new Error('Invalid local sync fixture authority');
+  await assertAccess(id, generation);
+  await SecureStore.setItemAsync(syncKey(id), token, options);
+  await assertAccess(id, generation);
+}
+export async function readLocalSyncToken(id: FixtureId, generation: number): Promise<string | null> {
+  if (!__DEV__) return null;
+  await assertAccess(id, generation);
+  const token = await SecureStore.getItemAsync(syncKey(id));
+  if (token !== null && !/^[a-f0-9]{64}$/.test(token)) throw new Error('Invalid local sync fixture authority');
+  await assertAccess(id, generation);
+  return token;
 }
 
 export async function lockFixture(revoke = false): Promise<AccessState> {
@@ -60,4 +77,4 @@ export async function assertAccess(id: FixtureId, generation: number): Promise<v
 
 export const fixtureAccessBoundary: AccountAccessBoundary<FixtureId> = { assertLocalAccess: assertAccess };
 
-export function fixtureLabel(): string { return 'Local test identity · Synthetic data only · Sync not connected'; }
+export function fixtureLabel(): string { return 'Local test identity · Synthetic data only'; }

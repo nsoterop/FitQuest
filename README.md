@@ -12,9 +12,9 @@ Implemented under `rebuild/`:
 - Strength and manual-duration logging, corrections, versioned drafts, and durable pending commands.
 - Native SQLCipher storage with separate account-scoped SecureStore keys.
 - Developer-only, explicitly enabled synthetic identities; Release remains locked.
-- Shared TypeScript/Zod contracts and a Fastify health-only API scaffold.
+- Shared TypeScript/Zod contracts, an explicit local-test Fastify/PostgreSQL sync API, and client retry/conflict recovery. The default API entrypoint remains health-only.
 
-**Not implemented:** real sign-in, backend athlete synchronization, AI coaching, nutrition workflows, Apple Health, or deployment. M1a is accepted for local development with synthetic data; verification limits and the uncommitted working-tree state are recorded in the [HQ review](docs/reviews/M1A_REVIEW.md). See [current handoff](docs/HANDOFF.md) and [Engineering evidence](rebuild/docs/M1A_REPORT.md).
+**Not implemented:** real sign-in, hosted athlete synchronization, AI coaching, nutrition workflows, Apple Health, or deployment. M1a and M1b are accepted for local synthetic-data use; the owner has authorized their checkpoint publication to the private repository. See the [M1b review](docs/reviews/M1B_REVIEW.md) and [current handoff](docs/HANDOFF.md).
 
 ## Development
 

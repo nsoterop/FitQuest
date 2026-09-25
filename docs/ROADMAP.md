@@ -1,6 +1,6 @@
 # FitQuest — Roadmap
 
-Updated: 2026-09-24 · Maintainer: Project HQ
+Updated: 2026-09-25 · Maintainer: Project HQ
 
 Statuses describe evidence, not aspiration. The roadmap is not blanket implementation or deployment permission. Maintain one implementation writer per working tree; separately approved read-only work may run alongside a non-overlapping implementation handoff.
 
@@ -8,7 +8,7 @@ Statuses describe evidence, not aspiration. The roadmap is not blanket implement
 
 - Product brief and core stack approved; React Native supersedes Swift.
 - Apple Health explicitly deferred; shared Android path retained.
-- Cross-task documents established. M0 scaffold evidence reviewed and accepted; actual athlete/coaching behavior remains unimplemented.
+- Cross-task documents established. M0, M1a local logging, and M1b local synthetic-data synchronization are accepted. Real authentication and coaching remain unimplemented.
 
 ## M0 — Reproducible local foundation
 
@@ -28,7 +28,7 @@ HQ independently reran typecheck/lint/four tests/contract and API builds success
 
 ## M1 — Durable authenticated mixed-activity logging
 
-**Status: M1a accepted by HQ on 2026-09-24 for local synthetic-data scope; full M1 remains incomplete.** The [F6 correction](ENGINEERING_M1A_STATUS_FIX.md) and repeated-Details follow-up are delivered and closed. HQ independently passed 31 tests, typechecks, lint, and builds, and reran the source-driven navigation reproduction. Engineering's native evidence was reviewed, not independently repeated by HQ. Deterministic native timing races remain unrun; prior Release locking evidence predates the final navigation-only change. See the [acceptance review](reviews/M1A_REVIEW.md), [Architecture recovery addendum](proposals/M1_RECOVERY_ADDENDUM.md), and [Design review](reviews/M1_DESIGN_REVIEW.md). Engineering is idle. M1b is planned, not dispatched.
+**Status: M1a and M1b accepted for local synthetic-data use. Full M1 remains incomplete.** HQ independently passed 49 baseline tests, 9/9 real PostgreSQL integration tests, typechecks, lint, and builds on final M1b source. The original cancellation and post-adoption profile probes now pass; [F1/F2 are closed](reviews/M1B_REVIEW.md). Engineering reports final-source native process-relaunch, conflict adoption, pause/expiry/account checks and Debug/Release builds; HQ did not independently repeat native interaction/builds. Engineering is idle; M1c is not dispatched.
 
 Outcome: a private-account athlete completes required minimal profile setup, starts an unplanned session, records a strength result and a timed activity, resumes after interruption, and synchronizes without duplication.
 
@@ -38,11 +38,11 @@ This is the first reliable data slice, not the finished AI coach. Keep multimoda
 
 ### Implementation increments
 
-- **M1a — Durable local logging: accepted for local synthetic-data scope.** Shared validation, encrypted local persistence, profile/session UI, strength/manual-time logging, recoverable drafts/intents, terminal corrections, and truthful input/record/queue status exist. F1–F6 are closed within the [reviewed scope and evidence limits](reviews/M1A_REVIEW.md). Synthetic developer-only evidence is not real authentication. No sender, hosted services, or private health-data entry.
-- **M1b — Local API/database synchronization: planned, not dispatched.** Separately scoped disposable PostgreSQL/API transaction, retry/conflict, isolation, and client synchronization evidence. Fixtures still cannot close production authentication.
+- **M1a — Durable local logging: accepted for local synthetic-data scope.** Shared validation, encrypted local persistence, profile/session UI, strength/manual-time logging, recoverable drafts/intents, terminal corrections, and truthful input/record/queue status exist. F1–F6 are closed within the [reviewed scope and evidence limits](reviews/M1A_REVIEW.md). Synthetic developer-only evidence is not real authentication. This increment did not include a sender; M1b adds local sync. No hosted services or private health-data entry.
+- **M1b — Local API/database synchronization: accepted for local synthetic-data scope.** Disposable PostgreSQL/API and client synchronization, retry/receipt recovery, owner isolation, and explicit conflict resolution are implemented. [F1/F2 corrections](reviews/M1B_REVIEW.md) and final-source verification are accepted with the stated native/device limits. The owner approved checkpoint publication under D-016. Synthetic identity does not satisfy production authentication.
 - **M1c — Real authentication and device integration: planned, not dispatched.** Verify actual identity/credential lifecycle and authenticated flow on device, with separate approval for Apple configuration, transport, and any hosted changes. Complete all M1 acceptance gates before declaring durable authenticated logging done.
 
-HQ reviews each result before the next assignment. A live timer is outside M1a; manual timed logging already exercises the required modality. The owner-approved private GitHub baseline was pushed and verified on 2026-09-24. It excludes the locally retained prototype, secrets, private data, and generated artifacts. **The final accepted status fixes, evidence, and HQ updates remain uncommitted on top of `d5835ee`; GitHub does not yet contain them.** Review and checkpoint this work before any new worktree. A new commit/push and M1b dispatch need separate owner approval; the roadmap does not grant either.
+HQ reviews each result before the next assignment. Accepted M1a was pushed to the verified private repository as `192dbfb0f32fb26ea27a15a1a48d6370b8eec321` on 2026-09-25. The owner subsequently approved accepted M1b/docs publication and routine future commits/pushes under D-016; retained prototype, secrets, databases, private data, and generated artifacts remain excluded. This does not authorize later implementation milestones or deployment. Phone setup was deferred in favor of this sequence.
 
 ## M2 — Athlete intent, nutrition, and subjective context
 

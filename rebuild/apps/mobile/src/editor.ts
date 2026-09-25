@@ -17,6 +17,7 @@ export class EditorCoordinator {
     return this.stamp();
   }
   current(stamp: EditorStamp): boolean { return this.scope === stamp.scope && this.editor === stamp.editor && this.key === stamp.key && this.sequence === stamp.sequence; }
+  hasActiveInput(key: string): boolean { return this.key === key && this.latest !== null; }
   sameEditor(stamp: EditorStamp): boolean { return this.scope === stamp.scope && this.editor === stamp.editor && this.key === stamp.key; }
   rebase(stamp: EditorStamp, persistedSequence: number) {
     if (!this.sameEditor(stamp) || this.current(stamp) || !this.latest) return;

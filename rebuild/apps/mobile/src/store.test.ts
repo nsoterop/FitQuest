@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import * as SQLite from 'expo-sqlite';
 vi.stubGlobal('__DEV__', true);
 
@@ -30,7 +31,7 @@ vi.mock('expo-sqlite', async () => {
     }
     async closeAsync() { /* Shared in-memory test database retained for reopen assertions. */ }
   }
-  return { defaultDatabaseDirectory: '/synthetic', __seedLegacy: (name: string, sql: string, owner: string, profileRaw: string, commandRaw: string, operation: string) => {
+  return { defaultDatabaseDirectory: '/synthetic', __resetSynthetic: (name: string) => { databases.get(name)?.close(); databases.delete(name); }, __seedLegacy: (name: string, sql: string, owner: string, profileRaw: string, commandRaw: string, operation: string) => {
     const db = new DatabaseSync(':memory:'); db.exec(sql);
     db.prepare('INSERT INTO migrations(version,checksum) VALUES(1,?)').run(createHash('sha256').update(sql).digest('hex'));
     db.prepare('INSERT INTO owner(environment,account_id) VALUES(?,?)').run('m1a.synthetic.v1', owner);
@@ -50,10 +51,15 @@ vi.mock('expo-sqlite', async () => {
 import { LocalStore, localMigrationV1Sql } from './store';
 import { EditorCoordinator } from './editor';
 import { chooseResultIntent, submitResultIntent } from './resultIntent';
-import type { Activity, Profile, Result, Session } from '@fitquest-rebuild/contracts';
+import { canonicalCommand, commandTarget, type Activity, type Command, type OperationOutcome, type Profile, type Result, type Session } from '@fitquest-rebuild/contracts';
 const uuid = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, '0')}`;
 const profile: Profile = { displayName: 'Synthetic', timeZone: 'UTC', units: { load: 'lb', distance: 'mi' } };
 const session: Session = { id: uuid(1), origin: 'unplanned', title: null, status: 'started', startedAt: '2026-09-23T15:00:00.000Z', endedAt: null, timeZone: 'UTC', localDate: '2026-09-23', activities: [], correctionReason: null };
+const outcomeFor = (command: Command, accountId: string, state: 'committed' | 'rejected', currentRevision = 0): OperationOutcome => {
+  const target = commandTarget(command), requestHash = createHash('sha256').update(canonicalCommand(command)).digest('hex');
+  const identity = { accountId, operationId: command.operationId, kind: command.kind, aggregateId: target.id, requestHash };
+  return state === 'committed' ? { ...identity, state, receipt: { ...identity, revision: command.expectedRevision + 1 } } : { ...identity, state, error: { code: 'REVISION_CONFLICT', message: 'Review server change.', currentRevision } };
+};
 
 describe('local repository SQL transactions', () => {
   it('refuses fixture storage in Release even with an injected permissive boundary', async () => {
@@ -219,12 +225,161 @@ describe('local repository SQL transactions', () => {
     expect(await migrated.profile()).toEqual(profile);
     expect((await migrated.pendingCommands()).map(c => c.operationId)).toEqual([operation]);
     expect(await migrated.draftRecord('profile')).toEqual({ raw: '{"nick":"legacy draft"}', sequence: 0 });
-    expect((db.prepare('SELECT version FROM migrations ORDER BY version').all() as Array<{ version: number }>).map(row => row.version)).toEqual([1, 2]);
+    expect((db.prepare('SELECT version FROM migrations ORDER BY version').all() as Array<{ version: number }>).map(row => row.version)).toEqual([1, 2, 3]);
+    expect((db.prepare('SELECT state FROM sync_delivery').all() as Array<{ state: string }>).map(row => row.state)).toEqual(['queued']);
     await migrated.saveDraft('profile', '{"nick":"continued"}', 1);
     await migrated.close();
     const reopened = await LocalStore.open('A', 1);
     expect(await reopened.draft('profile')).toBe('{"nick":"continued"}');
     expect((await reopened.pendingCommands()).map(c => c.operationId)).toEqual([operation]);
+    await reopened.close();
+  });
+  it('holds a dependent session until a durable profile receipt and retries an unknown operation unchanged', async () => {
+    const reset = (SQLite as unknown as { __resetSynthetic: (name: string) => void }).__resetSynthetic;
+    reset('fitquest-m1a-synthetic-B.db'); mocked.secrets.delete('fitquest.m1a.fixture.B.dbkey');
+    const store = await LocalStore.open('B', 1);
+    await store.saveProfile(profile, uuid(400));
+    await store.saveSession({ ...session, id: uuid(401) }, uuid(402));
+    const first = await store.takeNextSyncWork();
+    expect(first?.command.operationId).toBe(uuid(400));
+    expect(await store.takeNextSyncWork()).toBeNull();
+    await store.markOutcomeUnknown(uuid(400));
+    expect(await store.takeNextSyncWork()).toBeNull();
+    const retry = await store.takeNextSyncWork(true);
+    expect(retry?.command).toEqual(first?.command);
+    const bad = outcomeFor(first!.command, '22222222-2222-4222-8222-222222222222', 'committed') as Extract<OperationOutcome, { state: 'committed' }>;
+    await expect(store.applySyncOutcome(uuid(400), { ...bad, receipt: { ...bad.receipt, revision: 2 } })).rejects.toThrow('Mismatched sync receipt');
+    await store.markOutcomeUnknown(uuid(400));
+    expect((await store.takeNextSyncWork(true))?.command).toEqual(first?.command);
+    store.injectSyncAcknowledgementFailureOnce();
+    await expect(store.applySyncOutcome(uuid(400), bad)).rejects.toThrow('Injected local acknowledgement failure');
+    expect((await store.syncSummary()).acknowledged).toBe(0);
+    await store.markOutcomeUnknown(uuid(400));
+    expect((await store.takeNextSyncWork(true))?.command).toEqual(first?.command);
+    await store.applySyncOutcome(uuid(400), bad);
+    const dependent = await store.takeNextSyncWork();
+    expect(dependent?.command.operationId).toBe(uuid(402));
+    await store.applySyncOutcome(uuid(402), outcomeFor(dependent!.command, '22222222-2222-4222-8222-222222222222', 'committed'));
+    expect(await store.syncSummary()).toEqual({ pending: 0, sending: 0, unknown: 0, blocked: 0, acknowledged: 2 });
+    await store.close();
+    const reopened = await LocalStore.open('B', 1);
+    expect(await reopened.takeNextSyncWork()).toBeNull();
+    expect((await reopened.pendingCommands()).length).toBe(0);
+    await reopened.close();
+  });
+  it('blocks a rejected initial profile chain, then explicitly rebuilds profile and session without losing history', async () => {
+    const reset = (SQLite as unknown as { __resetSynthetic: (name: string) => void }).__resetSynthetic;
+    reset('fitquest-m1a-synthetic-B.db'); mocked.secrets.delete('fitquest.m1a.fixture.B.dbkey');
+    const store = await LocalStore.open('B', 1);
+    await store.saveProfile(profile, uuid(410));
+    await store.saveSession({ ...session, id: uuid(411) }, uuid(412));
+    const first = (await store.takeNextSyncWork())!.command;
+    await store.applySyncOutcome(first.operationId, outcomeFor(first, '22222222-2222-4222-8222-222222222222', 'rejected'));
+    expect((await store.syncSummary()).blocked).toBe(2);
+    expect(await store.takeNextSyncWork(true)).toBeNull();
+    await store.saveDraft('profile', '{"nick":"latest unsent correction"}', 1);
+    const profileReview = await store.prepareRecovery('profile', 'profile', { revision: 0, document: null });
+    await store.resolveRecovery(profileReview, 'apply_local', uuid(413));
+    expect(await store.draft('profile')).toBe('{"nick":"latest unsent correction"}');
+    const replacement = (await store.takeNextSyncWork())!.command;
+    expect(replacement.operationId).toBe(uuid(413)); expect(replacement.expectedRevision).toBe(0);
+    await store.applySyncOutcome(replacement.operationId, outcomeFor(replacement, '22222222-2222-4222-8222-222222222222', 'committed'));
+    const sessionReview = await store.prepareRecovery('session', uuid(411), { revision: 0, document: null });
+    await store.resolveRecovery(sessionReview, 'apply_local', uuid(414));
+    const sessionReplacement = (await store.takeNextSyncWork())!.command;
+    expect(sessionReplacement.operationId).toBe(uuid(414)); expect(sessionReplacement.expectedRevision).toBe(0);
+    await store.applySyncOutcome(sessionReplacement.operationId, outcomeFor(sessionReplacement, '22222222-2222-4222-8222-222222222222', 'committed'));
+    expect((await store.syncSummary()).pending).toBe(0);
+    await store.close();
+    const reopened = await LocalStore.open('B', 1);
+    expect((await reopened.sessions()).find(s => s.id === uuid(411))).toEqual({ ...session, id: uuid(411) });
+    expect(await reopened.draft('profile')).toBe('{"nick":"latest unsent correction"}');
+    await reopened.close();
+  });
+  it('preserves newer edits when a rejected A blocks B, and atomically replaces the chain at reviewed server revision', async () => {
+    const reset = (SQLite as unknown as { __resetSynthetic: (name: string) => void }).__resetSynthetic;
+    reset('fitquest-m1a-synthetic-B.db'); mocked.secrets.delete('fitquest.m1a.fixture.B.dbkey');
+    const store = await LocalStore.open('B', 1);
+    for (let n = 0; n < 3; n++) {
+      await store.saveProfile({ ...profile, displayName: `Base ${n + 1}` }, uuid(420 + n));
+      const command = (await store.takeNextSyncWork())!.command;
+      await store.applySyncOutcome(command.operationId, outcomeFor(command, '22222222-2222-4222-8222-222222222222', 'committed'));
+    }
+    await store.saveProfile({ ...profile, displayName: 'A' }, uuid(423));
+    await store.saveProfile({ ...profile, displayName: 'B latest' }, uuid(424));
+    const a = (await store.takeNextSyncWork())!.command;
+    expect(a.expectedRevision).toBe(3);
+    await store.applySyncOutcome(a.operationId, outcomeFor(a, '22222222-2222-4222-8222-222222222222', 'rejected', 4));
+    expect((await store.syncSummary()).blocked).toBe(2);
+    expect(await store.takeNextSyncWork()).toBeNull();
+    const server = { revision: 4, document: { ...profile, displayName: 'Another client' } };
+    const stale = await store.prepareRecovery('profile', 'profile', server);
+    await store.saveDraft('profile', '{"nick":"newer raw"}', 1);
+    await expect(store.resolveRecovery(stale, 'apply_local', uuid(425))).rejects.toThrow('LOCAL_RESOLUTION_STALE');
+    const review = await store.prepareRecovery('profile', 'profile', server);
+    mocked.generation = 2;
+    await expect(store.resolveRecovery(review, 'apply_local', uuid(425))).rejects.toThrow('Account access changed');
+    mocked.generation = 1;
+    store.injectFailureOnce('after_command');
+    await expect(store.resolveRecovery(review, 'apply_local', uuid(425))).rejects.toThrow('Injected local write failure');
+    expect((await store.syncSummary()).blocked).toBe(2);
+    await store.close();
+    const reopened = await LocalStore.open('B', 1);
+    const rereview = await reopened.prepareRecovery('profile', 'profile', server);
+    await reopened.resolveRecovery(rereview, 'apply_local', uuid(425));
+    const replacement = (await reopened.takeNextSyncWork())!.command;
+    expect(replacement.operationId).toBe(uuid(425)); expect(replacement.expectedRevision).toBe(4);
+    expect(replacement.kind === 'profile.put' && replacement.payload.displayName).toBe('B latest');
+    expect(await reopened.draft('profile')).toBe('{"nick":"newer raw"}');
+    await reopened.applySyncOutcome(replacement.operationId, outcomeFor(replacement, '22222222-2222-4222-8222-222222222222', 'rejected', 5));
+    expect((await reopened.syncSummary()).blocked).toBe(1);
+    await reopened.close();
+  });
+  it('adopts reviewed server state explicitly while retaining superseded local revisions and drafts', async () => {
+    const reset = (SQLite as unknown as { __resetSynthetic: (name: string) => void }).__resetSynthetic;
+    reset('fitquest-m1a-synthetic-B.db'); mocked.secrets.delete('fitquest.m1a.fixture.B.dbkey');
+    const store = await LocalStore.open('B', 1);
+    await store.saveProfile({ ...profile, displayName: 'Local intent' }, uuid(440));
+    await store.saveDraft('profile', '{"nick":"unsubmitted raw"}', 1);
+    const item = (await store.takeNextSyncWork())!.command;
+    await store.applySyncOutcome(item.operationId, outcomeFor(item, '22222222-2222-4222-8222-222222222222', 'rejected', 2));
+    const review = await store.prepareRecovery('profile', 'profile', { revision: 2, document: { ...profile, displayName: 'Server choice' } });
+    await store.resolveRecovery(review, 'adopt_server', uuid(441));
+    expect((await store.profile())?.displayName).toBe('Server choice');
+    expect(await store.draft('profile')).toBe('{"nick":"unsubmitted raw"}');
+    expect((await store.syncSummary()).pending).toBe(0);
+    await store.saveProfile({ ...profile, displayName: 'Later local edit' }, uuid(442));
+    expect((await store.takeNextSyncWork())?.command.expectedRevision).toBe(2);
+    await store.close();
+    const reopened = await LocalStore.open('B', 1);
+    expect((await reopened.profile())?.displayName).toBe('Later local edit');
+    expect(await reopened.draft('profile')).toBe('{"nick":"unsubmitted raw"}');
+    await reopened.close();
+  });
+  it('adopts a selected session without deleting its result draft or superseded history', async () => {
+    const reset = (SQLite as unknown as { __resetSynthetic: (name: string) => void }).__resetSynthetic;
+    reset('fitquest-m1a-synthetic-B.db'); mocked.secrets.delete('fitquest.m1a.fixture.B.dbkey');
+    const store = await LocalStore.open('B', 1);
+    await store.saveProfile(profile, uuid(450));
+    const setup = (await store.takeNextSyncWork())!.command;
+    await store.applySyncOutcome(setup.operationId, outcomeFor(setup, '22222222-2222-4222-8222-222222222222', 'committed'));
+    const base = { ...session, id: uuid(451), title: 'Base' };
+    await store.saveSession(base, uuid(452));
+    const first = (await store.takeNextSyncWork())!.command;
+    await store.applySyncOutcome(first.operationId, outcomeFor(first, '22222222-2222-4222-8222-222222222222', 'committed'));
+    await store.saveSession({ ...base, title: 'Local correction' }, uuid(453));
+    await store.saveDraft(`result:${uuid(454)}`, '{"reps":"newer raw"}', 1);
+    const conflicting = (await store.takeNextSyncWork())!.command;
+    await store.applySyncOutcome(conflicting.operationId, outcomeFor(conflicting, '22222222-2222-4222-8222-222222222222', 'rejected', 2));
+    const review = await store.prepareRecovery('session', base.id, { revision: 2, document: { ...base, title: 'Server correction' } });
+    await store.resolveRecovery(review, 'adopt_server', uuid(455));
+    expect((await store.sessions())[0].title).toBe('Server correction');
+    expect(await store.draft(`result:${uuid(454)}`)).toBe('{"reps":"newer raw"}');
+    expect((await store.syncSummary()).pending).toBe(0);
+    await store.close();
+    const reopened = await LocalStore.open('B', 1);
+    expect((await reopened.sessions())[0].title).toBe('Server correction');
+    expect(await reopened.draft(`result:${uuid(454)}`)).toBe('{"reps":"newer raw"}');
     await reopened.close();
   });
 });

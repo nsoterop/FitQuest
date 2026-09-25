@@ -7,6 +7,12 @@
   "scripts": {
     "dev:mobile": "npm run start --workspace @fitquest-rebuild/mobile",
     "dev:api": "npm run dev --workspace @fitquest-rebuild/api",
+    "dev:api:m1b": "npm run build:contracts && FITQUEST_M1B_LOCAL_FIXTURE=1 npm run dev:local --workspace @fitquest-rebuild/api",
+    "m1b:db:setup": "node scripts/m1b-local-db.mjs setup",
+    "m1b:db:start": "node scripts/m1b-local-db.mjs start",
+    "m1b:db:stop": "node scripts/m1b-local-db.mjs stop",
+    "m1b:db:verify": "node scripts/m1b-local-db.mjs verify",
+    "test:pg": "npm run build:contracts && npm run test:pg --workspace @fitquest-rebuild/api",
     "build:contracts": "npm run build --workspace @fitquest-rebuild/contracts",
     "build:api": "npm run build:contracts && npm run build --workspace @fitquest-rebuild/api",
     "typecheck": "npm run build:contracts && npm run typecheck --workspace @fitquest-rebuild/contracts && npm run typecheck --workspace @fitquest-rebuild/api && npm run typecheck --workspace @fitquest-rebuild/mobile",
