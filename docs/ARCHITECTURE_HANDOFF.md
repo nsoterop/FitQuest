@@ -1,6 +1,6 @@
 # FitQuest — Architecture Follow-up: M1 Contracts
 
-Status: Completed on 2026-09-23 in **Architecture** (task previously titled **Create FitQuest architecture plan**). The original assignment is retained below. Read the [source proposal](proposals/M1_ARCHITECTURE_PROPOSAL.md), [initial HQ review](reviews/M1_ARCHITECTURE_REVIEW.md), and subsequent [recovery addendum](proposals/M1_RECOVERY_ADDENDUM.md). The required recovery clarifications are now closed at design level by the [follow-up review](reviews/FOLLOWUP_REVIEW.md); their tests remain unimplemented. No M1 implementation is authorized by this document.
+Status: Historical assignment completed on 2026-09-23 in **Architecture**. The current assignment is the [M1c authentication/device plan](ARCHITECTURE_M1C_HANDOFF.md), dispatched 2026-09-25. The original assignment below reflects its historical scaffold state; do not treat it as today's implementation inventory. Its [proposal](proposals/M1_ARCHITECTURE_PROPOSAL.md) and [recovery addendum](proposals/M1_RECOVERY_ADDENDUM.md) remain the design baseline; M1a/M1b now have accepted implementation evidence. No implementation is authorized by this historical document.
 
 ## Required context and changed decisions
 
