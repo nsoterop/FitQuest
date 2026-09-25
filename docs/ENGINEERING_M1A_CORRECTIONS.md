@@ -1,6 +1,6 @@
 # FitQuest — Engineering M1a Corrections
 
-Status: Explicitly owner-approved, dispatched, and delivered on 2026-09-24 by **Engineering**, task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host. HQ independently reran `npm run check`: all 24 tests, typechecks, lint, and builds passed. The dated [Engineering report](../rebuild/docs/M1A_REPORT.md) identifies native evidence and final simulator checks interrupted by a locked Mac. M1a acceptance remains pending source/evidence review; no follow-on implementation is dispatched. This completed assignment is retained below.
+Status: Explicitly owner-approved, dispatched, and delivered on 2026-09-24 by **Engineering**, task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host. HQ independently passed the 24-test/typecheck/lint/build baseline for this correction delivery. The separately approved [verification follow-up](ENGINEERING_M1A_VERIFICATION.md) and subsequent [F6 status correction](ENGINEERING_M1A_STATUS_FIX.md) are also delivered and reviewed. **M1a is now accepted for local synthetic-data scope**, with a final independent 31-test baseline. The [HQ review](reviews/M1A_REVIEW.md) and dated [Engineering report](../rebuild/docs/M1A_REPORT.md) retain the evidence boundaries. This completed assignment is retained below, not reopened as broad implementation permission.
 
 ## Goal and inputs
 

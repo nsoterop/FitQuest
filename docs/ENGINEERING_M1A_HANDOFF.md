@@ -1,6 +1,6 @@
 # FitQuest — Engineering M1a: Durable Local Logging
 
-Status: Owner-approved and dispatched on 2026-09-23; initial implementation and the subsequent owner-approved [correction assignment](ENGINEERING_M1A_CORRECTIONS.md) are delivered. HQ's post-correction check passes 24 tests, typechecks, lint, and builds. **Acceptance remains pending review and remaining native evidence**, as described in [M1A_REVIEW.md](reviews/M1A_REVIEW.md) and Engineering's dated report. The original assignment below is retained; Engineering is idle and M1b is not dispatched.
+Status: Owner-approved and dispatched on 2026-09-23; initial implementation, [correction assignment](ENGINEERING_M1A_CORRECTIONS.md), [verification follow-up](ENGINEERING_M1A_VERIFICATION.md), and [bounded F6 correction](ENGINEERING_M1A_STATUS_FIX.md) are delivered. **HQ accepted M1a on 2026-09-24 for local synthetic-data scope.** HQ's final independent check passes 31 tests, typechecks, lint, and builds. See [M1A_REVIEW.md](reviews/M1A_REVIEW.md) for acceptance and native verification limits. Engineering is idle; the original assignment below is retained as completed scope. M1b is not dispatched.
 
 ## Outcome and scope
 
