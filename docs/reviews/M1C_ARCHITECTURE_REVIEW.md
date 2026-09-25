@@ -1,0 +1,32 @@
+# FitQuest — M1c Architecture HQ Review
+
+Date: 2026-09-25 · Status: **Design baseline accepted; M1c.1 authorized for bounded local implementation. No authentication implementation accepted yet.**
+
+## Decision and evidence
+
+The owner stated that Architecture is done and any required approvals should count as approved. HQ accepts the [captured proposal](../proposals/M1C_ARCHITECTURE_PROPOSAL.md) as the M1c direction and issues only [M1c.1](../ENGINEERING_M1C1_HANDOFF.md) now. Other increments remain serialized behind their review gates. The proposal contains no code or test evidence. The original completed response was recovered from Architecture's exact local transcript because the task reader returned empty message items; no older proposal was substituted.
+
+HQ read the full response, the prior recovery baseline, and current API/repository/access/transition/sender boundaries. M1b's bearer check currently returns an account ID before the repository's transaction; it does not provide real session-generation/revocation enforcement. Architecture correctly requires authorization revalidation inside every private transaction, preserving account-first locking and provider HTTP outside database locks. Existing fixture-bound account/store/sender code must not silently become real identity authority.
+
+The PostgreSQL and Expo networking skills focused review on short ordered transactions, least-privilege owner enforcement, persisted credential recovery, and cancellation after awaited work. HQ checked current [PostgreSQL locking guidance](https://www.postgresql.org/docs/current/explicit-locking.html), [Expo SecureStore documentation](https://docs.expo.dev/versions/latest/sdk/securestore/), and [SDK 57 AppleAuthentication documentation](https://docs.expo.dev/versions/v57.0.0/sdk/apple-authentication/). Expo documents native persistence/key-access limitations; these require later native evidence, not assertions based on pure tests. Apple token documentation was JavaScript-only in HQ's web reader and its Markdown link failed; Architecture's Apple-specific research remains attributed and must be rechecked during the provider increment. No runtime tests were rerun for this document-only review.
+
+## Accepted direction and binding qualifications
+
+- Preserve immutable command hashes, old outcome formats, migrations, fixture stores/keys, and the accepted ordinary-expiry versus explicit-lock policy. Separate environment, account, session, credential generation, store identity, and local transition epoch. Never promote fixture records into real accounts.
+- Add authentication contracts separately. The proposed real `ActiveIdentity` is not a compatible replacement for the existing strict M1b `IdentityResponseSchema`; preserve that fixture API while the unused new real-auth contracts are introduced. No widening old domain errors or adding auth errors to durable domain outcomes.
+- Accept pending activation and one complete versioned rotating credential bundle: persist/read back before refresh dispatch and before activation; recover exact known operations, use fresh sign-in for irrecoverable issued credentials, never cache/replay bearer responses. Confirm identity after activation before offering authenticated/sync-ready state.
+- Treat missing rotating credentials separately from missing/corrupt local authorization. The former can pause sync while approved local logging remains available; the latter must fail closed. M1c.1 models these decisions through injected ports only; it does not implement the dual-latch native/database mechanism or prove it durable.
+- Every async result is bound to its environment/account/session/epoch/generation. A stale callback must not activate, install, write over a newer credential bundle, unlock another account, or dispatch new work after closure. Port contracts must address delayed storage writes as well as delayed network responses; checking only after a write cannot undo an overwrite.
+- Accept the proposal's timing/rate-limit numbers as configurable initial engineering defaults, not external platform guarantees or measured production capacity. M1c.1 needs only named timing defaults and injected time; server rate limiting, token issuance, cleanup and retention enforcement belong to later increments. A server-supplied deadline is authoritative; client time can never extend it.
+- Client tests of fake refresh/revocation outcomes establish coordinator reactions only. They do not prove server replay detection, transactional session isolation, provider verification, or real credential storage. Those retain PostgreSQL/provider/native/device gates.
+- The proposed device-only storage, install marker, dual-latch locking and HTTPS path remain explicit integration requirements. No mandatory biometrics, data reset, fixture import, Apple asset changes, LAN/tunnel exposure or hosted configuration occurs in M1c.1. Exact external targets and prerequisites remain unresolved; broad approval is not permission to guess them.
+
+## First increment acceptance
+
+M1c.1 must provide strict additive wire/recovery schemas and a deterministic coordinator, unused by the running app. Fake-clock, storage/readback, transport, identity and local-authorization ports must support restart reconstruction and controlled async completion. Required tests include normal activation, cancellation, malformed/mismatched identities, exchange-response loss, readback failure, activation retry/expiry, single-flight refresh, exact-operation recovery, same/different operation outcomes, stale responses/writes, expiry versus revocation, and failed durable logout. Tests must assert absence of prohibited side effects, not just final labels.
+
+Run the full `npm run check` baseline and document exact tests/limits. Existing 49 tests and their behavior must survive. No new dependencies, API routes, migrations, network/provider calls, native configuration, app wiring, or real credentials are needed. Engineering reports and stops for HQ review; no automatic M1c.2 progression.
+
+## Later gates
+
+M1c.2 separates account/store boundaries; M1c.3 adds transactional sessions; M1c.4 implements provider verification/API wiring; M1c.5 wires native credentials/UI; M1c.6 verifies explicitly configured Apple/device integration. Later hosted work has distinct target, security and operational evidence. Session logout is not consent withdrawal or account deletion; settle deletion/retention behavior before that workflow ships. None of these later features is accepted by this review.

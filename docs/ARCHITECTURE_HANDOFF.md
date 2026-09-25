@@ -1,6 +1,6 @@
 # FitQuest — Architecture Follow-up: M1 Contracts
 
-Status: Historical assignment completed on 2026-09-23 in **Architecture**. The current assignment is the [M1c authentication/device plan](ARCHITECTURE_M1C_HANDOFF.md), dispatched 2026-09-25. The original assignment below reflects its historical scaffold state; do not treat it as today's implementation inventory. Its [proposal](proposals/M1_ARCHITECTURE_PROPOSAL.md) and [recovery addendum](proposals/M1_RECOVERY_ADDENDUM.md) remain the design baseline; M1a/M1b now have accepted implementation evidence. No implementation is authorized by this historical document.
+Status: Historical assignment completed on 2026-09-23 in **Architecture**. The subsequent [M1c planning assignment](ARCHITECTURE_M1C_HANDOFF.md) is also complete and [reviewed](reviews/M1C_ARCHITECTURE_REVIEW.md); current implementation is [Engineering M1c.1](ENGINEERING_M1C1_HANDOFF.md). The original assignment below reflects its historical scaffold state, not today's implementation inventory. Its [proposal](proposals/M1_ARCHITECTURE_PROPOSAL.md) and [recovery addendum](proposals/M1_RECOVERY_ADDENDUM.md) remain the prior design baseline. No implementation is authorized by this historical document.
 
 ## Required context and changed decisions
 

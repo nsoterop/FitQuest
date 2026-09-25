@@ -2,7 +2,7 @@
 
 Date: 2026-09-25 · Owner: Project HQ
 
-Status: Owner-authorized M1c planning dispatched on 2026-09-25 to **Architecture**, task `01a0d09d-2bf8-79e0-8a59-6b4043aa18f5`, local host. This is a read-only proposal assignment, not implementation or Apple/hosted configuration authority.
+Status: Completed by Architecture on 2026-09-25; [proposal captured](proposals/M1C_ARCHITECTURE_PROPOSAL.md) and [accepted by HQ with scoped qualifications](reviews/M1C_ARCHITECTURE_REVIEW.md). The owner approved proceeding, and [Engineering M1c.1](ENGINEERING_M1C1_HANDOFF.md) is dispatched. This historical planning assignment does not authorize Architecture to edit source or configure external services.
 
 ## Outcome and baseline
 

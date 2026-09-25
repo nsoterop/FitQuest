@@ -6,7 +6,7 @@ Updated: 2026-09-25 · Maintainer: Project HQ
 
 **M1a and M1b are accepted by HQ for local development with synthetic data.** M1a F1–F6 and M1b F1/F2 are closed within their [local logging](reviews/M1A_REVIEW.md) and [local synchronization](reviews/M1B_REVIEW.md) evidence limits. This does not accept full M1, production authentication, hosted synchronization, real private-record use, or release readiness.
 
-The owner approved M1a/M1b and their checkpoints, then authorized proceeding to M1c planning on 2026-09-25. M1b checkpoint `490f923` is pushed and verified. [Architecture's read-only M1c assignment](ARCHITECTURE_M1C_HANDOFF.md) is dispatched; Engineering and Design remain idle. No M1c implementation, Render/deployment, remote migration, Apple configuration, or phone setup is included.
+The owner approved proceeding after Architecture on 2026-09-25. HQ [accepted the M1c design baseline with qualifications](reviews/M1C_ARCHITECTURE_REVIEW.md) and dispatched [Engineering M1c.1](ENGINEERING_M1C1_HANDOFF.md): additive auth contracts and a pure recovery coordinator with injected test ports. No app/API runtime change, real sign-in, migrations, Apple/device setup or hosted changes in this increment. M1b checkpoint `490f923` remains the latest accepted implementation.
 
 ## Current implementation and evidence
 
@@ -33,8 +33,8 @@ Developer identities require explicit opt-in, use synthetic data and isolated ke
 
 One implementation writer per working tree. HQ owns shared `docs/` and the root README; Engineering owns approved implementation under `rebuild/`. Architecture and Design are not concurrent source writers. A roadmap or completed handoff is not permission to start another increment.
 
-- **Engineering** — task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host, idle. [M1b](ENGINEERING_M1B_HANDOFF.md) and [F1/F2 corrections](reviews/M1B_REVIEW.md) are complete and accepted. No further implementation, M1c, or Git writes assigned. Engineering owns `rebuild/`; HQ owns shared docs.
-- **Architecture** — task `01a0d09d-2bf8-79e0-8a59-6b4043aa18f5`, local host. [M1c read-only planning](ARCHITECTURE_M1C_HANDOFF.md) is dispatched: real identity/session recovery contracts, device prerequisites, security/tests, and a bounded first Engineering increment. No source edits or external configuration. Existing [M1 proposal](proposals/M1_ARCHITECTURE_PROPOSAL.md) and [recovery addendum](proposals/M1_RECOVERY_ADDENDUM.md) remain the baseline; amendments must be explicit.
+- **Engineering** — task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host. [M1c.1](ENGINEERING_M1C1_HANDOFF.md) is dispatched, turn `01a0d954-dfdb-7d31-831d-16f88c789219`. Sole scoped implementation writer under `rebuild/`; pure contracts/coordinator/tests only. No runtime wiring, later increments, external changes or Git writes. HQ owns shared docs and integration.
+- **Architecture** — task `01a0d09d-2bf8-79e0-8a59-6b4043aa18f5`, local host. M1c proposal completed in turn `01a0d942-c8a8-73a3-8ba4-26e64ee6cb05`, [captured](proposals/M1C_ARCHITECTURE_PROPOSAL.md) and [reviewed](reviews/M1C_ARCHITECTURE_REVIEW.md). A message-retrieval follow-up was superseded when HQ recovered the full original response from the exact local transcript; no further planning or source assignment. Prior recovery baseline still applies.
 - **Design** — task `01a0d101-4c19-7b63-8d49-5fa0e5f70129`, no active implementation assignment. Previously titled **Design M1 sign-in and profile**. The [initial proposal](proposals/M1_DESIGN_PROPOSAL.md) and [HQ review](reviews/M1_DESIGN_REVIEW.md) retain the owner-approved direction; the task title was refreshed from the app listing on 2026-09-25.
 
 ## Completed foundations
@@ -49,8 +49,8 @@ One implementation writer per working tree. HQ owns shared `docs/` and the root 
 ## Approved current scope and later gates
 
 1. **Completed:** reviewed and pushed M1a checkpoint `192dbfb`. Fresh `npm run check` passed 31 tests, typechecks, lint, and builds; diff checks passed; 124 relative Markdown links in the checkpoint resolved. All 26 files matched the explicit allowlist; basic secret/conflict checks found no matches and all 13 new screenshots were inspected as synthetic-only evidence. These are bounded checks, not a comprehensive security audit.
-2. **Completed:** [M1b local synchronization and F1/F2 corrections](reviews/M1B_REVIEW.md), accepted and checkpointed as `490f923`, with 49 baseline plus 9 PostgreSQL tests independently passing and reported final-source native evidence. Engineering is idle; routine reviewed commits/pushes are authorized under D-016.
-3. **Current authorized work:** [M1c read-only Architecture planning](ARCHITECTURE_M1C_HANDOFF.md), dispatched after the owner's instruction to move on. HQ reviews the returned identity/configuration plan before assigning implementation. Apple configuration, hosted transport/services, remote migrations, and deployment retain separate approval gates. Full M1 remains incomplete.
+2. **Completed:** [M1b local synchronization and F1/F2 corrections](reviews/M1B_REVIEW.md), checkpoint `490f923`, with 49 baseline plus 9 PostgreSQL tests independently passing and reported final-source native evidence. Routine reviewed commits/pushes are authorized under D-016.
+3. **Current authorized work:** [Engineering M1c.1](ENGINEERING_M1C1_HANDOFF.md) after owner-approved progression and HQ design review. Produce additive auth schemas and a pure recovery coordinator, run the full automated baseline, report and stop for review. Later M1c.2–M1c.6 are not dispatched. No external targets/configuration or phone setup is authorized by this bounded local handoff.
 
 Natural-language multi-goals, nutrition/recovery context, and the adaptive-coach loop remain the subsequent M2/M3 priorities in [ROADMAP.md](ROADMAP.md). This reliability foundation is not a change to the AI-first, mixed-modality product vision.
 
