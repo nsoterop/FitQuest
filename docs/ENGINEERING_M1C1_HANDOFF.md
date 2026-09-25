@@ -2,7 +2,7 @@
 
 Date: 2026-09-25 · Owner: Project HQ
 
-Status: Owner-approved bounded implementation dispatched on 2026-09-25 to **Engineering**, task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host; turn `01a0d954-dfdb-7d31-831d-16f88c789219`. Only this increment is authorized; stop for HQ review after delivery.
+Status: Owner-approved first implementation delivered; **HQ acceptance withheld for [F1–F4](reviews/M1C1_REVIEW.md)**. Bounded corrections dispatched on 2026-09-25 to **Engineering**, task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host; correction turn `01a0d968-05e0-70f3-b105-2a8ee30e6c8f`. Original delivery turn `01a0d954-dfdb-7d31-831d-16f88c789219`. No M1c.2 or wider scope; stop for HQ review.
 
 ## Outcome
 
