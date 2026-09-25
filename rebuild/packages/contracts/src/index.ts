@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export * from './auth';
 
 /** Public liveness response. It does not imply account, database, or coaching readiness. */
 export const HealthResponseSchema = z.object({

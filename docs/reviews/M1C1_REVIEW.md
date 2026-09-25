@@ -1,6 +1,20 @@
 # FitQuest — M1c.1 HQ Review
 
-Date: 2026-09-25 · Status: **F1–F4 closed by independent probes; acceptance withheld for F5 credential-corruption recovery.**
+Date: 2026-09-25 · Status: **M1c.1 accepted for additive contracts and pure recovery-model scope; F1–F5 closed.**
+
+## Latest decision — accepted bounded model
+
+HQ accepts the final correction delivered in Engineering turn `01a0d970-ca21-7d43-890a-c780ade75f9d`. Engineering is idle. This supersedes withheld decisions below. The accepted scope is strict additive authentication contracts and the unused, injected-port credential-recovery coordinator; it is not real sign-in, native credential persistence, server-session enforcement, or full M1c acceptance.
+
+HQ independently reran `npm run check`: **88 tests** (API 2, contracts 12, mobile 74), typechecks, lint and contract/API builds passed. All 49 pre-M1c.1 tests remain. Node's existing experimental SQLite warning remains. Source scope is six implementation/report files, including only one additive export in the existing contracts index; no app/API/native/database runtime, dependency or migration change.
+
+Fresh actual-class probes on final source independently closed F1–F5: logout/restart/fresh sign-in succeeds; access expiry renews with valid refresh; already-active acknowledgement after the pending deadline succeeds while genuine pending expiry remains unready; wrong local environment with missing credentials locks; corrupt rotating credentials recover through fresh same-account verification using trusted independent owner/store/install evidence. F5 probes deliberately supplied wrong account/session fields inside the malformed bundle: these did not become authority. A foreign verified identity preserved the damaged record and valid local work without becoming sync-ready; absent independent ownership stayed locked/recovery-required and preserved the record.
+
+HQ also reviewed the deterministic delayed-write, epoch/CAS conflict, failed readback, cleanup and redacted-status regressions. These are fake-port and actual-class model tests only. The real adapters must implement atomic/serialized fenced writes and independently verified owner context; a callback contract is not proof SecureStore/SQLCipher can meet it. No PostgreSQL/native/Apple/device checks were rerun because those runtime paths are unchanged. Runtime authentication remains locked.
+
+The accepted checkpoint includes the six reviewed `rebuild/` files and updated HQ status documents under standing Git approval. Use Git history/status and remote verification for the resulting SHA. M1c.2 account/store boundary separation is the next recommended scoped increment, not dispatched by this acceptance. No provider credentials, Apple/hosted setup, network exposure or deployment is included.
+
+## Historical correction review — F5 now closed above
 
 ## Correction review — F1–F4 closed, F5 open
 

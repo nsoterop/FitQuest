@@ -28,7 +28,7 @@ HQ independently reran typecheck/lint/four tests/contract and API builds success
 
 ## M1 — Durable authenticated mixed-activity logging
 
-**Status: M1a/M1b accepted; M1c.1 acceptance withheld for F5. Full M1 remains incomplete.** HQ independently passed 83 baseline tests/typechecks/lint/builds and closed F1–F4 through actual-class probes. A further [corrupt-credential recovery gap](reviews/M1C1_REVIEW.md) is dispatched for correction. App/API runtime remains unchanged.
+**Status: M1a/M1b and M1c.1 accepted within their bounded scopes. Full M1 remains incomplete.** HQ independently passed 88 baseline tests/typechecks/lint/builds and closed [M1c.1 F1–F5](reviews/M1C1_REVIEW.md). M1c.1 is an additive contract/pure-model increment, not runtime authentication. Engineering is idle.
 
 Outcome: a private-account athlete completes required minimal profile setup, starts an unplanned session, records a strength result and a timed activity, resumes after interruption, and synchronizes without duplication.
 
@@ -40,7 +40,7 @@ This is the first reliable data slice, not the finished AI coach. Keep multimoda
 
 - **M1a — Durable local logging: accepted for local synthetic-data scope.** Shared validation, encrypted local persistence, profile/session UI, strength/manual-time logging, recoverable drafts/intents, terminal corrections, and truthful input/record/queue status exist. F1–F6 are closed within the [reviewed scope and evidence limits](reviews/M1A_REVIEW.md). Synthetic developer-only evidence is not real authentication. This increment did not include a sender; M1b adds local sync. No hosted services or private health-data entry.
 - **M1b — Local API/database synchronization: accepted for local synthetic-data scope.** Disposable PostgreSQL/API and client synchronization, retry/receipt recovery, owner isolation, and explicit conflict resolution are implemented. [F1/F2 corrections](reviews/M1B_REVIEW.md) and final-source verification are accepted with the stated native/device limits. The owner approved checkpoint publication under D-016. Synthetic identity does not satisfy production authentication.
-- **M1c — Real authentication and device integration: design accepted; M1c.1 F5 correction dispatched.** The pure contracts/coordinator pass 83 baseline tests; F1–F4 are closed but [F5](reviews/M1C1_REVIEW.md) blocks acceptance. The [existing handoff](ENGINEERING_M1C1_HANDOFF.md) governs; no runtime/external expansion. M1c.2–M1c.6 remain later gates, not assigned.
+- **M1c — Real authentication and device integration: M1c.1 contracts/recovery model accepted.** [F1–F5 are closed](reviews/M1C1_REVIEW.md) with 88 independently passing tests and bounded fake-port evidence. Runtime remains unchanged. M1c.2 account/store boundary separation is next proposed; M1c.2–M1c.6 are not dispatched, and native/server/provider/device evidence remains outstanding.
 
 HQ reviews each result before the next assignment. Accepted M1a was pushed to the verified private repository as `192dbfb0f32fb26ea27a15a1a48d6370b8eec321` on 2026-09-25. The owner subsequently approved accepted M1b/docs publication and routine future commits/pushes under D-016; retained prototype, secrets, databases, private data, and generated artifacts remain excluded. This does not authorize later implementation milestones or deployment. Phone setup was deferred in favor of this sequence.
 

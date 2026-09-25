@@ -14,7 +14,7 @@ Implemented under `rebuild/`:
 - Developer-only, explicitly enabled synthetic identities; Release remains locked.
 - Shared TypeScript/Zod contracts, an explicit local-test Fastify/PostgreSQL sync API, and client retry/conflict recovery. The default API entrypoint remains health-only.
 
-**Not implemented:** real sign-in, hosted athlete synchronization, AI coaching, nutrition workflows, Apple Health, or deployment. M1a and M1b are accepted for local synthetic-data use; the owner has authorized their checkpoint publication to the private repository. See the [M1b review](docs/reviews/M1B_REVIEW.md) and [current handoff](docs/HANDOFF.md).
+**Not implemented:** real sign-in, hosted athlete synchronization, AI coaching, nutrition workflows, Apple Health, or deployment. M1a/M1b are accepted for local synthetic-data use. M1c.1 adds accepted authentication contracts and a tested recovery model, not runtime sign-in or native credential wiring. See [M1c.1 acceptance](docs/reviews/M1C1_REVIEW.md) and [current handoff](docs/HANDOFF.md).
 
 ## Development
 

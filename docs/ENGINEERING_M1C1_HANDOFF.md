@@ -2,7 +2,7 @@
 
 Date: 2026-09-25 · Owner: Project HQ
 
-Status: **F1–F4 independently verified closed; acceptance withheld for [F5](reviews/M1C1_REVIEW.md)**. The bounded corrupt-credential recovery correction is dispatched on 2026-09-25 to **Engineering**, task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host; turn `01a0d970-ca21-7d43-890a-c780ade75f9d`. Same M1c.1 scope; no M1c.2 or wider work. Stop for HQ review.
+Status: **Completed and accepted by HQ on 2026-09-25 for pure-model scope; [F1–F5 closed](reviews/M1C1_REVIEW.md).** Engineering task `01a0d053-66ed-79a0-a0bb-5b366646e723` is idle after final turn `01a0d970-ca21-7d43-890a-c780ade75f9d`. This retained assignment grants no M1c.2, runtime wiring or external authority.
 
 ## Outcome
 
