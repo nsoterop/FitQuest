@@ -6,7 +6,7 @@ Updated: 2026-09-25 · Maintainer: Project HQ
 
 **M1a and M1b are accepted by HQ for local development with synthetic data.** M1a F1–F6 and M1b F1/F2 are closed within their [local logging](reviews/M1A_REVIEW.md) and [local synchronization](reviews/M1B_REVIEW.md) evidence limits. This does not accept full M1, production authentication, hosted synchronization, real private-record use, or release readiness.
 
-The owner approved proceeding after Architecture on 2026-09-25. HQ accepted the M1c design and dispatched M1c.1. Engineering delivered the additive contracts/pure coordinator; HQ independently passed 77 tests/typecheck/lint/builds but reproduced four recovery/binding defects. **M1c.1 acceptance is withheld** and [F1–F4 corrections](reviews/M1C1_REVIEW.md) are dispatched within the existing scope. App/API runtime is unchanged; M1b checkpoint `490f923` remains the latest accepted implementation.
+The owner approved proceeding after Architecture on 2026-09-25. M1c.1's first corrections now independently pass 83 tests/typechecks/lint/builds and all F1–F4 reproductions. **Acceptance is still withheld for [F5 corrupt-credential reauthentication](reviews/M1C1_REVIEW.md)**, dispatched within the existing pure-model scope. Runtime remains unchanged; M1b checkpoint `490f923` is the latest accepted implementation.
 
 ## Current implementation and evidence
 
@@ -33,7 +33,7 @@ Developer identities require explicit opt-in, use synthetic data and isolated ke
 
 One implementation writer per working tree. HQ owns shared `docs/` and the root README; Engineering owns approved implementation under `rebuild/`. Architecture and Design are not concurrent source writers. A roadmap or completed handoff is not permission to start another increment.
 
-- **Engineering** — task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host. [M1c.1 F1–F4 corrections](reviews/M1C1_REVIEW.md) dispatched in turn `01a0d968-05e0-70f3-b105-2a8ee30e6c8f`; first delivery remains local/uncommitted and unaccepted. Sole writer under `rebuild/`; no M1c.2, runtime wiring, external changes or Git writes. HQ owns docs/integration.
+- **Engineering** — task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host. [M1c.1 F5 correction](reviews/M1C1_REVIEW.md) dispatched in turn `01a0d970-ca21-7d43-890a-c780ade75f9d`; F1–F4 closed. Implementation remains local/uncommitted and unaccepted. Sole writer under `rebuild/`; no M1c.2, runtime/external changes or Git writes. HQ owns docs/integration.
 - **Architecture** — task `01a0d09d-2bf8-79e0-8a59-6b4043aa18f5`, local host. M1c proposal completed in turn `01a0d942-c8a8-73a3-8ba4-26e64ee6cb05`, [captured](proposals/M1C_ARCHITECTURE_PROPOSAL.md) and [reviewed](reviews/M1C_ARCHITECTURE_REVIEW.md). A message-retrieval follow-up was superseded when HQ recovered the full original response from the exact local transcript; no further planning or source assignment. Prior recovery baseline still applies.
 - **Design** — task `01a0d101-4c19-7b63-8d49-5fa0e5f70129`, no active implementation assignment. Previously titled **Design M1 sign-in and profile**. The [initial proposal](proposals/M1_DESIGN_PROPOSAL.md) and [HQ review](reviews/M1_DESIGN_REVIEW.md) retain the owner-approved direction; the task title was refreshed from the app listing on 2026-09-25.
 
@@ -50,7 +50,7 @@ One implementation writer per working tree. HQ owns shared `docs/` and the root 
 
 1. **Completed:** reviewed and pushed M1a checkpoint `192dbfb`. Fresh `npm run check` passed 31 tests, typechecks, lint, and builds; diff checks passed; 124 relative Markdown links in the checkpoint resolved. All 26 files matched the explicit allowlist; basic secret/conflict checks found no matches and all 13 new screenshots were inspected as synthetic-only evidence. These are bounded checks, not a comprehensive security audit.
 2. **Completed:** [M1b local synchronization and F1/F2 corrections](reviews/M1B_REVIEW.md), checkpoint `490f923`, with 49 baseline plus 9 PostgreSQL tests independently passing and reported final-source native evidence. Routine reviewed commits/pushes are authorized under D-016.
-3. **Current authorized work:** [M1c.1 recovery corrections](reviews/M1C1_REVIEW.md): fresh sign-in after logout, refreshable access expiry, already-active activation recovery, and independent local-authorization validation. HQ independently passed the 77-test baseline and reproduced each gap using the actual pure coordinator/test ports. Engineering must fix/regress, update its report, rerun checks and stop. No native/PostgreSQL/provider evidence is claimed; those runtime paths are unchanged. No M1c.2 progression.
+3. **Current authorized work:** [M1c.1 F5](reviews/M1C1_REVIEW.md): recover synchronization through fresh same-account verification when only rotating credentials are corrupt, preserving independently valid local authorization/data and fenced writes. HQ independently passed 83 tests and closed F1–F4. Engineering must fix/regress F5, update its report, rerun checks and stop. No M1c.2, native/PostgreSQL/provider evidence or assignment.
 
 Natural-language multi-goals, nutrition/recovery context, and the adaptive-coach loop remain the subsequent M2/M3 priorities in [ROADMAP.md](ROADMAP.md). This reliability foundation is not a change to the AI-first, mixed-modality product vision.
 

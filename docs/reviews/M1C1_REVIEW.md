@@ -1,6 +1,29 @@
 # FitQuest — M1c.1 HQ Review
 
-Date: 2026-09-25 · Status: **Acceptance withheld; F1–F4 require bounded corrections within M1c.1.**
+Date: 2026-09-25 · Status: **F1–F4 closed by independent probes; acceptance withheld for F5 credential-corruption recovery.**
+
+## Correction review — F1–F4 closed, F5 open
+
+Engineering delivered its first correction in turn `01a0d968-05e0-70f3-b105-2a8ee30e6c8f`. HQ read the changed coordinator/regressions/report and independently reran `npm run check`: **83 tests** (API 2, contracts 12, mobile 69), typechecks, lint and builds passed. Runtime app/API/native/database paths remain unchanged. The actual-class in-memory reproductions now show:
+
+- F1: logout/restart/fresh same-account sign-in becomes ready; exchange count advances to two without unlocking from retained credentials alone.
+- F2: expired access first yields local-only/ACCESS_EXPIRED, then one refresh with fresh future deadlines becomes ready.
+- F3: after the pending deadline but before access expiry, server-confirmed already-active becomes ready; server-expired stays unready.
+- F4: mismatched independent environment with missing rotating credentials produces an integrity lock and no local authorization.
+
+These findings are closed in the pure-model scope. A further continuation of the valid-local/corrupt-credentials test exposed F5 below. All implementation remains unaccepted/local/uncommitted; the historical first review is retained after F5.
+
+## F5 — Corrupt rotating credentials permanently block the required fresh sign-in
+
+**P1; blocks acceptance.** Source: `recover()` sets `retainedCorrupt` for any present record failing `PersistedCredentialsSchema`; `exchange()` immediately returns locked/AUTH_INVALID when that flag is set.
+
+Reproduction using the actual coordinator/test ports: establish valid authorization and stable credentials; corrupt only the rotating bundle's refresh token; supply matching trusted account/store/install context; create a coordinator and recover. Result is correctly local-only/authorized with AUTH_REAUTH_REQUIRED. Then submit a fresh exchange. It returns `phase: locked`, `localAccess: authorized`, AUTH_INVALID, with no new exchange call (count remains one). Repeating from a new coordinator cannot repair the same durable record. The status also contradicts itself: locked phase with authorized local access.
+
+The accepted policy requires fresh verification rather than reconstructing malformed credentials; it does not require abandoning a correctly owned store when rotating credentials alone are damaged. Required: a bounded reauthentication path using independently validated owner/store context and the retained storage revision. Treat every field in the corrupt bundle as untrusted; never reuse its tokens, derive owner authority from it, or silently reset/delete data. Persist a complete fresh bundle only after verified same-account identity and fenced CAS; preserve local authorization/pending work and reject a different account. Distinguish this from corrupt/mismatched independent authorization or unknown ownership, which must remain fail closed and use an explicit recovery-required state if identity cannot yet be established safely.
+
+Add regressions that continue beyond the local-only corruption snapshot: successful same-account fresh verification, different-account rejection, lock/ownership mismatch, failed storage/readback and a newer revision/epoch winning while recovery waits. Assert coherent public state. No native adapters or runtime widening is requested; stay within the existing pure injected-port model, update the report and rerun full checks.
+
+## Historical initial review — F1–F4 superseded above
 
 ## Delivery and independent checks
 
