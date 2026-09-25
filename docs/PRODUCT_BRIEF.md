@@ -1,7 +1,7 @@
 # FitQuest — Product Brief
 
-Version: 0.3\
-Date: 2026-09-24\
+Version: 0.4\
+Date: 2026-09-25\
 Owner: Project HQ\
 Status: Product requirements and core stack approved for the clean rebuild. React Native replaces the initial Swift proposal; Apple Health integration is deferred. Detailed decisions and approval boundaries are recorded in DECISIONS.md. Release dates are not committed.
 
@@ -16,6 +16,8 @@ This brief is the product source of truth for the clean rebuild. It supersedes c
 The owner's detailed source brief included instructions to extend the old project. The owner explicitly chose a restart; that decision takes precedence. Preserve the old code and deployment until a separately approved transition. Local rebuild work may proceed within scoped handoffs; this does not authorize deletion, deployment, hosted infrastructure changes, or remote migrations.
 
 ## 2. Confirmed constraints
+
+- **Owner checkpoint before AI implementation (2026-09-25):** before adding any product AI functionality or supporting AI integration/prompt/evaluation code, HQ must stop, explain the intended scope, data/privacy flow, provider/model choices, costs/limits and safety/acceptance plan, and wait for fresh explicit approval. Broad earlier approvals do not waive this gate. It applies to AI-assisted goal interpretation as well as coaching, regardless of milestone. Ordinary AI-assisted software development is unaffected; see D-019 in DECISIONS.
 
 - Build **one public iOS application**, with the owner as its first real user. Other users access the same product through their own private accounts.
 - Do not create a separate personal app, demo app, or mandatory demo mode. Screenshots and a walkthrough of implemented features can support a résumé without exposing personal records.

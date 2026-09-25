@@ -28,7 +28,7 @@ HQ independently reran typecheck/lint/four tests/contract and API builds success
 
 ## M1 — Durable authenticated mixed-activity logging
 
-**Status: M1a/M1b and M1c.1 accepted within their bounded scopes. Full M1 remains incomplete.** HQ independently passed 88 baseline tests/typechecks/lint/builds and closed [M1c.1 F1–F5](reviews/M1C1_REVIEW.md). M1c.1 is an additive contract/pure-model increment, not runtime authentication. Engineering is idle.
+**Status: M1a/M1b/M1c.1 accepted within bounded scopes; M1c.2 authorized. Full M1 remains incomplete.** Accepted M1c.1 checkpoint `1f4aa5c` has 88 independently passing tests and F1–F5 closed. [M1c.2](ENGINEERING_M1C2_HANDOFF.md) generalizes local ownership/authorization while preserving fixtures; it does not enable real sign-in.
 
 Outcome: a private-account athlete completes required minimal profile setup, starts an unplanned session, records a strength result and a timed activity, resumes after interruption, and synchronizes without duplication.
 
@@ -40,9 +40,13 @@ This is the first reliable data slice, not the finished AI coach. Keep multimoda
 
 - **M1a — Durable local logging: accepted for local synthetic-data scope.** Shared validation, encrypted local persistence, profile/session UI, strength/manual-time logging, recoverable drafts/intents, terminal corrections, and truthful input/record/queue status exist. F1–F6 are closed within the [reviewed scope and evidence limits](reviews/M1A_REVIEW.md). Synthetic developer-only evidence is not real authentication. This increment did not include a sender; M1b adds local sync. No hosted services or private health-data entry.
 - **M1b — Local API/database synchronization: accepted for local synthetic-data scope.** Disposable PostgreSQL/API and client synchronization, retry/receipt recovery, owner isolation, and explicit conflict resolution are implemented. [F1/F2 corrections](reviews/M1B_REVIEW.md) and final-source verification are accepted with the stated native/device limits. The owner approved checkpoint publication under D-016. Synthetic identity does not satisfy production authentication.
-- **M1c — Real authentication and device integration: M1c.1 contracts/recovery model accepted.** [F1–F5 are closed](reviews/M1C1_REVIEW.md) with 88 independently passing tests and bounded fake-port evidence. Runtime remains unchanged. M1c.2 account/store boundary separation is next proposed; M1c.2–M1c.6 are not dispatched, and native/server/provider/device evidence remains outstanding.
+- **M1c — Real authentication and device integration: M1c.1 accepted; M1c.2 authorized.** [Current Engineering handoff](ENGINEERING_M1C2_HANDOFF.md) covers account/store boundary separation, local authorization latches and fixture isolation with test authority. M1c.3–M1c.6 are not dispatched; server/provider/native credential/device evidence remains outstanding.
 
 HQ reviews each result before the next assignment. Accepted M1a was pushed to the verified private repository as `192dbfb0f32fb26ea27a15a1a48d6370b8eec321` on 2026-09-25. The owner subsequently approved accepted M1b/docs publication and routine future commits/pushes under D-016; retained prototype, secrets, databases, private data, and generated artifacts remain excluded. This does not authorize later implementation milestones or deployment. Phone setup was deferred in favor of this sequence.
+
+## Mandatory checkpoint — before any product AI implementation
+
+**Owner-required stop (D-019), not satisfied.** Before model/provider scaffolding, product prompts, AI goal interpretation, coaching generation, embeddings/agents or AI evaluation implementation/calls, HQ presents scope, user/data flow, provider/model options, privacy, costs/limits, safety/evaluation and acceptance criteria, then waits for fresh explicit owner approval. Applies wherever AI first appears, including M2; do not wait until M3. Non-AI groundwork may continue under its own scoped assignments. Routine development assistance is not blocked.
 
 ## M2 — Athlete intent, nutrition, and subjective context
 
