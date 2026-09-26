@@ -138,3 +138,9 @@ Do not begin provider SDK/integration scaffolding, product prompts, model-based 
 ## D-020 — M1c.2 account/store boundary implementation
 
 **Owner-authorized progression; HQ scope, 2026-09-25.** Following accepted checkpoint `1f4aa5c`, continue with [M1c.2](ENGINEERING_M1C2_HANDOFF.md): isolate fixture adapters, generalize account/store ownership through trusted test boundaries, implement/test durable local authorization latches and preserve logging/sender behavior. Engineering is the sole `rebuild/` writer; HQ owns docs/integration. This remains local synthetic-data work, not real sign-in. Native rotating credentials/UI remain later work; no new API/session implementation, PostgreSQL migrations, Apple/phone configuration, hosted changes or AI work. Stop for HQ review after delivery.
+
+## D-021 — M1c.3 transactional session implementation
+
+**Owner-authorized progression; HQ scope, 2026-09-26.** Following accepted/pushed M1c.2 checkpoint `5f76b1c`, the owner instructed HQ to continue. Assign [M1c.3](ENGINEERING_M1C3_HANDOFF.md) to Engineering: server session issuance/activation/rotation/revocation and transactional private-operation guards, verified on separate task-marked local PostgreSQL using synthetic provider identities. Preserve original migrations, domain contracts, fixture authority and retained M1b development data. The existing marked M1b integration-test database may be used for its established regression suite only; new migrations are limited to the new auth-test target.
+
+Engineering is the sole scoped `rebuild/` writer; HQ owns documents and Git integration. No live provider/Apple implementation, normal auth-route wiring, mobile/native/UI change, phone setup, hosted/remote migration, deployment, new dependency or AI work is included. Stop for HQ acceptance; M1c.4 is not automatically authorized. D-019 remains a hard owner checkpoint before any product AI implementation.

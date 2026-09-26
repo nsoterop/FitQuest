@@ -1,6 +1,6 @@
 # FitQuest — Roadmap
 
-Updated: 2026-09-25 · Maintainer: Project HQ
+Updated: 2026-09-26 · Maintainer: Project HQ
 
 Statuses describe evidence, not aspiration. The roadmap is not blanket implementation or deployment permission. Maintain one implementation writer per working tree; separately approved read-only work may run alongside a non-overlapping implementation handoff.
 
@@ -28,7 +28,7 @@ HQ independently reran typecheck/lint/four tests/contract and API builds success
 
 ## M1 — Durable authenticated mixed-activity logging
 
-**Status: M1a/M1b/M1c.1/M1c.2 accepted within bounded scopes. Full M1 remains incomplete.** [M1c.2](reviews/M1C2_REVIEW.md) has 137 independently passing tests and F1/F2 closed. It generalizes local ownership/authorization while preserving fixtures; it does not enable real sign-in. M1c.3 is the next recommended scoped increment, not dispatched.
+**Status: M1a/M1b/M1c.1/M1c.2 accepted within bounded scopes. Full M1 remains incomplete.** [M1c.2](reviews/M1C2_REVIEW.md) has 137 independently passing tests and F1/F2 closed. It generalizes local ownership/authorization while preserving fixtures; it does not enable real sign-in. [M1c.3 transactional sessions](ENGINEERING_M1C3_HANDOFF.md) is owner-authorized and assigned to Engineering on 2026-09-26; acceptance is pending.
 
 Outcome: a private-account athlete completes required minimal profile setup, starts an unplanned session, records a strength result and a timed activity, resumes after interruption, and synchronizes without duplication.
 
@@ -40,7 +40,7 @@ This is the first reliable data slice, not the finished AI coach. Keep multimoda
 
 - **M1a — Durable local logging: accepted for local synthetic-data scope.** Shared validation, encrypted local persistence, profile/session UI, strength/manual-time logging, recoverable drafts/intents, terminal corrections, and truthful input/record/queue status exist. F1–F6 are closed within the [reviewed scope and evidence limits](reviews/M1A_REVIEW.md). Synthetic developer-only evidence is not real authentication. This increment did not include a sender; M1b adds local sync. No hosted services or private health-data entry.
 - **M1b — Local API/database synchronization: accepted for local synthetic-data scope.** Disposable PostgreSQL/API and client synchronization, retry/receipt recovery, owner isolation, and explicit conflict resolution are implemented. [F1/F2 corrections](reviews/M1B_REVIEW.md) and final-source verification are accepted with the stated native/device limits. The owner approved checkpoint publication under D-016. Synthetic identity does not satisfy production authentication.
-- **M1c — Real authentication and device integration: M1c.1 and M1c.2 accepted within test-bound scopes.** [Completed M1c.2 handoff](ENGINEERING_M1C2_HANDOFF.md) covers account/store separation, authorization latches and fixture isolation. M1c.3–M1c.6 are not dispatched; server/provider/native credential/device evidence remains outstanding.
+- **M1c — Real authentication and device integration: M1c.1 and M1c.2 accepted within test-bound scopes.** [Completed M1c.2 handoff](ENGINEERING_M1C2_HANDOFF.md) covers account/store separation, authorization latches and fixture isolation. [M1c.3](ENGINEERING_M1C3_HANDOFF.md) is assigned for isolated local PostgreSQL session/race/privilege verification with synthetic identities. M1c.4–M1c.6 are not dispatched; provider/native credential/device evidence remains outstanding.
 
 HQ reviews each result before the next assignment. Accepted M1a was pushed to the verified private repository as `192dbfb0f32fb26ea27a15a1a48d6370b8eec321` on 2026-09-25. The owner subsequently approved accepted M1b/docs publication and routine future commits/pushes under D-016; retained prototype, secrets, databases, private data, and generated artifacts remain excluded. This does not authorize later implementation milestones or deployment. Phone setup was deferred in favor of this sequence.
 
