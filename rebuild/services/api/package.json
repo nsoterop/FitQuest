@@ -16,6 +16,7 @@
   "dependencies": {
     "@fitquest-rebuild/contracts": "0.0.0",
     "fastify": "5.12.5",
+    "jose": "6.2.12",
     "pg": "8.21.0",
     "zod": "4.6.5"
   },

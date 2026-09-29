@@ -2,7 +2,7 @@
 
 Date: 2026-09-29 · Owner: Project HQ
 
-Status: Owner-authorized continuation; scoped for dispatch to **Engineering** (`01a0d053-66ed-79a0-a0bb-5b366646e723`, local, GPT-6.1 Sol). Engineering is the sole `rebuild/` implementation writer. HQ owns shared documents and Git integration. Stop after delivery for independent acceptance.
+Status: **Completed and accepted by HQ on 2026-09-29 for unused server-module/offline-test scope.** [HQ review](reviews/M1C4A_REVIEW.md) records 248 independently passing tests, compiled checks and evidence limits. Engineering (`01a0d053-66ed-79a0-a0bb-5b366646e723`, local, GPT-6.1 Sol) is stopped after delivery; this handoff authorizes no further implementation. HQ owns shared documents and Git integration.
 
 ## Outcome and starting point
 
