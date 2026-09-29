@@ -6,16 +6,25 @@ import {
   type Command, type OperationOutcome, type ProfileSnapshot, type SessionSnapshot,
 } from '@fitquest-rebuild/contracts';
 
-export type WritePhase = 'after_claim' | 'after_aggregate' | 'after_revision' | 'after_outcome' | 'before_commit' | 'after_commit';
+export type WritePhase = 'after_owner_guard' | 'after_claim' | 'after_aggregate' | 'after_revision' | 'after_outcome' | 'before_commit' | 'after_commit';
 type PhaseHook = (phase: WritePhase) => void | Promise<void>;
 type AggregateRow = { revision: number; document: unknown };
 type OutcomeRow = { request_hash: string; target_kind: string; target_id: string; state: string; outcome: unknown };
+export type SessionCandidate = { accountId: string; familyId: string; generation: number; accessHash: string };
+type AccountGuardRow = { environment: string; status: string; authorization_epoch: string };
+export type SessionGuard = (client: PoolClient, candidate: SessionCandidate, account: AccountGuardRow) => Promise<void>;
 
 export class OperationIdReused extends Error {}
 export class OwnerUnavailable extends Error {}
 
 export class PostgresAthleteRepository {
-  constructor(private readonly pool: Pool, private readonly phase?: PhaseHook) {}
+  constructor(private readonly pool: Pool, private readonly phase?: PhaseHook,
+    private readonly boundSession?: { candidate: SessionCandidate; guard: SessionGuard }) {}
+
+  /** The default facade is fixture-only. Session callers bind a looked-up candidate. */
+  bindSession(candidate: SessionCandidate, guard: SessionGuard): PostgresAthleteRepository {
+    return new PostgresAthleteRepository(this.pool, this.phase, { candidate, guard });
+  }
 
   private async owned<T>(accountId: string, work: (client: PoolClient) => Promise<T>, afterCommit?: () => Promise<void>): Promise<T> {
     const client = await this.pool.connect();
@@ -25,8 +34,15 @@ export class PostgresAthleteRepository {
       await client.query('BEGIN');
       await client.query("SELECT set_config('fitquest.owner_id',$1,true)", [accountId]);
       // One short, consistent account guard precedes operation claims and aggregates.
-      const owner = await client.query('SELECT account_id FROM m1b.accounts WHERE account_id=$1 FOR UPDATE', [accountId]);
+      const owner = await client.query<AccountGuardRow>(this.boundSession
+        ? 'SELECT environment,status,authorization_epoch FROM m1b.accounts WHERE account_id=$1 FOR UPDATE'
+        : 'SELECT environment FROM m1b.accounts WHERE account_id=$1 FOR UPDATE', [accountId]);
       if (owner.rowCount !== 1) throw new OwnerUnavailable();
+      if (this.boundSession) {
+        if (accountId !== this.boundSession.candidate.accountId || owner.rows[0].environment !== 'm1c3.synthetic.test.v1') throw new OwnerUnavailable();
+        await this.boundSession.guard(client, this.boundSession.candidate, owner.rows[0]);
+        await this.phase?.('after_owner_guard');
+      } else if (owner.rows[0].environment !== 'm1b.synthetic.local.v1') throw new OwnerUnavailable();
       const result = await work(client);
       if (afterCommit) await this.phase?.('before_commit');
       await client.query('COMMIT');

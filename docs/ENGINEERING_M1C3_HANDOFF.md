@@ -2,7 +2,7 @@
 
 Date: 2026-09-26 · Owner: Project HQ
 
-Status: Owner-authorized continuation dispatched to **Engineering**, task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host; active turn `01a0de77-f2d2-7fe1-a098-a78256f06ca8` confirmed on 2026-09-26. One implementation writer under `rebuild/`; HQ owns shared documents and Git integration. Stop after this increment for HQ acceptance.
+Status: **Completed and accepted by HQ on 2026-09-29 for isolated local synthetic-data scope; F1/F2/F3 closed.** [Final review](reviews/M1C3_REVIEW.md) records 175 independently passing tests and the original F3 reproduction now passing. Engineering's assignment under this handoff is finished; it does not authorize the next increment. HQ owns shared documents and Git integration.
 
 ## Outcome and baseline
 

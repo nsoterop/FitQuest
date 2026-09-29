@@ -1,14 +1,16 @@
 # FitQuest — Current Handoff
 
-Updated: 2026-09-26 · Maintainer: Project HQ
+Updated: 2026-09-29 · Maintainer: Project HQ
 
 ## Current decision
 
 **M1a and M1b are accepted by HQ for local development with synthetic data.** M1a F1–F6 and M1b F1/F2 are closed within their [local logging](reviews/M1A_REVIEW.md) and [local synchronization](reviews/M1B_REVIEW.md) evidence limits. This does not accept full M1, production authentication, hosted synchronization, real private-record use, or release readiness.
 
-**M1c.2 account/store boundary separation is accepted** with 137 independently passing tests and F1/F2 closed in [HQ review](reviews/M1C2_REVIEW.md). This builds on accepted M1c.1 checkpoint `1f4aa5c`. Scope remains local synthetic data and trusted test authority; real Apple sign-in/server sessions remain unimplemented. The owner authorized [M1c.3 transactional sessions](ENGINEERING_M1C3_HANDOFF.md) on 2026-09-26; Engineering is the sole scoped implementation writer. **Hard stop before any product AI implementation:** notify the owner with the proposed scope/data/privacy/cost/safety plan and wait for explicit approval under D-019.
+**M1c.3 transactional sessions are accepted for isolated local synthetic-data use**, building on accepted M1c.1/M1c.2. All three findings are closed in the [HQ review](reviews/M1C3_REVIEW.md), with 175 independently passing tests. Real Apple sign-in, auth HTTP/mobile integration and production authentication are still incomplete. The owner authorized acceptance review and continued next-step work on 2026-09-29; HQ checkpoints this delivery before issuing a bounded provider-verification handoff. **Hard stop before any product AI implementation:** notify the owner with the proposed scope/data/privacy/cost/safety plan and wait for explicit approval under D-019.
 
 ## Current implementation and evidence
+
+- M1c.3 is **accepted on 2026-09-29**: 138 default + 24 auth PostgreSQL + 4 preflight + 9 M1b PostgreSQL tests independently pass (175 total), along with typechecks/lint/builds and diff checks. HQ's original uppercase-UUID retry probe now passes; F1/F2/F3 are closed. Compiled default-app injection confirms health 200 and private/auth routes 404. Both initially stopped clusters were started through migration-free guards and stopped after review with data retained. No real provider/native/hosted validation is claimed.
 
 - M1c.2 is accepted after correction turn `01a0da03-9a05-79b2-a945-7ae489ceddcc`: 137 tests/typechecks/lint/builds independently pass. HQ's retry/concurrency/callback probes close F1; expanded transaction/interruption/readback/restart tests close F2 within injected-port limits. Fixture v1/v2/v3 SQL literals remain unchanged. HQ inspected initial Debug/Release screenshots; no post-correction native build or native UUID/Keychain proof is claimed. [Review](reviews/M1C2_REVIEW.md) and [report](../rebuild/docs/M1C2_REPORT.md) preserve details. M1c.3 is separately authorized by its new handoff; no AI implementation is authorized.
 
@@ -35,7 +37,7 @@ Developer identities require explicit opt-in, use synthetic data and isolated ke
 
 One implementation writer per working tree. HQ owns shared `docs/` and the root README; Engineering owns approved implementation under `rebuild/`. Architecture and Design are not concurrent source writers. A roadmap or completed handoff is not permission to start another increment.
 
-- **Engineering** — task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host. Current assignment: [M1c.3 transactional server sessions](ENGINEERING_M1C3_HANDOFF.md), local synthetic provider identities and isolated PostgreSQL tests only. HQ owns docs/integration. No AI work, provider/device/hosted setup, M1c.4 or Engineering Git writes.
+- **Engineering** — task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host, switched to **GPT-6.1 Sol** at the owner's request on 2026-09-29 (context/reasoning setting retained). [M1c.3](ENGINEERING_M1C3_HANDOFF.md) is complete and accepted. Await the separately scoped provider-verification handoff; no automatic API/native/provider-account/hosted or AI work. HQ owns docs/integration and Git writes.
 - **Architecture** — task `01a0d09d-2bf8-79e0-8a59-6b4043aa18f5`, local host. M1c proposal completed in turn `01a0d942-c8a8-73a3-8ba4-26e64ee6cb05`, [captured](proposals/M1C_ARCHITECTURE_PROPOSAL.md) and [reviewed](reviews/M1C_ARCHITECTURE_REVIEW.md). A message-retrieval follow-up was superseded when HQ recovered the full original response from the exact local transcript; no further planning or source assignment. Prior recovery baseline still applies.
 - **Design** — task `01a0d101-4c19-7b63-8d49-5fa0e5f70129`, no active implementation assignment. Previously titled **Design M1 sign-in and profile**. The [initial proposal](proposals/M1_DESIGN_PROPOSAL.md) and [HQ review](reviews/M1_DESIGN_REVIEW.md) retain the owner-approved direction; the task title was refreshed from the app listing on 2026-09-25.
 
@@ -54,6 +56,8 @@ One implementation writer per working tree. HQ owns shared `docs/` and the root 
 2. **Completed:** [M1b local synchronization and F1/F2 corrections](reviews/M1B_REVIEW.md), checkpoint `490f923`, with 49 baseline plus 9 PostgreSQL tests independently passing and reported final-source native evidence. Routine reviewed commits/pushes are authorized under D-016.
 3. **Completed:** [M1c.1](reviews/M1C1_REVIEW.md), committed/pushed as `1f4aa5c221baead787bc3890bea8f8e3770b409c`; remote SHA/private status verified and worktree clean after push. The 12-file checkpoint passed allowlist/basic credential/conflict/whitespace checks and 63 relative links.
 4. **Completed:** [M1c.2](reviews/M1C2_REVIEW.md) local account/store boundaries, with F1/F2 closed and 137 independently passing tests. Checkpoint `5f76b1c71df39ea706588f99209901e82193c940` was pushed and remotely verified private/clean on 2026-09-25. The 17-file checkpoint passed allowlist/basic credential/conflict/whitespace checks and 56 relative links. On 2026-09-26 the owner authorized [M1c.3](ENGINEERING_M1C3_HANDOFF.md); only its guarded local synthetic-data work is assigned. No automatic provider, device, hosted or AI progression.
+
+5. **Completed:** [M1c.3](reviews/M1C3_REVIEW.md), accepted on 2026-09-29 with 175 independently passing tests and F1/F2/F3 closed. HQ is preparing its reviewed private-repository checkpoint; verify Git history/remote for publication status. No M1c.4 source is included in this acceptance.
 
 Natural-language multi-goals, nutrition/recovery context, and the adaptive-coach loop remain the subsequent M2/M3 priorities in [ROADMAP.md](ROADMAP.md). Before implementing any AI portion—even M2 goal interpretation or provider scaffolding—HQ must stop, explain the proposal and wait for fresh owner approval (D-019). This is not a change to the AI-first, mixed-modality vision.
 

@@ -226,6 +226,25 @@ describe('pure credential recovery coordinator', () => {
     expect((await expiredSession.refresh()).phase).toBe('reauth_required');
     expect(h3.log.filter(x => x.startsWith('transport.refresh.'))).toHaveLength(0);
   });
+  it('maps a server expiry outcome through injected transport without locking independent local authorization', async () => {
+    // A future transport may map repository identity {kind:'expired'} to the
+    // existing non-revocation identity outcome; no HTTP/App adapter is wired here.
+    const serverExpired = { kind: 'expired' } as const;
+    const mapped: IdentityOutcome = serverExpired.kind === 'expired' ? { kind: 'invalid' } : { kind: 'revoked', sessionId };
+    const h = harness(); await ready(h);
+    h.storage.row = { revision: (h.storage.row?.revision ?? 0) + 1, value: pending(nextBundle, 'refresh') };
+    h.transport.identityResult = mapped;
+    expect(await h.make().recover()).toMatchObject({ phase: 'reauth_required', localAccess: 'authorized', syncReady: false });
+    expect(h.local.locks).toBe(0);
+    expect(h.local.result.state).toBe('authorized');
+    const refresh = harness(); await ready(refresh);
+    refresh.setTime('2026-09-25T10:16:00.000Z');
+    refresh.transport.refreshResult = { kind: 'reauth_required' };
+    const resumed = refresh.make();
+    expect(await resumed.recover()).toMatchObject({ phase: 'local_only', localAccess: 'authorized' });
+    expect(await resumed.refresh()).toMatchObject({ phase: 'reauth_required', localAccess: 'authorized' });
+    expect(refresh.local.locks).toBe(0);
+  });
   it('prepares refresh durably before dispatch, single-flights it and persists next complete bundle before activation', async () => {
     const h = harness(), c = await ready(h); h.transport.refreshGate = deferred(); h.transport.refreshEntered = deferred();
     const first = c.refresh(), second = c.refresh(); await h.transport.refreshEntered.promise;

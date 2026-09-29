@@ -1,6 +1,6 @@
 # FitQuest — Project Context
 
-Updated: 2026-09-26 · Maintainer: Project HQ
+Updated: 2026-09-29 · Maintainer: Project HQ
 
 ## Product and authority
 
@@ -52,13 +52,15 @@ Use disposable, explicitly identified local development/test data. Never inherit
 
 ## Task ownership and workflow
 
+M1c.3 was accepted on 2026-09-29: [F1/F2/F3 closed](reviews/M1C3_REVIEW.md), with 175 independently passing tests, typechecks/lint/builds, and HQ's separate original-reproduction probe now passing. Both review-started clusters were stopped with data retained. This remains isolated local synthetic authority, not real Apple sign-in or production authentication.
+
 - HQ owns product scope, priorities, acceptance, and shared status documents.
 - Architecture owns technical contracts, boundaries, and decision proposals; no bulk implementation.
 - Engineering owns scoped code, automated tests, debugging, and local integration.
 - Design owns UX/visual proposals and approved UI work; no simultaneous edits to Engineering-owned screens.
 
-One implementation writer in this working tree. Engineering owns the owner-authorized [M1c.3 transactional session increment](ENGINEERING_M1C3_HANDOFF.md), assigned on 2026-09-26. Architecture and Design have no active implementation assignment. HQ owns shared docs and routine reviewed Git checkpoints under D-016. Carry the D-019 pre-AI stop into every handoff; no AI work is authorized.
+One implementation writer in this working tree. Engineering completed [M1c.3](ENGINEERING_M1C3_HANDOFF.md) and awaits the next bounded provider-verification assignment after HQ checkpointing. The owner requested GPT-6.1 Sol for Engineering on 2026-09-29; HQ applied that model change without changing its context or reasoning setting. Architecture and Design have no active implementation assignment. HQ owns shared docs and routine reviewed Git checkpoints under D-016. Carry the D-019 pre-AI stop into every handoff; no AI work is authorized.
 
-Latest accepted implementation: [M1c.2](reviews/M1C2_REVIEW.md), with 137 independently passing tests and F1/F2 closed by retry probes and expanded SQLite/latch interruption/readback tests. It builds on M1c.1 checkpoint `1f4aa5c221baead787bc3890bea8f8e3770b409c` and the M1b logging/sync foundation. New UUID account resources and authority remain injected/test-only; prior native fixture/Release evidence is not native UUID/Keychain proof, and no post-correction native build is claimed. Accepted checkpoint `5f76b1c71df39ea706588f99209901e82193c940` was pushed and remotely verified private/clean; HQ verified the same clean local HEAD on 2026-09-26. M1c.3 transactional sessions is now assigned, not accepted. Its separate marked local PostgreSQL resources and synthetic identities do not authorize Apple/provider calls, hosted/device setup or AI implementation.
+Latest accepted implementation: [M1c.3](reviews/M1C3_REVIEW.md), including transactional issuance/activation/refresh/revocation and private-operation guards, with 175 independently passing tests. It builds on accepted M1c.2 checkpoint `5f76b1c71df39ea706588f99209901e82193c940`; HQ is checkpointing the new delivery. Compiled default-app checks pass with private/auth routes unavailable. Prior native fixture/Release evidence is not native UUID/Keychain or real-provider proof. Separate marked local PostgreSQL resources and synthetic identities do not authorize real Apple/provider calls, hosted/device setup or AI implementation.
 
 Unresolved before the relevant phase: authentication configuration/lifetimes and security verification, iOS minimum/version compatibility, production device/encryption lifecycle verification, dependency remediation, AI model/evaluation/spend allocation, plan-acceptance policy, retention/deletion/consent policy, and verified operating costs. These do not block a Design proposal, but do block claims that dependent features are complete.
