@@ -1,6 +1,6 @@
 # FitQuest — Decisions
 
-Updated: 2026-09-25 · Maintainer: Project HQ
+Updated: 2026-09-29 · Maintainer: Project HQ
 
 Status meanings: **Approved** = owner-approved direction; **Execution choice** = reversible HQ scoping within that direction; **Pending** = not approved or not yet specified. Approval does not mean implemented or verified.
 
@@ -144,3 +144,9 @@ Do not begin provider SDK/integration scaffolding, product prompts, model-based 
 **Owner-authorized progression; HQ scope, 2026-09-26.** Following accepted/pushed M1c.2 checkpoint `5f76b1c`, the owner instructed HQ to continue. Assign [M1c.3](ENGINEERING_M1C3_HANDOFF.md) to Engineering: server session issuance/activation/rotation/revocation and transactional private-operation guards, verified on separate task-marked local PostgreSQL using synthetic provider identities. Preserve original migrations, domain contracts, fixture authority and retained M1b development data. The existing marked M1b integration-test database may be used for its established regression suite only; new migrations are limited to the new auth-test target.
 
 Engineering is the sole scoped `rebuild/` writer; HQ owns documents and Git integration. No live provider/Apple implementation, normal auth-route wiring, mobile/native/UI change, phone setup, hosted/remote migration, deployment, new dependency or AI work is included. Stop for HQ acceptance; M1c.4 is not automatically authorized. D-019 remains a hard owner checkpoint before any product AI implementation.
+
+## D-022 — M1c.3 acceptance and bounded provider verification
+
+**Owner-authorized continuation; HQ execution scope, 2026-09-29.** The owner approved proceeding with acceptance review, checkpointing and next steps. HQ independently accepted M1c.3 (175 passing tests and original F3 reproduction fixed), then committed/pushed `f2b97fe` to the verified private repository. Engineering was separately switched to GPT-6.1 Sol at the owner's request; this is a development-tool setting, not a FitQuest AI model selection.
+
+Split M1c.4 into reviewable slices. Assign only [M1c.4a](ENGINEERING_M1C4A_HANDOFF.md): unused server Apple-token signature/claim verification, generated-key/JWKS offline tests, sanitized failure behavior and compiled-runtime compatibility. Permit one compatible pinned JOSE dependency and necessary local manifest/lockfile updates. No real Apple calls/credentials, challenge/exchange/account/session/API wiring, migrations, native/UI changes, device/provider-account/hosted configuration or product AI implementation. This verifier alone cannot authenticate a FitQuest account. Engineering owns scoped `rebuild/` work; HQ owns documents/Git and independent acceptance. Subsequent integration receives its own handoff after review; D-019 is unchanged.
