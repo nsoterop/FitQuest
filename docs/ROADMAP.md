@@ -28,6 +28,8 @@ HQ independently reran typecheck/lint/four tests/contract and API builds success
 
 ## M1 — Durable authenticated mixed-activity logging
 
+Current planning step (2026-10-01): Architecture is assigned the [protected provider-credential lifecycle proposal](ARCHITECTURE_PROVIDER_CREDENTIALS_HANDOFF.md), read-only. HQ reviews encryption/key rotation, family linkage, atomic issuance, standing checks and revocation contracts before scoping Engineering. No new implementation is dispatched.
+
 **Latest, 2026-10-01: M1c.4b accepted for internal simulated-provider/local PostgreSQL scope.** [F1 closed](reviews/M1C4B_REVIEW.md), 296 tests plus compiled checks and original reproduction independently pass. Full M1 remains incomplete. Correction and initial review snapshots below are retained as history; their withheld status is superseded.
 
 M1c.4b correction dispatch (2026-10-01): owner-authorized F1 correction sent to Engineering after the review below. Correct disabled-account denial, retain security behavior and add regression coverage; then return for HQ re-review. D-024 permits routine in-scope review-fix coordination without repeated owner confirmation, not new milestones.
