@@ -52,6 +52,8 @@ Use disposable, explicitly identified local development/test data. Never inherit
 
 ## Task ownership and workflow
 
+Provider-credential Architecture review, 2026-10-01: [proposal captured](proposals/PROVIDER_CREDENTIALS_ARCHITECTURE_PROPOSAL.md), with [HQ acceptance of the offline protection-module direction](reviews/PROVIDER_CREDENTIALS_ARCHITECTURE_REVIEW.md) for future scoped work. Architecture is assigned a read-only C1 clarification on rejected-credential private access versus renewal; later integration is not implementation-ready until resolved. No Engineering task is dispatched. Existing 423-test evidence is historical, not a new run for this document review.
+
 **Latest acceptance, 2026-10-01:** [M1c.4b](reviews/M1C4B_REVIEW.md) is accepted within internal simulated-provider/local PostgreSQL scope; F1 is closed with 296 independently passing tests, both compiled checks and HQ's separate original reproduction. All review-started clusters are stopped with retained data. The review/dispatch snapshots below are historical. Working Apple sign-in, provider credential lifecycle, public routes, native/device/hosted evidence and D-019 remain separate gates.
 
 On 2026-10-01, after the review below, the owner authorized the F1 correction and routine future bounded review-fix dispatch without repeated confirmation ([D-024](DECISIONS.md#d-024--routine-acceptance-review-correction-routing)). HQ sent F1 to the existing Engineering chat; independent re-review remains required. No expansion of implementation, hosted/deployment or pre-AI authority is implied.
