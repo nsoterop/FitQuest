@@ -1,6 +1,12 @@
 # FitQuest — Provider-Credential Lifecycle HQ Review
 
-Date: 2026-10-01 · Status: **Offline credential-protection direction accepted for future scoped work; later integration needs clarification. No implementation dispatched.**
+Date: 2026-10-01 · Status: **Offline protection scope authorized as M1c.4d.1. C1 clarification delivered; later residual-access policy/integration awaits approval.**
+
+## Current follow-up
+
+Architecture's [complete C1 addendum](../proposals/PROVIDER_CREDENTIALS_C1_ADDENDUM.md) resolves the contradictory wording: it recommends blocking renewal and first activation after ambiguous grant rejection while preserving otherwise-valid active access until its original expiry. Explicit logout/disable/epoch/confirmed revocation still win. This recommendation and new contract/coordinator states are **not approved for implementation**; bring the policy to the owner before standing/session integration. No further Architecture work is currently assigned.
+
+The owner authorized proceeding with [M1c.4d.1](../ENGINEERING_M1C4D1_HANDOFF.md): unused encryption primitive only. C1 does not affect this scope. Its default baseline/offline compiled probes are required; PostgreSQL suites need not be restarted because no existing source or database behavior may change. Historical evidence below remains historical.
 
 ## Evidence and decision
 

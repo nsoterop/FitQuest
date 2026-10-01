@@ -28,9 +28,7 @@ HQ independently reran typecheck/lint/four tests/contract and API builds success
 
 ## M1 — Durable authenticated mixed-activity logging
 
-Provider-credential design review (2026-10-01): [first offline protection increment ready to scope](reviews/PROVIDER_CREDENTIALS_ARCHITECTURE_REVIEW.md); no Engineering dispatch. Architecture is clarifying C1 (rejected-credential access versus renewal) before later standing/session integration. The original planning assignment below has been delivered; its follow-up is limited to C1.
-
-Current planning step (2026-10-01): Architecture is assigned the [protected provider-credential lifecycle proposal](ARCHITECTURE_PROVIDER_CREDENTIALS_HANDOFF.md), read-only. HQ reviews encryption/key rotation, family linkage, atomic issuance, standing checks and revocation contracts before scoping Engineering. No new implementation is dispatched.
+Current step (2026-10-01): owner authorized [M1c.4d.1 isolated credential protection](ENGINEERING_M1C4D1_HANDOFF.md), assigned to Engineering. Provider-credential design and [C1 clarification](proposals/PROVIDER_CREDENTIALS_C1_ADDENDUM.md) are delivered; residual active-access policy/additive contracts still require approval before standing/session integration. No database/API/mobile integration or AI work is included in this assignment. Historical review/dispatch snapshots below do not override this current scope.
 
 **Latest, 2026-10-01: M1c.4b accepted for internal simulated-provider/local PostgreSQL scope.** [F1 closed](reviews/M1C4B_REVIEW.md), 296 tests plus compiled checks and original reproduction independently pass. Full M1 remains incomplete. Correction and initial review snapshots below are retained as history; their withheld status is superseded.
 
@@ -55,6 +53,19 @@ This is the first reliable data slice, not the finished AI coach. Keep multimoda
 - **M1c — Real authentication and device integration: M1c.1–M1c.3 and M1c.4a/4b/4c accepted within test-bound scopes.** [M1c.2](ENGINEERING_M1C2_HANDOFF.md) covers account/store separation and local latches; [M1c.3](ENGINEERING_M1C3_HANDOFF.md) covers isolated PostgreSQL sessions/races/privileges. M1c.4a/4b cover the offline verifier and simulated transactional exchange; [M1c.4c](reviews/M1C4C_REVIEW.md) covers unused signing/code transport with no live calls or account wiring. Next: scope protected provider credential lifecycle before integration; API/rate-limit wiring, M1c.5 native credentials and M1c.6 approved Apple/device integration remain later gates.
 
 HQ reviews each result before the next assignment. Accepted M1a was pushed to the verified private repository as `192dbfb0f32fb26ea27a15a1a48d6370b8eec321` on 2026-09-25. The owner subsequently approved accepted M1b/docs publication and routine future commits/pushes under D-016; retained prototype, secrets, databases, private data, and generated artifacts remain excluded. This does not authorize later implementation milestones or deployment. Phone setup was deferred in favor of this sequence.
+
+## Near-term hands-on testing and AI path
+
+The next user-visible target is one working profile → log → restart/offline → reconnect/sync flow on the owner's iPhone, not completion of every public-release feature first. This planning target does not authorize device/hosted/provider configuration or later implementation automatically.
+
+- **Available foundation:** the explicit synthetic Debug flow supports minimal profile, multiple sessions, strength/manual-time logging and local test synchronization in the iOS simulator. See the [rebuild walkthrough](../rebuild/README.md). Native evidence is previously reported, not freshly rerun on 2026-10-01. Do not enter real health records. Normal/Release is still locked without real authentication.
+- **Gate 1 — authentication backend integration:** finish credential protection, atomic credential/account/session linkage and approved standing/revocation behavior; wire authenticated API operations and verify account isolation/recovery end to end.
+- **Gate 2 — mobile authentication integration:** native Apple sign-in, durable device credentials, activation/recovery and connection to authenticated logging/sync. Exercise simulator flows and interruption/error states.
+- **Gate 3 — approved physical-phone setup and smoke test:** verify Apple signing/configuration and a secure reachable API, then sign in, save/relaunch, log offline/reconnect and switch/logout without leakage. Simulator success, localhost endpoints and Apple membership do not prove phone readiness. Decide real-data eligibility from the actual security/privacy evidence.
+
+These are several integration/review cycles, not one remaining patch; no reliable calendar estimate is established. Track these user-visible gates rather than imply each internal auth increment makes the app phone-ready.
+
+**AI planning can begin before these gates are all complete.** The D-019 scope/privacy/provider/model/cost/safety discussion does not require finishing public-release operations, Android or HealthKit. A first proposed coach slice should collect relevant goals/equipment/availability/check-in context, produce a validated persistent mixed-modality/multi-session plan, capture actual work and revise remaining work without rewriting history. It need not wait for every broader M2 feature; reduced scope and synthetic versus real data must be explicit at approval. No AI prototype, prompt, SDK, eval implementation or model call is authorized by this planning note.
 
 ## Mandatory checkpoint — before any product AI implementation
 
