@@ -160,3 +160,9 @@ Engineering remains the sole `rebuild/` writer on GPT-6.1 Sol. HQ owns shared do
 ## D-024 — Routine acceptance-review correction routing
 
 **Explicitly approved by the owner, 2026-10-01.** Send the M1c.4b F1 correction to the existing Engineering chat. Going forward, HQ may send routine bounded review corrections to the responsible existing chat without asking again, retaining independent acceptance review and one implementation writer per working tree. This authorizes correction coordination within already approved scope, not automatic new milestones, architectural expansion, deployment/hosted changes, destructive actions or product AI. D-019's fresh pre-AI approval gate and other explicit operational gates remain unchanged.
+
+## D-025 — Accepted exchange and bounded provider-transport slice
+
+**Owner-authorized continuation; HQ scope, 2026-10-01.** Following the owner's instruction to continue review, checkpointing and the next authentication work, HQ accepted M1c.4b with F1 closed and 296 independently passing tests, then pushed `1cb7572935c786fc6f1371a755d30a2b8f67dd44` to the verified private repository.
+
+Assign only [M1c.4c](ENGINEERING_M1C4C_HANDOFF.md): an unused Apple native code-request/client-secret signing/response transport module, verified with generated keys and offline interception. No account/session/database wiring, migration, provider calls or real credentials. Preserve provider token fields for the subsequent protected lifecycle rather than silently discarding them. Encryption/storage/linkage, standing checks and public API integration remain separately scoped work before use. Engineering remains the sole implementation writer; HQ owns acceptance/docs/Git. D-019, device and hosted approval gates are unchanged.
