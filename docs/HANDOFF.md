@@ -4,13 +4,16 @@ Updated: 2026-10-01 · Maintainer: Project HQ
 
 ## Current decision
 
-**Latest: M1c.4b is accepted on 2026-10-01 for internal simulated-provider/local PostgreSQL scope.** [F1 is closed](reviews/M1C4B_REVIEW.md): 296 tests, both compiled checks and HQ's original reproduction independently pass. Checkpoint `1cb7572935c786fc6f1371a755d30a2b8f67dd44` is pushed and remote/private/clean verified at acceptance. Its 19-file allowlist passed bounded credential/conflict/whitespace checks and 90 relative links. All three review-started clusters are stopped with data retained. **Current assignment: [M1c.4c offline-tested provider transport](ENGINEERING_M1C4C_HANDOFF.md).** Real Apple sign-in, protected provider credential lifecycle, public routes, device and hosted integration remain incomplete. No product AI is authorized.
+**Latest: M1c.4c is accepted on 2026-10-01 for unused server-module/offline-test scope.** [HQ review](reviews/M1C4C_REVIEW.md) records 423 independently passing tests, all three compiled checks and a separate concurrency/cancellation probe. No blocking findings. All three review-started clusters are stopped with data retained. Engineering's assignment is complete; no next implementation is dispatched. Next is a scoped protected provider-credential lifecycle contract before transport integration. Real Apple sign-in, public routes, device and hosted integration remain incomplete. No product AI is authorized.
 
 **M1a and M1b are accepted by HQ for local development with synthetic data.** M1a F1–F6 and M1b F1/F2 are closed within their [local logging](reviews/M1A_REVIEW.md) and [local synchronization](reviews/M1B_REVIEW.md) evidence limits. This does not accept full M1, production authentication, hosted synchronization, real private-record use, or release readiness.
 
 **M1c.4a Apple-token verification remains accepted for unused server-module/offline-test scope**, checkpoint `959f74032f3028a616c43bc732b0dbd98154b074`. Its [HQ review](reviews/M1C4A_REVIEW.md) records the verifier's evidence limits. **Hard stop before any product AI implementation:** notify the owner with the proposed scope/data/privacy/cost/safety plan and wait for explicit approval under D-019.
 
 ## Current implementation and evidence
+
+- M1c.4c adds only an unused signer/transport, tests, compiled probe and report; all prior implementation/configuration/migrations are unchanged. Verified offline only: fixed native request, generated ES256 signatures, bounded body/timeout/cancellation, sanitized failures and preserved unverified provider credentials. No API/account wiring or live provider call. [Review](reviews/M1C4C_REVIEW.md).
+- Predecessor M1c.4b checkpoint `1cb7572935c786fc6f1371a755d30a2b8f67dd44` remains accepted, pushed and private/remote verified at acceptance; F1 closed with 296 independent tests. Its 19-file allowlist passed bounded credential/conflict/whitespace checks and 90 relative links.
 
 The correction/review entries below preserve the sequence preceding final acceptance above; their withheld and dispatch-pending wording is historical.
 
@@ -47,7 +50,7 @@ Developer identities require explicit opt-in, use synthetic data and isolated ke
 
 One implementation writer per working tree. HQ owns shared `docs/` and the root README; Engineering owns approved implementation under `rebuild/`. Architecture and Design are not concurrent source writers. A roadmap or completed handoff is not permission to start another increment.
 
-- **Engineering** — task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host, **GPT-6.1 Sol**, existing reasoning setting retained. Current assignment: [M1c.4c](ENGINEERING_M1C4C_HANDOFF.md), unused offline-tested Apple code transport/client-secret signing. No migration, account/session/API wiring, real provider calls/credentials, native/device/hosted or AI work. HQ owns docs/integration and Git writes.
+- **Engineering** — task `01a0d053-66ed-79a0-a0bb-5b366646e723`, local host, **GPT-6.1 Sol**, existing reasoning setting retained. [M1c.4c](ENGINEERING_M1C4C_HANDOFF.md) is complete and accepted; no active implementation assignment. No automatic migration, account/session/API wiring, real provider calls/credentials, native/device/hosted or AI work. HQ owns docs/integration and Git writes.
 - **Architecture** — task `01a0d09d-2bf8-79e0-8a59-6b4043aa18f5`, local host. M1c proposal completed in turn `01a0d942-c8a8-73a3-8ba4-26e64ee6cb05`, [captured](proposals/M1C_ARCHITECTURE_PROPOSAL.md) and [reviewed](reviews/M1C_ARCHITECTURE_REVIEW.md). A message-retrieval follow-up was superseded when HQ recovered the full original response from the exact local transcript; no further planning or source assignment. Prior recovery baseline still applies.
 - **Design** — task `01a0d101-4c19-7b63-8d49-5fa0e5f70129`, no active implementation assignment. Previously titled **Design M1 sign-in and profile**. The [initial proposal](proposals/M1_DESIGN_PROPOSAL.md) and [HQ review](reviews/M1_DESIGN_REVIEW.md) retain the owner-approved direction; the task title was refreshed from the app listing on 2026-09-25.
 
@@ -70,7 +73,7 @@ One implementation writer per working tree. HQ owns shared `docs/` and the root 
 5. **Completed:** [M1c.3](reviews/M1C3_REVIEW.md), accepted on 2026-09-29 with 175 independently passing tests and F1/F2/F3 closed. Checkpoint `f2b97feef47ba45b04633848d2a688f9dd7c532f` was pushed and remotely verified private/clean. Its 18-file allowlist passed bounded credential/conflict/whitespace checks and 60 relative links. No M1c.4 source is included in that acceptance.
 6. **Completed:** [M1c.4a](reviews/M1C4A_REVIEW.md), accepted with 248 independently passing tests and compiled/runtime-factory probes. Checkpoint `959f74032f3028a616c43bc732b0dbd98154b074` was pushed and remotely verified private/clean; its 11-file allowlist passed bounded credential/conflict/whitespace checks and 64 relative links.
 7. **Completed:** [M1c.4b](ENGINEERING_M1C4B_HANDOFF.md), accepted after [F1 correction and independent re-review](reviews/M1C4B_REVIEW.md), with 296 passing tests and compiled/reproduction checks. Default public auth routes remain absent; real provider, native/device/hosted gates and D-019 stay separate.
-8. **Assigned:** [M1c.4c](ENGINEERING_M1C4C_HANDOFF.md), unused provider code transport and client-secret signer, tested offline. Protected provider-credential persistence/linkage and standing checks must be separately scoped before integration.
+8. **Completed:** [M1c.4c](reviews/M1C4C_REVIEW.md), unused provider code transport and client-secret signer, accepted with 423 independent tests and three compiled probes. Protected provider-credential persistence/linkage and standing checks must be separately scoped before integration; no next milestone dispatched.
 
 Natural-language multi-goals, nutrition/recovery context, and the adaptive-coach loop remain the subsequent M2/M3 priorities in [ROADMAP.md](ROADMAP.md). Before implementing any AI portion—even M2 goal interpretation or provider scaffolding—HQ must stop, explain the proposal and wait for fresh owner approval (D-019). This is not a change to the AI-first, mixed-modality vision.
 
