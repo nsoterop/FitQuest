@@ -28,7 +28,7 @@ HQ independently reran typecheck/lint/four tests/contract and API builds success
 
 ## M1 — Durable authenticated mixed-activity logging
 
-Current step (2026-10-01): owner authorized [M1c.4d.1 isolated credential protection](ENGINEERING_M1C4D1_HANDOFF.md), assigned to Engineering. Provider-credential design and [C1 clarification](proposals/PROVIDER_CREDENTIALS_C1_ADDENDUM.md) are delivered; residual active-access policy/additive contracts still require approval before standing/session integration. No database/API/mobile integration or AI work is included in this assignment. Historical review/dispatch snapshots below do not override this current scope.
+Current step (2026-10-01): [M1c.4d.1 accepted](reviews/M1C4D1_REVIEW.md), 499 default tests and three offline probes freshly pass. Owner approved a shift to [first hands-on integration](ENGINEERING_FIRST_HANDS_ON_HANDOFF.md), Engineering's sole assignment. Connect the existing components before adding more provider infrastructure. C1's proposed policy/additive states remain unapproved; no live provider, physical phone, hosted or AI work is included. Historical snapshots below do not override this scope.
 
 **Latest, 2026-10-01: M1c.4b accepted for internal simulated-provider/local PostgreSQL scope.** [F1 closed](reviews/M1C4B_REVIEW.md), 296 tests plus compiled checks and original reproduction independently pass. Full M1 remains incomplete. Correction and initial review snapshots below are retained as history; their withheld status is superseded.
 
@@ -56,7 +56,9 @@ HQ reviews each result before the next assignment. Accepted M1a was pushed to th
 
 ## Near-term hands-on testing and AI path
 
-The next user-visible target is one working profile → log → restart/offline → reconnect/sync flow on the owner's iPhone, not completion of every public-release feature first. This planning target does not authorize device/hosted/provider configuration or later implementation automatically.
+The first assigned user-visible target is an integrated synthetic sign-in → profile → log → restart/offline → reconnect/sync flow in the same app's iOS simulator. It uses actual routes/session transactions/device persistence, with only the external identity provider simulated. This advances hands-on feedback without waiting for full real-provider hardening. The subsequent target is the same flow with actual Apple sign-in on the owner's iPhone. Simulator acceptance does not complete any unverified real-provider/phone gate below.
+
+**Scope discipline, approved D-028:** preserve essential account isolation, credential protection, durable records and recovery. Defer automated fleet/key-rotation operations, scale optimizations, dashboards and optional session-continuity refinements. Use existing adapters/guards, not new frameworks. Tests should prove realistic security/data-loss boundaries and the walkthrough; test count or isolated module completion is not a substitute for a usable flow. No stack rewrite, separate demo app, weakened release access or real-data shortcut.
 
 - **Available foundation:** the explicit synthetic Debug flow supports minimal profile, multiple sessions, strength/manual-time logging and local test synchronization in the iOS simulator. See the [rebuild walkthrough](../rebuild/README.md). Native evidence is previously reported, not freshly rerun on 2026-10-01. Do not enter real health records. Normal/Release is still locked without real authentication.
 - **Gate 1 — authentication backend integration:** finish credential protection, atomic credential/account/session linkage and approved standing/revocation behavior; wire authenticated API operations and verify account isolation/recovery end to end.
