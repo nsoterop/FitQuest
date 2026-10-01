@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
+import type { SessionEnvironment } from './authSessions';
 import {
   CommandSchema, OperationOutcomeSchema, ProfileSnapshotSchema, SessionListSchema, SessionSnapshotSchema,
   canonicalCommand, commandTarget, validateSessionTransition,
@@ -19,11 +20,11 @@ export class OwnerUnavailable extends Error {}
 
 export class PostgresAthleteRepository {
   constructor(private readonly pool: Pool, private readonly phase?: PhaseHook,
-    private readonly boundSession?: { candidate: SessionCandidate; guard: SessionGuard }) {}
+    private readonly boundSession?: { candidate: SessionCandidate; guard: SessionGuard; environment: SessionEnvironment }) {}
 
   /** The default facade is fixture-only. Session callers bind a looked-up candidate. */
-  bindSession(candidate: SessionCandidate, guard: SessionGuard): PostgresAthleteRepository {
-    return new PostgresAthleteRepository(this.pool, this.phase, { candidate, guard });
+  bindSession(candidate: SessionCandidate, guard: SessionGuard, environment: SessionEnvironment = 'm1c3.synthetic.test.v1'): PostgresAthleteRepository {
+    return new PostgresAthleteRepository(this.pool, this.phase, { candidate, guard, environment });
   }
 
   private async owned<T>(accountId: string, work: (client: PoolClient) => Promise<T>, afterCommit?: () => Promise<void>): Promise<T> {
@@ -39,7 +40,7 @@ export class PostgresAthleteRepository {
         : 'SELECT environment FROM m1b.accounts WHERE account_id=$1 FOR UPDATE', [accountId]);
       if (owner.rowCount !== 1) throw new OwnerUnavailable();
       if (this.boundSession) {
-        if (accountId !== this.boundSession.candidate.accountId || owner.rows[0].environment !== 'm1c3.synthetic.test.v1') throw new OwnerUnavailable();
+        if (accountId !== this.boundSession.candidate.accountId || owner.rows[0].environment !== this.boundSession.environment) throw new OwnerUnavailable();
         await this.boundSession.guard(client, this.boundSession.candidate, owner.rows[0]);
         await this.phase?.('after_owner_guard');
       } else if (owner.rows[0].environment !== 'm1b.synthetic.local.v1') throw new OwnerUnavailable();

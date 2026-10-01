@@ -1,6 +1,6 @@
 # FitQuest — Roadmap
 
-Updated: 2026-09-29 · Maintainer: Project HQ
+Updated: 2026-10-01 · Maintainer: Project HQ
 
 Statuses describe evidence, not aspiration. The roadmap is not blanket implementation or deployment permission. Maintain one implementation writer per working tree; separately approved read-only work may run alongside a non-overlapping implementation handoff.
 
@@ -28,9 +28,15 @@ HQ independently reran typecheck/lint/four tests/contract and API builds success
 
 ## M1 — Durable authenticated mixed-activity logging
 
+**Latest, 2026-10-01: M1c.4b accepted for internal simulated-provider/local PostgreSQL scope.** [F1 closed](reviews/M1C4B_REVIEW.md), 296 tests plus compiled checks and original reproduction independently pass. Full M1 remains incomplete. Correction and initial review snapshots below are retained as history; their withheld status is superseded.
+
+M1c.4b correction dispatch (2026-10-01): owner-authorized F1 correction sent to Engineering after the review below. Correct disabled-account denial, retain security behavior and add regression coverage; then return for HQ re-review. D-024 permits routine in-scope review-fix coordination without repeated owner confirmation, not new milestones.
+
+M1c.4b review update (2026-10-01): **acceptance withheld pending [F1 correction](reviews/M1C4B_REVIEW.md)**. All 294 tests and compiled checks independently pass, but a fresh disabled-account sign-in incorrectly reports bound-session revocation. No next milestone or correction was dispatched by this review; the latest accepted increment remains M1c.4a.
+
 M1c.3 review update (2026-09-29): **accepted for isolated local synthetic-data scope**. [F1/F2/F3 are closed](reviews/M1C3_REVIEW.md). HQ independently passed 138 default + 24 auth PostgreSQL + 4 preflight + 9 M1b PostgreSQL tests (175 total) and the original uppercase-UUID retry probe. Both review-started clusters are stopped with retained data.
 
-**Status: M1a/M1b/M1c.1/M1c.2/M1c.3/M1c.4a accepted within bounded scopes. Full M1 remains incomplete.** M1c.4a adds an unused offline-tested token verifier; 248 tests and compiled checks independently pass in [HQ review](reviews/M1C4A_REVIEW.md). Account/store separation and sessions still use synthetic authority. Challenge/exchange/API integration, live provider compatibility, native credentials and device evidence remain.
+**Status: M1a/M1b/M1c.1/M1c.2/M1c.3/M1c.4a/M1c.4b accepted within bounded scopes. Full M1 remains incomplete.** M1c.4b adds internal simulated exchange and atomic pending issuance; 296 tests and compiled checks independently pass in [HQ review](reviews/M1C4B_REVIEW.md). Account/store separation and sessions still use synthetic authority. Real provider credential lifecycle/API integration, live provider compatibility, native credentials and device evidence remain.
 
 Outcome: a private-account athlete completes required minimal profile setup, starts an unplanned session, records a strength result and a timed activity, resumes after interruption, and synchronizes without duplication.
 

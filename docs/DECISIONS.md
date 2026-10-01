@@ -1,6 +1,6 @@
 # FitQuest — Decisions
 
-Updated: 2026-09-29 · Maintainer: Project HQ
+Updated: 2026-10-01 · Maintainer: Project HQ
 
 Status meanings: **Approved** = owner-approved direction; **Execution choice** = reversible HQ scoping within that direction; **Pending** = not approved or not yet specified. Approval does not mean implemented or verified.
 
@@ -156,3 +156,7 @@ Split M1c.4 into reviewable slices. Assign only [M1c.4a](ENGINEERING_M1C4A_HANDO
 **Owner-authorized continuation; HQ scope, 2026-09-29.** After accepted/pushed M1c.4a checkpoint `959f740`, the owner instructed HQ to proceed. Assign [M1c.4b](ENGINEERING_M1C4B_HANDOFF.md): persisted one-use challenges, exclusive fenced exchange attempts, verification of generated token pairs and atomic account/pending-session finalization using a simulated provider exchange. Reuse accepted session behavior without a separate self-committing issuance step. Additive migrations and guarded cleanup are authorized only on the new task-marked `m1c4b-pg` / `fitquest_m1c4b_exchange_test` Unix-socket target, proposed port 55441; preserve existing migrations 001–004 and retained regression/development targets.
 
 Engineering remains the sole `rebuild/` writer on GPT-6.1 Sol. HQ owns shared docs/Git and independent acceptance. No live provider transport/calls/credentials, public auth-route wiring, production provider credential lifecycle, native/UI/device/hosted setup, deployment or product AI work. Stop after the report; subsequent integration requires its own scope. D-019 is unchanged.
+
+## D-024 — Routine acceptance-review correction routing
+
+**Explicitly approved by the owner, 2026-10-01.** Send the M1c.4b F1 correction to the existing Engineering chat. Going forward, HQ may send routine bounded review corrections to the responsible existing chat without asking again, retaining independent acceptance review and one implementation writer per working tree. This authorizes correction coordination within already approved scope, not automatic new milestones, architectural expansion, deployment/hosted changes, destructive actions or product AI. D-019's fresh pre-AI approval gate and other explicit operational gates remain unchanged.

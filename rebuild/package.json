@@ -23,7 +23,12 @@
     "typecheck": "npm run build:contracts && npm run typecheck --workspace @fitquest-rebuild/contracts && npm run typecheck --workspace @fitquest-rebuild/api && npm run typecheck --workspace @fitquest-rebuild/mobile",
     "lint": "eslint apps/mobile services/api packages/contracts",
     "test": "npm run build:contracts && npm run test --workspace @fitquest-rebuild/api && npm run test --workspace @fitquest-rebuild/contracts && npm run test --workspace @fitquest-rebuild/mobile",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build:api"
+    "check": "npm run typecheck && npm run lint && npm test && npm run build:api",
+    "m1c4b:db:setup": "node scripts/m1c4b-local-db.mjs setup",
+    "m1c4b:db:start": "node scripts/m1c4b-local-db.mjs start",
+    "m1c4b:db:stop": "node scripts/m1c4b-local-db.mjs stop",
+    "m1c4b:db:verify": "node scripts/m1c4b-local-db.mjs verify",
+    "test:pg:exchange": "npm run build:contracts && npm run test:pg:exchange --workspace @fitquest-rebuild/api"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

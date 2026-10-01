@@ -1,14 +1,22 @@
 # FitQuest — Current Handoff
 
-Updated: 2026-09-29 · Maintainer: Project HQ
+Updated: 2026-10-01 · Maintainer: Project HQ
 
 ## Current decision
+
+**Latest: M1c.4b is accepted on 2026-10-01 for internal simulated-provider/local PostgreSQL scope.** [F1 is closed](reviews/M1C4B_REVIEW.md): 296 tests, both compiled checks and HQ's original reproduction independently pass. All three review-started clusters are stopped with data retained. Real Apple sign-in, public routes, device and hosted integration remain incomplete. HQ is preparing the reviewed checkpoint and next bounded provider-adapter handoff; no product AI is authorized.
 
 **M1a and M1b are accepted by HQ for local development with synthetic data.** M1a F1–F6 and M1b F1/F2 are closed within their [local logging](reviews/M1A_REVIEW.md) and [local synchronization](reviews/M1B_REVIEW.md) evidence limits. This does not accept full M1, production authentication, hosted synchronization, real private-record use, or release readiness.
 
 **M1c.4a Apple-token verification is accepted for unused server-module/offline-test scope**, checkpoint `959f74032f3028a616c43bc732b0dbd98154b074`, pushed and remote/private/clean verified at acceptance. [HQ review](reviews/M1C4A_REVIEW.md) records 248 independently passing tests and compiled checks. The owner instructed HQ to proceed; [M1c.4b transactional sign-in exchange](ENGINEERING_M1C4B_HANDOFF.md) is now the sole scoped Engineering assignment, using simulated provider exchange and a separate synthetic PostgreSQL target. Real provider/API/native/production integration remains incomplete. **Hard stop before any product AI implementation:** notify the owner with the proposed scope/data/privacy/cost/safety plan and wait for explicit approval under D-019.
 
 ## Current implementation and evidence
+
+The correction/review entries below preserve the sequence preceding final acceptance above; their withheld and dispatch-pending wording is historical.
+
+- **Correction assigned on 2026-10-01:** the owner authorized sending F1 to Engineering and routine future in-scope review corrections without another confirmation ([D-024](DECISIONS.md#d-024--routine-acceptance-review-correction-routing)). HQ sent the existing Engineering chat a bounded task: use `AUTH_INVALID` for fresh disabled-account denial, preserve family-bound revocation and all isolation/race protections, add regression evidence, preserve applied migrations with additive changes only if needed, and stop for HQ re-review. No next milestone or AI work is authorized. The following review snapshot predates this dispatch.
+
+- M1c.4b delivery is **reviewed but not accepted on 2026-10-01**. HQ independently passed 294 tests, typechecks/lint/builds and both compiled checks. [F1 (P2)](reviews/M1C4B_REVIEW.md) reproduces a fresh disabled-account sign-in incorrectly returning `SESSION_REVOKED` without a bound family. Denial itself works; an unrelated active session remained usable. Next: bounded Engineering correction and HQ re-review, not the next integration slice. No correction was dispatched by this review. All three review-started clusters are stopped with data retained; implementation remains uncommitted. No AI/provider/device/hosted work was started.
 
 - M1c.4a is **accepted on 2026-09-29**: 211 default + 24 auth PostgreSQL + 4 preflight + 9 M1b PostgreSQL tests independently pass (248 total), plus typechecks/lint/builds, compiled default-route exclusion and HQ's separate runtime-factory probe with generated keys/intercepted fetch. The verifier is unused; no Apple authority is wired into accounts or sessions. Both review-started test clusters were stopped with data retained. Apple documentation's algorithm discrepancy and an unexecuted Node 22.13.0 floor are explicit later compatibility gates; Node 24.12.0 was exercised. [Review](reviews/M1C4A_REVIEW.md), [report](../rebuild/docs/M1C4A_REPORT.md).
 
@@ -61,7 +69,7 @@ One implementation writer per working tree. HQ owns shared `docs/` and the root 
 
 5. **Completed:** [M1c.3](reviews/M1C3_REVIEW.md), accepted on 2026-09-29 with 175 independently passing tests and F1/F2/F3 closed. Checkpoint `f2b97feef47ba45b04633848d2a688f9dd7c532f` was pushed and remotely verified private/clean. Its 18-file allowlist passed bounded credential/conflict/whitespace checks and 60 relative links. No M1c.4 source is included in that acceptance.
 6. **Completed:** [M1c.4a](reviews/M1C4A_REVIEW.md), accepted with 248 independently passing tests and compiled/runtime-factory probes. Checkpoint `959f74032f3028a616c43bc732b0dbd98154b074` was pushed and remotely verified private/clean; its 11-file allowlist passed bounded credential/conflict/whitespace checks and 64 relative links.
-7. **Assigned:** [M1c.4b](ENGINEERING_M1C4B_HANDOFF.md), internal transactional challenge/exchange integration under simulated provider authority. Default public auth routes remain absent; real provider, native/device/hosted gates and D-019 stay separate.
+7. **Completed:** [M1c.4b](ENGINEERING_M1C4B_HANDOFF.md), accepted after [F1 correction and independent re-review](reviews/M1C4B_REVIEW.md), with 296 passing tests and compiled/reproduction checks. Default public auth routes remain absent; real provider, native/device/hosted gates and D-019 stay separate.
 
 Natural-language multi-goals, nutrition/recovery context, and the adaptive-coach loop remain the subsequent M2/M3 priorities in [ROADMAP.md](ROADMAP.md). Before implementing any AI portion—even M2 goal interpretation or provider scaffolding—HQ must stop, explain the proposal and wait for fresh owner approval (D-019). This is not a change to the AI-first, mixed-modality vision.
 

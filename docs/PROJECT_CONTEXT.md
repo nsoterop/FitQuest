@@ -1,6 +1,6 @@
 # FitQuest — Project Context
 
-Updated: 2026-09-29 · Maintainer: Project HQ
+Updated: 2026-10-01 · Maintainer: Project HQ
 
 ## Product and authority
 
@@ -51,6 +51,12 @@ Still unverified: old Render service health/billing, live database state, produc
 Use disposable, explicitly identified local development/test data. Never inherit the prototype's environment files or credentials. Do not print secret values or real athlete records while inspecting configuration.
 
 ## Task ownership and workflow
+
+**Latest acceptance, 2026-10-01:** [M1c.4b](reviews/M1C4B_REVIEW.md) is accepted within internal simulated-provider/local PostgreSQL scope; F1 is closed with 296 independently passing tests, both compiled checks and HQ's separate original reproduction. All review-started clusters are stopped with retained data. The review/dispatch snapshots below are historical. Working Apple sign-in, provider credential lifecycle, public routes, native/device/hosted evidence and D-019 remain separate gates.
+
+On 2026-10-01, after the review below, the owner authorized the F1 correction and routine future bounded review-fix dispatch without repeated confirmation ([D-024](DECISIONS.md#d-024--routine-acceptance-review-correction-routing)). HQ sent F1 to the existing Engineering chat; independent re-review remains required. No expansion of implementation, hosted/deployment or pre-AI authority is implied.
+
+M1c.4b was independently reviewed on 2026-10-01 and **is not yet accepted**. [Review F1](reviews/M1C4B_REVIEW.md) requires correcting pre-authentication disabled-account denial so it does not claim bound-session revocation. HQ passed 294 tests and both compiled checks; the separate probe reproduced F1. Next is a bounded correction and re-review, not further integration. No correction was dispatched by this review. All three review-started test clusters are stopped with data retained; no implementation commit/push occurred.
 
 M1c.3 was accepted on 2026-09-29: [F1/F2/F3 closed](reviews/M1C3_REVIEW.md), with 175 independently passing tests, typechecks/lint/builds, and HQ's separate original-reproduction probe now passing. Both review-started clusters were stopped with data retained. This remains isolated local synthetic authority, not real Apple sign-in or production authentication.
 

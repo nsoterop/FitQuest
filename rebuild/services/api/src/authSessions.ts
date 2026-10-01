@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import { ActivationRequestSchema, ActiveIdentitySchema, PendingCredentialsSchema, RefreshRequestSchema, type ActiveIdentity, type PendingCredentials } from '@fitquest-rebuild/contracts';
 import { PostgresAthleteRepository, type SessionCandidate, type SessionGuard } from './repository';
 
-const environment = 'm1c3.synthetic.test.v1';
+export type SessionEnvironment = 'm1c3.synthetic.test.v1' | 'm1c4b.synthetic.test.v1' | 'm1c4b.synthetic.other.v1';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const secret = () => randomBytes(32).toString('hex');
 const at = (value: Date | string) => new Date(value).getTime();
@@ -33,7 +33,9 @@ export class AuthSessionRepository {
     private readonly now: () => Date = () => new Date(),
     private readonly phase?: PhaseHook,
     durations: Partial<{ activationMs: number; accessMs: number; refreshMs: number; absoluteMs: number }> = {},
+    private readonly environment: SessionEnvironment = 'm1c3.synthetic.test.v1',
   ) {
+    if (!['m1c3.synthetic.test.v1', 'm1c4b.synthetic.test.v1', 'm1c4b.synthetic.other.v1'].includes(environment)) throw new Error('Invalid trusted session environment');
     this.durations = {
       activationMs: durations.activationMs ?? 5 * 60_000,
       accessMs: durations.accessMs ?? 15 * 60_000,
@@ -72,7 +74,7 @@ export class AuthSessionRepository {
     return found.rows[0] ?? null;
   }
   private accountSecurityCurrent(account: AccountRow | null, family: FamilyRow | null): boolean {
-    return !!account && account.environment === environment && account.status === 'active' && !!family
+    return !!account && account.environment === this.environment && account.status === 'active' && !!family
       && family.authorization_epoch === account.authorization_epoch;
   }
   private async close(client: PoolClient, committed: boolean) {
@@ -80,10 +82,8 @@ export class AuthSessionRepository {
   }
 
   async issue(identity: SyntheticVerifiedProviderIdentity): Promise<PendingCredentials> {
-    if (identity.provider !== 'synthetic_verified' || identity.issuer !== 'fitquest-m1c3-test' || typeof identity.subject !== 'string' || identity.subject.length < 1 || identity.subject.length > 512) throw new AuthUnauthorized();
+    if (this.environment !== 'm1c3.synthetic.test.v1' || identity.provider !== 'synthetic_verified' || identity.issuer !== 'fitquest-m1c3-test' || typeof identity.subject !== 'string' || identity.subject.length < 1 || identity.subject.length > 512) throw new AuthUnauthorized();
     const subjectHash = hash(`${identity.provider}\0${identity.issuer}\0${identity.subject}`);
-    const time = this.time(), sessionId = randomUUID(), accessToken = secret(), refreshToken = secret(), revocationToken = secret();
-    const sessionExpiresAt = time + this.durations.absoluteMs;
     let client: PoolClient | undefined, committed = false, broken = false;
     try {
       client = await this.runtime.connect();
@@ -91,19 +91,7 @@ export class AuthSessionRepository {
       const mapped = await client.query<{ account_id: string }>('SELECT m1b.resolve_test_identity($1,$2,$3) AS account_id', [identity.provider, identity.issuer, subjectHash]);
       const accountId = mapped.rows[0].account_id;
       await this.phase?.('after_identity');
-      await client.query("SELECT set_config('fitquest.owner_id',$1,true)", [accountId]);
-      const account = await client.query<AccountRow>('SELECT environment,status,authorization_epoch FROM m1b.accounts WHERE account_id=$1 FOR UPDATE', [accountId]);
-      if (account.rows[0]?.environment !== environment || account.rows[0].status !== 'active') throw new AuthUnauthorized();
-      const bundle = PendingCredentialsSchema.parse({
-        accountId, sessionId, credentialGeneration: 1, accessToken, accessExpiresAt: iso(time + this.durations.accessMs),
-        refreshToken, refreshExpiresAt: iso(time + this.durations.refreshMs), sessionExpiresAt: iso(sessionExpiresAt),
-        revocationToken, activationExpiresAt: iso(time + this.durations.activationMs),
-      });
-      await client.query(`INSERT INTO m1b.session_families(family_id,account_id,authorization_epoch,status,current_generation,absolute_expires_at,created_at)
-        VALUES($1,$2,$3,'pending',1,$4,$5)`, [sessionId, accountId, account.rows[0].authorization_epoch, bundle.sessionExpiresAt, iso(time)]);
-      await client.query(`INSERT INTO m1b.credential_generations(account_id,family_id,generation,status,access_hash,access_expires_at,refresh_hash,refresh_expires_at,activation_expires_at)
-        VALUES($1,$2,1,'pending',$3,$4,$5,$6,$7)`, [accountId, sessionId, hash(accessToken), bundle.accessExpiresAt, hash(refreshToken), bundle.refreshExpiresAt, bundle.activationExpiresAt]);
-      await client.query('INSERT INTO m1b.revocation_capabilities(capability_hash,account_id,family_id,expires_at) VALUES($1,$2,$3,$4)', [hash(revocationToken), accountId, sessionId, bundle.sessionExpiresAt]);
+      const bundle = await this.issuePendingInTransaction(client, accountId);
       await this.phase?.('before_issue_commit');
       await client.query('COMMIT'); committed = true;
       await this.phase?.('after_issue_commit');
@@ -112,6 +100,27 @@ export class AuthSessionRepository {
       if (client && !committed) { try { await client.query('ROLLBACK'); } catch { broken = true; } }
       throw error;
     } finally { client?.release(broken); }
+  }
+
+  /** Internal primitive: caller owns BEGIN/COMMIT and the identity guard. Never commits or resolves identity. */
+  async issuePendingInTransaction(client: PoolClient, accountId: string, expectedEpoch?: string): Promise<PendingCredentials> {
+    await client.query("SELECT set_config('fitquest.owner_id',$1,true)", [accountId]);
+    const account = await client.query<AccountRow>('SELECT environment,status,authorization_epoch FROM m1b.accounts WHERE account_id=$1 FOR UPDATE', [accountId]);
+    if (account.rows[0]?.environment !== this.environment || account.rows[0].status !== 'active'
+      || (expectedEpoch !== undefined && account.rows[0].authorization_epoch !== expectedEpoch)) throw new AuthUnauthorized();
+    const time = this.time(), sessionId = randomUUID(), accessToken = secret(), refreshToken = secret(), revocationToken = secret();
+    const sessionExpiresAt = time + this.durations.absoluteMs;
+    const bundle = PendingCredentialsSchema.parse({
+      accountId, sessionId, credentialGeneration: 1, accessToken, accessExpiresAt: iso(time + this.durations.accessMs),
+      refreshToken, refreshExpiresAt: iso(time + this.durations.refreshMs), sessionExpiresAt: iso(sessionExpiresAt),
+      revocationToken, activationExpiresAt: iso(time + this.durations.activationMs),
+    });
+    await client.query(`INSERT INTO m1b.session_families(family_id,account_id,authorization_epoch,status,current_generation,absolute_expires_at,created_at)
+      VALUES($1,$2,$3,'pending',1,$4,$5)`, [sessionId, accountId, account.rows[0].authorization_epoch, bundle.sessionExpiresAt, iso(time)]);
+    await client.query(`INSERT INTO m1b.credential_generations(account_id,family_id,generation,status,access_hash,access_expires_at,refresh_hash,refresh_expires_at,activation_expires_at)
+      VALUES($1,$2,1,'pending',$3,$4,$5,$6,$7)`, [accountId, sessionId, hash(accessToken), bundle.accessExpiresAt, hash(refreshToken), bundle.refreshExpiresAt, bundle.activationExpiresAt]);
+    await client.query('INSERT INTO m1b.revocation_capabilities(capability_hash,account_id,family_id,expires_at) VALUES($1,$2,$3,$4)', [hash(revocationToken), accountId, sessionId, bundle.sessionExpiresAt]);
+    return bundle;
   }
 
   async activate(accessToken: string, sessionId: string, generation: number): Promise<ActivationResult> {
@@ -127,7 +136,7 @@ export class AuthSessionRepository {
       const row = await this.generation(client, candidate);
       const time = this.time();
       let result: ActivationResult = { kind: 'invalid' };
-      if (!account || account.environment !== environment || !family || !row || row.access_hash !== candidate.tokenHash) result = { kind: 'invalid' };
+      if (!account || account.environment !== this.environment || !family || !row || row.access_hash !== candidate.tokenHash) result = { kind: 'invalid' };
       else if (!this.accountSecurityCurrent(account, family) || family.status === 'revoked') result = { kind: 'revoked' };
       else if (at(family.absolute_expires_at) <= time) result = { kind: 'expired' };
       else if (family.current_generation !== generation || at(row.access_expires_at) <= time) result = { kind: 'expired' };
@@ -159,7 +168,7 @@ export class AuthSessionRepository {
       const row = await this.generation(client, candidate);
       const time = this.time();
       let result: RefreshResult = { kind: 'invalid' };
-      if (!account || account.environment !== environment || !family || !row || row.refresh_hash !== candidate.tokenHash) result = { kind: 'invalid' };
+      if (!account || account.environment !== this.environment || !family || !row || row.refresh_hash !== candidate.tokenHash) result = { kind: 'invalid' };
       else if (!this.accountSecurityCurrent(account, family) || family.status === 'revoked') result = { kind: 'revoked' };
       else if (at(family.absolute_expires_at) <= time) result = { kind: 'reauth_required' };
       else if (row.consumed_operation_id) {
@@ -211,7 +220,7 @@ export class AuthSessionRepository {
       await this.phase?.('after_logout_guard');
       const time = this.time();
       let result: 'revoked' | 'invalid' = 'invalid';
-      if (account?.environment === environment && family && capability.rows[0]?.capability_hash === candidate.tokenHash && at(capability.rows[0].expires_at) > time) {
+      if (account?.environment === this.environment && family && capability.rows[0]?.capability_hash === candidate.tokenHash && at(capability.rows[0].expires_at) > time) {
         if (family.status !== 'revoked') await client.query("UPDATE m1b.session_families SET status='revoked',revoked_at=$3 WHERE account_id=$1 AND family_id=$2", [candidate.account_id, candidate.family_id, iso(time)]);
         result = 'revoked';
       }
@@ -238,7 +247,7 @@ export class AuthSessionRepository {
   async privateAthlete(accessToken: string): Promise<{ accountId: string; repository: PostgresAthleteRepository }> {
     const candidate = await this.access(accessToken);
     if (!candidate) throw new AuthUnauthorized();
-    return { accountId: candidate.accountId, repository: this.athlete.bindSession(candidate, this.guard) };
+    return { accountId: candidate.accountId, repository: this.athlete.bindSession(candidate, this.guard, this.environment) };
   }
   async identity(accessToken: string): Promise<IdentityResult> {
     const candidate = await this.access(accessToken);
@@ -250,7 +259,7 @@ export class AuthSessionRepository {
       const row = await this.generation(client, { account_id: candidate.accountId, family_id: candidate.familyId, generation: candidate.generation });
       const time = this.time();
       let result: IdentityResult;
-      if (!account || account.environment !== environment || !family || !row || row.access_hash !== candidate.accessHash) result = { kind: 'invalid' };
+      if (!account || account.environment !== this.environment || !family || !row || row.access_hash !== candidate.accessHash) result = { kind: 'invalid' };
       else if (!this.accountSecurityCurrent(account, family) || family.status === 'revoked') result = { kind: 'revoked' };
       else if (at(family.absolute_expires_at) <= time) result = { kind: 'expired' };
       else if (family.status !== 'active' || family.current_generation !== candidate.generation || row.status !== 'active') result = { kind: 'invalid' };
