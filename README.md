@@ -14,6 +14,6 @@ npm --prefix /Users/nicksoteropoulos/Code/FitQuest/backend run check
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile run check
 ```
 
-The fresh source is on `codex/reset-backend-connectivity` (initial checkpoint `c103458`). The owner selected the existing paid Render FitQuest service; its Docker adaptation is prepared and deployment remains pending. Deploy a reviewed checkpoint containing `backend/Dockerfile`, not a historical pre-reset `rebuild/` checkpoint. Git publication alone does not mean the API is deployed or connected on the phone.
+The fresh source is on `codex/reset-backend-connectivity`. Commit `34ed41c` is deployed to the owner's existing Render FitQuest service. On 2026-10-02, the public [health endpoint](https://fitquest-api-dpk5.onrender.com/health) returned the required HTTP 200 response, and the owner confirmed **Backend: Connected** on the physical iPhone. Backend build/tests and mobile typecheck/dependency checks/tests pass (7 tests total).
 
 Work will follow the owner's roadmap. Suggestions will be provided only when requested. Previous assignments are stopped; Git history is retained for recovery, not automatic reuse.

@@ -6,6 +6,7 @@ One React Native welcome screen with a backend connection check, built with Type
 
 ```sh
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile ci
+cp -n /Users/nicksoteropoulos/Code/FitQuest/mobile/.env.example /Users/nicksoteropoulos/Code/FitQuest/mobile/.env.local
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile start
 ```
 
@@ -28,8 +29,8 @@ TypeScript and Expo dependency checks run with `npm run check`. Native dependenc
 
 ## Backend connection
 
-Set `EXPO_PUBLIC_API_URL` in `mobile/.env.local` to the deployed Render service's **HTTPS base URL**, without `/health`. `.env.example` shows the format. This value is public and is included in the mobile bundle; do not put secrets there. Restart the development server after changing the URL, then reload the phone app. No new EAS build is needed for this TypeScript/UI change.
+`EXPO_PUBLIC_API_URL` in `mobile/.env.local` is the deployed Render service's **HTTPS base URL**, without `/health`: `https://fitquest-api-dpk5.onrender.com`. `.env.example` provides this public value for a fresh checkout. It is included in the mobile bundle; do not put secrets there. Restart the development server after changing the URL, then reload the phone app. No new EAS build is needed for this TypeScript/UI change.
 
 The screen checks `GET /health` once when mounted and whenever **Retry** is tapped. It shows **Backend: Checking…**, then **Backend: Connected** only for HTTP 200 with `service: "fitquest-api"` and `status: "ok"`. Missing configuration, network/HTTP/JSON failures, and a 75-second timeout show **Backend: Unavailable**. Requests are cancelled on cleanup. Retry is disabled while checking. There is no polling or stored user data.
 
-The owner confirmed the original welcome screen works on the iPhone. The new connection validation tests, TypeScript, and Expo dependency checks pass locally. The Render deployment and **Backend: Connected** on the physical phone are not yet verified.
+On 2026-10-02, the Render Docker deployment succeeded and its public `/health` response was verified independently. The owner confirmed **Backend: Connected** on the physical iPhone after a Metro refresh. TypeScript, Expo dependency checks, and 5 connection validation tests pass. The actual iOS bundle includes the configured public API URL and status UI. The existing EAS development build was reused.
