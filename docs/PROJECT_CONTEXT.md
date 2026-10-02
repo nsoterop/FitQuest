@@ -1,6 +1,6 @@
 # FitQuest — Project Context
 
-Updated: 2026-10-01 · Maintainer: Project HQ
+Updated: 2026-10-02 · Maintainer: Project HQ
 
 ## Product and authority
 
@@ -16,7 +16,7 @@ One public, private-account fitness/health/performance coach; the owner is the f
 - Structured records are authoritative. Prescribed is not performed; planned food is not consumed; unknown is not zero.
 - Persistent history, provenance, scoped corrections, progression continuity, and truthful local-save/sync states.
 - Training, basic nutrition, and subjective recovery context feed adaptive recommendations. Apple Health is deferred, not required to make the coach useful.
-- Render is no longer constrained by the original $40/month ceiling (owner approval, 2026-09-24). Current hosting costs still need review before paid changes; app-AI allocation remains to be agreed and spend controls remain required. Existing Apple Developer membership; no new enrollment needed.
+- Render is no longer constrained by the original $40/month ceiling (owner approval, 2026-09-24). Current hosting costs still need review before paid changes. App-AI allowance approved 2026-10-02: $10/month including evaluations, with application-enforced spend controls required (D-029). Existing Apple Developer membership; no new enrollment needed.
 - No personal health data in public docs/fixtures, no exposed secrets, no hosted writes or destructive changes without explicit approval.
 
 ## Approved core direction
@@ -25,7 +25,7 @@ One public, private-account fitness/health/performance coach; the owner is the f
 - Local storage: SQLite for active sessions, pending changes, and selected cached records, not a mirror of every server table. M1a implements Expo SQLite with SQLCipher and SecureStore-backed keys for isolated synthetic local accounts. The earlier Swift/GRDB choice is superseded. Real identity, device/Keychain lifecycle, and production configuration remain integration gates.
 - Backend: TypeScript/Fastify modular API; PostgreSQL for synchronized account records. All mobile access goes through authenticated API operations, never direct database credentials.
 - Intended host: Render, subject to fresh configuration/pricing approval before provisioning. Initial iOS sign-in direction: Sign in with Apple, with provider-independent internal account IDs.
-- AI: intended server-side provider boundary, bounded relevant context, deterministic calculations, validated recommendations/evaluations. No app model/version selected. **D-019 hard stop:** before any product AI code/integration/prompt/evaluation implementation, explain the scope, data/privacy, model/provider, costs and safeguards to the owner and wait for fresh explicit approval. Earlier broad approval does not waive this gate.
+- AI: first scoped coaching loop approved 2026-10-02 under D-029, with GPT-6.1 Sol as the initial evaluation candidate, one server-side integration, bounded relevant context, deterministic calculations and validated recommendations/evaluations. $10/month includes evaluations. Start synthetic-only after hands-on integration acceptance and scoped dispatch; account/API access and controls remain unverified. D-019 is satisfied only for this scope, not material expansion, real-data use or deployment.
 - Apple Health: no HealthKit module, health permission prompts, import jobs, or claims of wearable access in the current milestones. Manual records remain first-class later too.
 - Initial UX: Sessions-first minimal profile/mixed logging flow with provisional neutral surfaces and teal actions, approved by the owner on 2026-09-23. This is not the final AI-coach dashboard. Approved ordinary-expiry local access and logout/revocation locking are recorded in D-012 of DECISIONS.
 
@@ -51,6 +51,8 @@ Still unverified: old Render service health/billing, live database state, produc
 Use disposable, explicitly identified local development/test data. Never inherit the prototype's environment files or credentials. Do not print secret values or real athlete records while inspecting configuration.
 
 ## Task ownership and workflow
+
+Current update, 2026-10-02: first AI slice approved under D-029 but queued, not assigned. Engineering reports integration delivered except for final native checks blocked at its last attempt by the Mac lock screen. Native completion and independent HQ acceptance remain ahead of AI implementation. Historical status below does not override this update; no new source writer is assigned.
 
 Current assignment, 2026-10-01: owner approved [first hands-on integration](ENGINEERING_FIRST_HANDS_ON_HANDOFF.md) under D-028, Engineering's sole implementation scope. M1c.4d.1 is [accepted](reviews/M1C4D1_REVIEW.md) with 499 freshly passing default tests and three compiled probes. The next outcome is a same-app simulator flow through actual auth/session/native credential/logging/sync components with a synthetic external identity boundary. It is not real Apple sign-in or real-data eligibility. Architecture and Design are idle. C1 remains proposed; D-019 is unchanged.
 

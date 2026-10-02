@@ -1,6 +1,6 @@
 # FitQuest — Roadmap
 
-Updated: 2026-10-01 · Maintainer: Project HQ
+Updated: 2026-10-02 · Maintainer: Project HQ
 
 Statuses describe evidence, not aspiration. The roadmap is not blanket implementation or deployment permission. Maintain one implementation writer per working tree; separately approved read-only work may run alongside a non-overlapping implementation handoff.
 
@@ -71,7 +71,7 @@ These are several integration/review cycles, not one remaining patch; no reliabl
 
 ## Mandatory checkpoint — before any product AI implementation
 
-**Owner-required stop (D-019), not satisfied.** Before model/provider scaffolding, product prompts, AI goal interpretation, coaching generation, embeddings/agents or AI evaluation implementation/calls, HQ presents scope, user/data flow, provider/model options, privacy, costs/limits, safety/evaluation and acceptance criteria, then waits for fresh explicit owner approval. Applies wherever AI first appears, including M2; do not wait until M3. Non-AI groundwork may continue under its own scoped assignments. Routine development assistance is not blocked.
+**Satisfied for the bounded first slice on 2026-10-02, D-029.** Owner approved the presented goals → mixed-activity plan → actual work → confirmed revision experience, GPT-6.1 Sol as the initial candidate, and $10/month including evaluations. Start with synthetic athletes and server-enforced spend controls. No AI work has been assigned yet: current integration needs final native verification and HQ acceptance first. Deployment/real-data/phone gates remain separate. D-019 continues to require fresh approval for material expansion beyond D-029.
 
 ## M2 — Athlete intent, nutrition, and subjective context
 

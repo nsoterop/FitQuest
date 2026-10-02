@@ -1,8 +1,12 @@
 # FitQuest — Current Handoff
 
-Updated: 2026-10-01 · Maintainer: Project HQ
+Updated: 2026-10-02 · Maintainer: Project HQ
 
 ## Current decision
+
+**2026-10-02 update:** owner explicitly approved the first AI coaching slice, GPT-6.1 Sol evaluation candidate and $10/month allowance including evaluations ([D-029](DECISIONS.md#d-029--first-ai-coaching-slice-approved-queued-after-integration-acceptance)). It is queued after hands-on integration acceptance, not dispatched. This supersedes earlier blanket AI-not-approved wording for that scope only.
+
+Engineering's integration turn is completed with remaining native verification: its last report says the Mac lock screen prevented final Release observation and Debug reinstallation/recovery checks. It reports 506 default tests and the PostgreSQL suites passing, with services stopped/data retained. These are Engineering-reported results, not a new independent HQ acceptance. Final native evidence and HQ review remain required; no implementation files are checkpointed by this approval-record update.
 
 **Current assignment, 2026-10-01:** owner approved integration-first reprioritization. Engineering's sole assignment is the [first hands-on integrated flow](ENGINEERING_FIRST_HANDS_ON_HANDOFF.md): same-app synthetic sign-in through actual routes/session storage/activation into profile/logging/restart/offline sync. This is a simulator feedback gate, not real Apple sign-in or permission for health data. No more stand-alone provider infrastructure is assigned. Architecture and Design are idle; C1 remains proposed. D-019 still blocks product AI implementation.
 
@@ -82,7 +86,7 @@ One implementation writer per working tree. HQ owns shared `docs/` and the root 
 10. **Completed:** [M1c.4d.1](reviews/M1C4D1_REVIEW.md), accepted with 499 default tests and three compiled probes. Protection only, not real authentication.
 11. **Current authorized implementation:** [first hands-on integration](ENGINEERING_FIRST_HANDS_ON_HANDOFF.md), D-028. Prioritize a usable same-app simulator flow over more unused modules; real provider/device integration and public release remain separate.
 
-Natural-language multi-goals, nutrition/recovery context, and the adaptive-coach loop remain the subsequent M2/M3 priorities in [ROADMAP.md](ROADMAP.md). Before implementing any AI portion—even M2 goal interpretation or provider scaffolding—HQ must stop, explain the proposal and wait for fresh owner approval (D-019). This is not a change to the AI-first, mixed-modality vision.
+Natural-language multi-goals, nutrition/recovery context, and the adaptive-coach loop remain the subsequent M2/M3 priorities in [ROADMAP.md](ROADMAP.md). D-029 now satisfies D-019 for the approved first slice only; implementation waits for integration acceptance and a scoped handoff. No automatic AI expansion or public release is authorized.
 
 ## Hosted status and remaining decisions
 
