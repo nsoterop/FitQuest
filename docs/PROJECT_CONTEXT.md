@@ -52,7 +52,7 @@ Use disposable, explicitly identified local development/test data. Never inherit
 
 ## Task ownership and workflow
 
-Current update, 2026-10-02: first AI slice approved under D-029 but queued, not assigned. Engineering reports integration delivered except for final native checks blocked at its last attempt by the Mac lock screen. Native completion and independent HQ acceptance remain ahead of AI implementation. Historical status below does not override this update; no new source writer is assigned.
+Current update, 2026-10-02: first AI slice approved under D-029 but queued, not assigned. Engineering completed final native checks. HQ's [integration review](reviews/FIRST_HANDS_ON_REVIEW.md) passed 596 automated tests and three compiled probes, but acceptance is withheld for F1: integrated accounts cannot reach the existing conflict-resolution controls and recovery targets do not refresh. Next is a bounded Engineering correction under D-024, followed by focused HQ re-review. All review-started clusters are stopped with data retained; unaccepted integration source is not checkpointed. Historical status below does not override this update; no new source writer is assigned.
 
 Current assignment, 2026-10-01: owner approved [first hands-on integration](ENGINEERING_FIRST_HANDS_ON_HANDOFF.md) under D-028, Engineering's sole implementation scope. M1c.4d.1 is [accepted](reviews/M1C4D1_REVIEW.md) with 499 freshly passing default tests and three compiled probes. The next outcome is a same-app simulator flow through actual auth/session/native credential/logging/sync components with a synthetic external identity boundary. It is not real Apple sign-in or real-data eligibility. Architecture and Design are idle. C1 remains proposed; D-019 is unchanged.
 

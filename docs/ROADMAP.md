@@ -28,6 +28,8 @@ HQ independently reran typecheck/lint/four tests/contract and API builds success
 
 ## M1 — Durable authenticated mixed-activity logging
 
+**Current, 2026-10-02:** hands-on delivery and final native verification are complete, but [HQ acceptance is withheld for F1](reviews/FIRST_HANDS_ON_REVIEW.md): reconnect existing conflict recovery to integrated accounts. HQ independently passed 596 automated tests and three compiled probes. This is one bounded UI/callback correction and focused re-review, not another foundation milestone. All review-started local clusters are stopped with data retained. The approved first AI slice remains queued immediately after integration acceptance and its scoped handoff.
+
 Current step (2026-10-01): [M1c.4d.1 accepted](reviews/M1C4D1_REVIEW.md), 499 default tests and three offline probes freshly pass. Owner approved a shift to [first hands-on integration](ENGINEERING_FIRST_HANDS_ON_HANDOFF.md), Engineering's sole assignment. Connect the existing components before adding more provider infrastructure. C1's proposed policy/additive states remain unapproved; no live provider, physical phone, hosted or AI work is included. Historical snapshots below do not override this scope.
 
 **Latest, 2026-10-01: M1c.4b accepted for internal simulated-provider/local PostgreSQL scope.** [F1 closed](reviews/M1C4B_REVIEW.md), 296 tests plus compiled checks and original reproduction independently pass. Full M1 remains incomplete. Correction and initial review snapshots below are retained as history; their withheld status is superseded.
@@ -71,7 +73,7 @@ These are several integration/review cycles, not one remaining patch; no reliabl
 
 ## Mandatory checkpoint — before any product AI implementation
 
-**Satisfied for the bounded first slice on 2026-10-02, D-029.** Owner approved the presented goals → mixed-activity plan → actual work → confirmed revision experience, GPT-6.1 Sol as the initial candidate, and $10/month including evaluations. Start with synthetic athletes and server-enforced spend controls. No AI work has been assigned yet: current integration needs final native verification and HQ acceptance first. Deployment/real-data/phone gates remain separate. D-019 continues to require fresh approval for material expansion beyond D-029.
+**Satisfied for the bounded first slice on 2026-10-02, D-029.** Owner approved the presented goals → mixed-activity plan → actual work → confirmed revision experience, GPT-6.1 Sol as the initial candidate, and $10/month including evaluations. Start with synthetic athletes and server-enforced spend controls. No AI work has been assigned yet: final native verification is reported complete, but integration F1 correction and HQ acceptance remain. Deployment/real-data/phone gates remain separate. D-019 continues to require fresh approval for material expansion beyond D-029.
 
 ## M2 — Athlete intent, nutrition, and subjective context
 
