@@ -14,6 +14,6 @@ npm --prefix /Users/nicksoteropoulos/Code/FitQuest/backend run check
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile run check
 ```
 
-Deployment is awaiting Render account/target inspection. Deploy a published checkpoint containing the current `backend/` package, not a historical pre-reset `rebuild/` checkpoint. Git publication alone does not mean the API is deployed or connected on the phone.
+The fresh source is on `codex/reset-backend-connectivity` (initial checkpoint `c103458`). The owner selected the existing paid Render FitQuest service; its Docker adaptation is prepared and deployment remains pending. Deploy a reviewed checkpoint containing `backend/Dockerfile`, not a historical pre-reset `rebuild/` checkpoint. Git publication alone does not mean the API is deployed or connected on the phone.
 
 Work will follow the owner's roadmap. Suggestions will be provided only when requested. Previous assignments are stopped; Git history is retained for recovery, not automatic reuse.
