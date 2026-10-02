@@ -28,7 +28,7 @@ Names and gender are required text, 1–100 characters with at least one non-whi
 
 Valid input returns HTTP 200 with exactly `{"message":"User Data Saved"}`. This is **acknowledgment only**, with no database, durable storage or profile retrieval. The endpoint is temporarily public and has no account authentication or private-account readiness claim. Use invented values for verification.
 
-Local TypeScript build and all 5 endpoint tests pass, covering health, acknowledgment, malformed input and logging privacy. The initial phone failure was traced to HTTP 404 on the older deployed connectivity checkpoint. On 2026-10-02, intake checkpoint `23172978c1e3141430e26bc8f99ae03dd344eec5` deployed successfully to the existing service in 29.3 seconds. HTTPS verification with invented values returned HTTP 200 and exactly `{"message":"User Data Saved"}`; an empty request returned HTTP 400 with the generic validation message. The public health check still returns its expected HTTP 200 response. Physical phone submission confirmation is pending.
+Local TypeScript build and all 5 endpoint tests pass, covering health, acknowledgment, malformed input and logging privacy. The initial phone failure was traced to HTTP 404 on the older deployed connectivity checkpoint. On 2026-10-02, intake checkpoint `23172978c1e3141430e26bc8f99ae03dd344eec5` deployed successfully to the existing service in 29.3 seconds. HTTPS verification with invented values returned HTTP 200 and exactly `{"message":"User Data Saved"}`; an empty request returned HTTP 400 with the generic validation message. The public health check still returns its expected HTTP 200 response. The owner then confirmed successful submission on the physical iPhone after the invented-values walkthrough.
 
 ## Render setup
 
