@@ -14,8 +14,8 @@ npm --prefix /Users/nicksoteropoulos/Code/FitQuest/backend run check
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile run check
 ```
 
-The fresh source is on `codex/reset-backend-connectivity`. The existing deployed connectivity checkpoint is `34ed41c`. On 2026-10-02, the public [health endpoint](https://fitquest-api-dpk5.onrender.com/health) returned HTTP 200, and the owner confirmed **Backend: Connected** on the physical iPhone.
+The fresh source is on `codex/reset-backend-connectivity`. Profile intake checkpoint `2317297` is deployed to the existing Render service. On 2026-10-02, the public [health endpoint](https://fitquest-api-dpk5.onrender.com/health) returned HTTP 200; the owner previously confirmed **Backend: Connected** on the physical iPhone.
 
-The profile intake changes are locally implemented and tested (16 tests total). Publication, deployment and the phone submission walkthrough are pending. **User Data Saved** acknowledges receipt; no profile data is durably stored, and this public temporary endpoint does not provide private accounts.
+All 16 tests, typechecks and Expo compatibility checks pass. The deployed intake endpoint was verified over HTTPS: invented valid values returned HTTP 200 with exactly `{"message":"User Data Saved"}`; missing fields returned HTTP 400. The phone submission confirmation remains pending. **User Data Saved** acknowledges receipt; no profile data is durably stored, and this public temporary endpoint does not provide private accounts.
 
 Work will follow the owner's roadmap. Suggestions will be provided only when requested. Previous assignments are stopped; Git history is retained for recovery, not automatic reuse.
