@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "FitQuest",
+    "slug": "fitquest",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nsoterop.fitquest.dev",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "owner": "nsoterop",
+    "extra": {
+      "eas": {
+        "projectId": "ee3a68db-3a8a-4bed-9472-01e90acdc1da"
+      }
+    },
+    "scheme": "fitquest-dev",
+    "plugins": [
+      [
+        "expo-dev-client",
+        {
+          "addGeneratedScheme": false
+        }
+      ]
+    ]
+  }
+}

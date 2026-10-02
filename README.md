@@ -1,52 +1,19 @@
 # FitQuest
 
-An iOS-first adaptive athletic coach, built with React Native and Expo for a future shared Android frontend.
+The working tree was reset at the owner's request on 2026-10-02. Current scope: a simple iPhone welcome screen and a Fastify health endpoint, with a truthful backend connection status in the app.
 
-## Current state
+- [Product goals](docs/PRODUCT_BRIEF.md)
+- [AI-assisted development workflow](AGENTS.md)
+- [iPhone setup and backend connection](mobile/README.md)
+- [Backend setup and Render deployment](backend/README.md)
 
-This repository contains the **clean rebuild**, not the earlier prototype. It is an early local-development baseline, not a released AI coach.
-
-Implemented under `rebuild/`:
-
-- Required minimal athlete profile and multiple unplanned sessions per day.
-- Strength and manual-duration logging, corrections, versioned drafts, and durable pending commands.
-- Native SQLCipher storage with separate account-scoped SecureStore keys.
-- Developer-only, explicitly enabled synthetic identities; Release remains locked.
-- Shared TypeScript/Zod contracts, an explicit local-test Fastify/PostgreSQL sync API, and client retry/conflict recovery. The default API entrypoint remains health-only.
-
-**Not implemented:** real sign-in, hosted athlete synchronization, AI coaching, nutrition workflows, Apple Health, or deployment. M1a/M1b are accepted for local synthetic-data use. M1c.1 adds accepted authentication contracts and a tested recovery model, not runtime sign-in or native credential wiring. See [M1c.1 acceptance](docs/reviews/M1C1_REVIEW.md) and [current handoff](docs/HANDOFF.md).
-
-## Development
-
-The active npm workspace is `rebuild/`, not the repository root:
+Local checks:
 
 ```sh
-cd rebuild
-npm ci
-npm run check
+npm --prefix /Users/nicksoteropoulos/Code/FitQuest/backend run check
+npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile run check
 ```
 
-Use [rebuild setup and iOS instructions](rebuild/README.md) for requirements, native builds, synthetic test boundaries, and recovery checks. Never enter real health data into the current development fixture.
+Deployment is awaiting Render account/target inspection. Deploy a published checkpoint containing the current `backend/` package, not a historical pre-reset `rebuild/` checkpoint. Git publication alone does not mean the API is deployed or connected on the phone.
 
-## Product direction
-
-Athletes should express specific or abstract goals in their own words and receive adaptive training across strength, cardio, sport, mobility, coordination, and recovery, including multiple daily sessions. Recommendations must use recorded history, nutrition, and subjective recovery without confusing planned activity with completed work.
-
-The current logging slice establishes reliable records for that later coaching loop; it does not define the final coach experience. There is one product with private accounts, not separate personal and demo apps.
-
-## Project source of truth
-
-- [Product brief](docs/PRODUCT_BRIEF.md)
-- [Project context](docs/PROJECT_CONTEXT.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Decisions](docs/DECISIONS.md)
-- [Design system](docs/DESIGN_SYSTEM.md)
-- [Current handoff](docs/HANDOFF.md)
-
-HQ coordinates scope and acceptance; Architecture, Engineering, and Design work from bounded assignments. Use one writer per working tree or isolated worktrees with explicit integration ownership.
-
-## Repository boundaries
-
-The baseline includes the rebuild, curated project documentation, and synthetic evidence. Secrets, local databases, generated native/build output, private artifacts, and the earlier prototype are excluded.
-
-On the original development machine, prototype files are retained locally and ignored; their original README is preserved as `README.prototype.md`. Fresh clones intentionally do not contain those files. Prototype retirement, public repository visibility, hosted service changes, and deployment require separate approval.
+Work will follow the owner's roadmap. Suggestions will be provided only when requested. Previous assignments are stopped; Git history is retained for recovery, not automatic reuse.

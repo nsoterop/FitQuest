@@ -1,0 +1,25 @@
+{
+  "name": "fitquest-mobile",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "expo": "~57.0.26",
+    "expo-dev-client": "~57.0.19",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start --dev-client --lan --scheme fitquest-dev",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/backendHealth.test.mjs",
+    "check": "npm run typecheck && expo install --check && npm test",
+    "build:ios": "npx eas-cli@24.9.0 build --platform ios --profile development"
+  },
+  "private": true
+}

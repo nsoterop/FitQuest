@@ -1,35 +1,24 @@
-# FitQuest — Product Brief
+# FitQuest — Product Goals
 
-Version: 0.4\
-Date: 2026-09-25\
-Owner: Project HQ\
-Status: Product requirements and core stack approved for the clean rebuild. React Native replaces the initial Swift proposal; Apple Health integration is deferred. Detailed decisions and approval boundaries are recorded in DECISIONS.md. Release dates are not committed.
+Retained and cleaned for the owner-requested reset on 2026-10-02.
 
-## 1. Purpose and authority
+## Purpose and authority
 
-FitQuest is an iOS-first, AI-powered adaptive health and performance coach. It translates an athlete's specific and abstract goals into useful daily actions, learns from accumulated real-world records, and explains meaningful adjustments.
+FitQuest is an AI-first adaptive health, training, nutrition and athletic-performance coach—not simply a lifting tracker. Athletes can express specific or abstract goals, receive useful daily actions, record actual work, and adapt based on accumulated history and changing circumstances.
 
-The central question is: **Given this athlete's goals, history, nutrition, recovery, available health data, equipment, and current circumstances, what is the most useful thing to do next?**
+This document retains product goals from the previous brief. It is not a roadmap, a required implementation order, a locked architecture, or permission to begin work. The owner's new roadmap and explicit instructions determine what is built and when. Previous milestone assignments, review gates and implementation approvals are inactive after the reset. No replacement roadmap has been created. See [the development workflow](../AGENTS.md).
 
-This brief is the product source of truth for the clean rebuild. It supersedes conflicting product assumptions in the existing README, architecture document, data-model document, and prototype. Those files remain historical references, not approved rebuild designs. Explicit later owner decisions take precedence and should be reflected here.
+## Retained product preferences
 
-The owner's detailed source brief included instructions to extend the old project. The owner explicitly chose a restart; that decision takes precedence. Preserve the old code and deployment until a separately approved transition. Local rebuild work may proceed within scoped handoffs; this does not authorize deletion, deployment, hosted infrastructure changes, or remote migrations.
-
-## 2. Confirmed constraints
-
-- **Owner checkpoint before AI implementation (2026-09-25):** before adding any product AI functionality or supporting AI integration/prompt/evaluation code, HQ must stop, explain the intended scope, data/privacy flow, provider/model choices, costs/limits and safety/acceptance plan, and wait for fresh explicit approval. Broad earlier approvals do not waive this gate. It applies to AI-assisted goal interpretation as well as coaching, regardless of milestone. Ordinary AI-assisted software development is unaffected; see D-019 in DECISIONS.
-
-- Build **one public iOS application**, with the owner as its first real user. Other users access the same product through their own private accounts.
-- Do not create a separate personal app, demo app, or mandatory demo mode. Screenshots and a walkthrough of implemented features can support a résumé without exposing personal records.
-- Public availability does not make athlete data public. Account isolation is required even during owner-only validation.
-- iOS is the only initial release platform. Android is a long-term product direction: use a shared React Native frontend rather than planning a second frontend. Android integration, testing, and release remain future work.
-- Default displayed training units are pounds and miles. Preserve explicit units and appropriate precision; domain-specific displays such as seconds or swimming distances must remain usable.
-- Athlete profile setup is required. Profiles, schedules, equipment, goals, targets, and preferences are editable data, not application constants.
-- On 2026-09-24, the owner removed the original **$40/month ceiling as a constraint on Render hosting**. This is not unlimited AI-spend or paid-service-change approval. Confirm the app-AI allowance and a current hosting estimate before commitments; retain spend controls and usage reporting. The owner already has an Apple Developer subscription; no new enrollment purchase is required. Confirm treatment of future renewal and other costs before commitments.
-- The owner reports an existing Render deployment costing $7/month and prefers Render unless a justified alternative fits better. Its present configuration, health, billing, and data have not been verified for the rebuild.
-- Approved core direction: React Native with TypeScript and Expo, SQLite for scoped local persistence, a TypeScript/Fastify API, PostgreSQL for synchronized records, Render as the intended host, and Sign in with Apple for initial iOS authentication. These are explicit rebuild choices, not approval of the prototype implementation. Package versions, app AI model, detailed auth implementation, and service configuration still require verification.
-- Apple Health integration and any HealthKit-specific native module are deferred. Initial coaching uses manual records and subjective check-ins, without claiming access to wearable or scale data.
-- Never assume credentials, provider availability, migrations, deployment state, or previous test results are current. Never expose secrets or change hosted resources without explicit approval.
+- One public app with private user accounts; the owner is its first user. No separate personal/demo app, and no exposure of personal records for résumé demonstrations.
+- iOS first; retain the goal of a shared React Native frontend for future Android support instead of a second complete frontend. Package, backend, storage, authentication and development-environment decisions from the discarded implementation are not imposed on the restart.
+- Required editable athlete profile; default pounds/miles with appropriate activity-specific units.
+- Natural-language, simultaneous goals: tennis, a first pull-up, jumping, coordination, running, swimming, general athleticism and longevity are examples, not a fixed list.
+- Mixed activities, multiple sessions per day, rest days, and warmup/cooldown/optional work. No hardcoded personal plans or fixed training scenarios.
+- Persistent history, automatic saving of drafts, truthful actuals and athlete control over plan changes.
+- Apple Health remains a future capability rather than a requirement for initial coaching; no claim of access to the owner's wearable/scale history.
+- Existing Apple Developer membership and a preference for Render are retained context, not verified configuration or permission for external changes.
+- Long-term production quality matters, but these goals do not authorize extra milestones or prerequisites outside the owner's roadmap.
 
 ## 3. Product identity
 
@@ -129,20 +118,11 @@ The development tasks named Project HQ, Architecture, Engineering, and Design ar
 - Show missing-data states, estimation limits, and comparison conditions. No fabricated streaks, PRs, adherence, recovery scores, or insights.
 - Include accessible interaction, clear loading/error states, interrupted-session recovery, and explicit offline behavior in design and testing.
 
-## 7. First adaptive-coach milestone — product target
+## Product success criteria — not an execution sequence
 
-**Outcome:** An athlete can establish their goals and current context, receive a coherent multi-session day, log actual activity and basic nutrition, and get a justified revision based on new evidence.
+The intended experience is goals and context → useful mixed-activity plans → actual work and feedback → justified adaptations that preserve history. The owner decides how to stage that experience. The criteria below are retained product targets, not mandatory gates before each development step.
 
-Build this in manageable increments tracked in ROADMAP.md. Only a scoped active handoff authorizes implementation of an increment:
-
-1. Required profile and natural-language goal clarification; editable phases, equipment, availability, and relevant baselines.
-2. Durable training records, basic consumed-food entries/reuse and nutrient totals, and subjective check-ins.
-3. Task-specific context assembled from manual records, structured plan generation, activity-appropriate logging, and persisted plan revision with evidence-linked rationale. Health integration is not a dependency.
-4. A repeat-use check across several days demonstrating that accumulated records affect subsequent recommendations and preserve progression continuity.
-
-This is a bounded implementation slice of the multi-domain product, not permission to reduce FitQuest to a static workout generator. Basic nutrition participates early; Apple Health is a later enhancement. The initial local foundation and durable-logging increments are not themselves the finished adaptive coach.
-
-### Acceptance criteria — not yet verified
+### Retained behavior targets
 
 | ID | Required behavior | Evidence to collect |
 | --- | --- | --- |
@@ -161,7 +141,7 @@ This is a bounded implementation slice of the multi-domain product, not permissi
 
 Tests may use invented athletes and activity examples as inputs. These are verification assets, not runtime workout templates, product limitations, or a separate demo application. Never put the owner's private health history into public fixtures.
 
-## 8. Product-wide direction beyond the first slice
+## Longer-term product goals — owner prioritizes
 
 - Goal-coverage reviews that compare planned and completed exposure over appropriate horizons and explain intentional phase-specific omissions.
 - Broader recipe management, personal tracking rules, natural-language food capture, and cross-domain nutrition review.
@@ -171,43 +151,10 @@ Tests may use invented athletes and activity examples as inputs. These are verif
 
 Defer HealthKit integration, dedicated watch apps, Android release work, web clients, social features, subscriptions/payments, clinical records, exhaustive food databases, meal-photo estimation, and specialized real-time coaching unless separately prioritized. Preserve the shared-frontend path to Android without claiming untested Android support. Medical diagnosis and treatment are outside this product's scope. Do not prebuild speculative services or a large agent network to accommodate possible future needs.
 
-## 9. Architecture and operational guardrails
-
-- Prefer clear domain boundaries and the smallest practical deployment footprint. Follow the approved core stack in DECISIONS.md; Architecture owns detailed contracts and technical tradeoffs. This brief is not a database schema.
-- Account for authenticated access, local persistence, offline logging, recoverable synchronization, atomic effects, duplicate-safe retries, concurrent revisions, and migrations from the first implementation.
-- Keep model credentials server-side, authorize every data operation, minimize third-party disclosure, and redact sensitive telemetry. Explain consent, export, retention, correction, and deletion behavior.
-- Version relevant prompts/configuration and output contracts. Use representative AI evaluations for grounding, constraint adherence, progression continuity, balanced goals, pain handling, and uncertainty—not only successful parsing.
-- Define separate development/test and live data boundaries. Tests must not reach production by accident. Use synthetic test data and least-privilege tools.
-- Establish reproducible setup, scoped CI checks, dependency discipline, observability, backup/restore verification, and a release/recovery process proportional to actual risk.
-- Enforce request and spend controls. When generation cannot proceed, preserve logging and existing plans and state the limitation honestly. Development evaluations count toward the operating AI allowance unless separately funded.
-- Obtain current provider pricing and calculate total operating costs, including any temporary overlap with the old deployment. A free tier is a documented tradeoff, not an availability or durability guarantee.
-
-## 10. Example plan interpretation
+## Example plan interpretation
 
 The owner supplied a ChatGPT-generated day consisting of morning mobility, evening upper-body training with load/rep ranges and RIR, and an optional recovery swim. The explanation referenced previous-day running and lower-body training.
 
 This illustrates the required plan shape and reasoning experience. It does not establish a fixed weekday split, prove that referenced activities were completed, or prescribe default exercises, loads, effort, or duration for another athlete. In any future import, preserve the distinction between the quoted plan, user-reported history, and independently recorded activity.
 
 The original private brief also includes personal measurements, health concerns, nutrition targets, equipment, rules, and performance references. Do not copy these into public documentation or default seeds. A separately authorized private onboarding/import can confirm dates, provenance, and current relevance.
-
-## 11. Current baseline and collaboration
-
-The existing repository is a prototype, not the clean rebuild. The prior audit found an Expo/React Native mobile app, Fastify API, shared TypeScript contracts/domain models, SQL migrations, goal interpretation, daily-plan generation, and mixed-activity logging paths. It also found incomplete adaptation, misleading demonstration behavior, and data-integrity/test-coverage gaps. Nutrition and HealthKit have conceptual/schema placeholders, not completed workflows.
-
-At brief creation, Git has no commits or remote and existing project files are untracked. No application code, infrastructure, data, or old documentation was replaced to create this brief. Previous passing checks are historical evidence only; none establish current deployment or rebuild readiness.
-
-- **Project HQ:** product scope, priorities, acceptance, coordination, and shared status.
-- **Architecture:** technical proposals, boundaries, data semantics, security, AI design, and decision records. No broad feature implementation without a scoped approval.
-- **Engineering:** approved implementation, tests, debugging, integration, and migration execution within authorized environments.
-- **Design:** approved interaction patterns, accessibility, design system, screens, and scoped UI work.
-- **Independent review when needed:** verify a bounded change against requirements and evidence; review is not a replacement for tests or owner approval.
-
-Use scoped handoffs with relevant requirements, starting state, file ownership, non-goals, acceptance criteria, and verification. Serialize edits or use isolated worktrees after a committed baseline exists. Shared files must have a clear integration owner.
-
-PROJECT_CONTEXT.md, ROADMAP.md, DECISIONS.md, DESIGN_SYSTEM.md, and HANDOFF.md are the cross-task source of truth. Read them before work and distinguish approved choices, proposals, implementation, and verification. Project HQ maintains shared status; other tasks return evidence for HQ to integrate.
-
-## 12. Current execution gate
-
-The initial Architecture proposal is complete. Its Swift/SwiftUI and early HealthKit recommendations are superseded by the owner's React Native and health-deferral decisions. Its remaining recommendations are not blanket-approved policies.
-
-The bounded local foundation and its simulator development-workflow follow-up are completed and accepted. M1's Architecture recovery baseline is reviewed, and the owner approved the initial Design direction and offline-access policy. [M1a durable local logging](ENGINEERING_M1A_HANDOFF.md) is the first authorized Engineering implementation slice; only its bounded scope is approved. Follow [HANDOFF.md](HANDOFF.md) for current dispatch/ownership/evidence; do not restart the completed foundation task or treat approval as passing runtime tests. Real authentication, backend synchronization, and the adaptive coach remain later work. No AI model, privacy-retention schedule, automatic replan policy, remote migration, hosted change, or public launch is approved by this local implementation decision.
