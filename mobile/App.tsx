@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { checkBackendHealth } from './src/backendHealth';
+import { ProfileIntakeForm } from './src/ProfileIntakeForm';
 
 export default function App() {
   const [backendStatus, setBackendStatus] = useState('Checking…');
@@ -33,38 +34,41 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" />
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.page}>
-            <View style={styles.brand}>
-              <View style={styles.mark} accessibilityElementsHidden>
-                <Text style={styles.markText}>FQ</Text>
+        <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+            <View style={styles.page}>
+              <View style={styles.brand}>
+                <View style={styles.mark} accessibilityElementsHidden>
+                  <Text style={styles.markText}>FQ</Text>
+                </View>
+                <Text style={styles.wordmark}>FitQuest</Text>
               </View>
-              <Text style={styles.wordmark}>FitQuest</Text>
-            </View>
-            <View style={styles.hero}>
-              <Text style={styles.eyebrow}>YOUR NEXT CHAPTER</Text>
-              <Text accessibilityRole="header" style={styles.title}>Welcome to FitQuest.</Text>
-              <Text style={styles.subtitle}>Make room for progress.</Text>
-            </View>
-            <View style={styles.card}>
-              <View style={styles.accent} />
-              <Text style={styles.cardTitle}>A fresh start.</Text>
-              <Text style={styles.cardCopy}>Big goals. Small steps. Your own journey.</Text>
-              <View style={styles.backend}>
-                <Text accessibilityLiveRegion="polite" style={styles.backendStatus}>Backend: {backendStatus}</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Retry backend connection"
-                  disabled={backendStatus === 'Checking…'}
-                  onPress={() => setAttempt((value) => value + 1)}
-                  style={({ pressed }) => [styles.retry, (pressed || backendStatus === 'Checking…') && styles.retryDimmed]}
-                >
-                  <Text style={styles.retryText}>Retry</Text>
-                </Pressable>
+              <View style={styles.hero}>
+                <Text style={styles.eyebrow}>YOUR NEXT CHAPTER</Text>
+                <Text accessibilityRole="header" style={styles.title}>Welcome to FitQuest.</Text>
+                <Text style={styles.subtitle}>Make room for progress.</Text>
               </View>
+              <View style={styles.card}>
+                <View style={styles.accent} />
+                <Text style={styles.cardTitle}>A fresh start.</Text>
+                <Text style={styles.cardCopy}>Big goals. Small steps. Your own journey.</Text>
+                <View style={styles.backend}>
+                  <Text accessibilityLiveRegion="polite" style={styles.backendStatus}>Backend: {backendStatus}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry backend connection"
+                    disabled={backendStatus === 'Checking…'}
+                    onPress={() => setAttempt((value) => value + 1)}
+                    style={({ pressed }) => [styles.retry, (pressed || backendStatus === 'Checking…') && styles.retryDimmed]}
+                  >
+                    <Text style={styles.retryText}>Retry</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <ProfileIntakeForm />
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -72,6 +76,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F6F7F2' },
+  keyboard: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', padding: 28 },
   page: { width: '100%', maxWidth: 480, alignSelf: 'center' },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12 },

@@ -1,6 +1,6 @@
 # FitQuest mobile
 
-One React Native welcome screen with a backend connection check, built with TypeScript and Expo SDK 57.
+One React Native welcome screen with a backend connection check and profile intake form, built with TypeScript and Expo SDK 57.
 
 ## Start on your iPhone
 
@@ -34,3 +34,13 @@ TypeScript and Expo dependency checks run with `npm run check`. Native dependenc
 The screen checks `GET /health` once when mounted and whenever **Retry** is tapped. It shows **Backend: Checking…**, then **Backend: Connected** only for HTTP 200 with `service: "fitquest-api"` and `status: "ok"`. Missing configuration, network/HTTP/JSON failures, and a 75-second timeout show **Backend: Unavailable**. Requests are cancelled on cleanup. Retry is disabled while checking. There is no polling or stored user data.
 
 On 2026-10-02, the Render Docker deployment succeeded and its public `/health` response was verified independently. The owner confirmed **Backend: Connected** on the physical iPhone after a Metro refresh. TypeScript, Expo dependency checks, and 5 connection validation tests pass. The actual iOS bundle includes the configured public API URL and status UI. The existing EAS development build was reused.
+
+## Profile intake
+
+Scroll to **Your profile** and enter separate first and last names, height in feet and inches (including 0 inches when appropriate), age in years, weight in pounds, and gender as text. “Prefer not to say” is accepted. Numeric fields use numeric keyboards; the screen scrolls and adjusts for the iOS keyboard. Tap **Submit** to send the current values to `POST /profile-intake` at the configured HTTPS backend. Height is sent as total inches (`unit: "in"`) and weight as pounds (`unit: "lb"`).
+
+Basic input validation happens before sending. Submit and editing are disabled while a request is pending, with an immediate lock against rapid duplicate taps. Only HTTP 200 with the exact expected message shows **User Data Saved**. Network, HTTP, invalid-response and 75-second timeout failures show an error and preserve entries for retry. Editing a field clears old feedback; unmounting cancels submission. Inputs remain in screen memory only. No profile storage, telemetry or request queue is added.
+
+**User Data Saved** means the backend validated and acknowledged receipt. It does not mean durable storage yet. This public temporary endpoint has no private accounts; use invented details for walkthroughs.
+
+Local typecheck and all 11 mobile tests pass (5 connection tests and 6 intake validation/request tests). The owner saw a submission error on the phone; a synthetic HTTPS request confirmed HTTP 404 because the intake endpoint is not deployed yet. The client now explains that missing-endpoint case specifically. Successful deployed submission and physical iPhone verification remain pending HQ publication. No new native dependencies or EAS build are required.
