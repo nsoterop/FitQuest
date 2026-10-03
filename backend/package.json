@@ -9,14 +9,17 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "npm run build && node --test dist/app.test.js",
+    "test": "npm run build && node --test dist/*.test.js",
     "check": "npm test"
   },
   "dependencies": {
-    "fastify": "^5.12.5"
+    "@supabase/supabase-js": "2.117.2",
+    "fastify": "^5.12.5",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/node": "^24.19.1",
+    "@types/pg": "^8.23.1",
     "typescript": "~6.0.3"
   }
 }

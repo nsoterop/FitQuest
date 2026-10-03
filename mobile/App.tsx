@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { checkBackendHealth } from './src/backendHealth';
-import { ProfileIntakeForm } from './src/ProfileIntakeForm';
+import { AccountPanel } from './src/AccountPanel';
 
 export default function App() {
   const [backendStatus, setBackendStatus] = useState('Checking…');
@@ -43,16 +43,8 @@ export default function App() {
                 </View>
                 <Text style={styles.wordmark}>FitQuest</Text>
               </View>
-              <View style={styles.hero}>
-                <Text style={styles.eyebrow}>YOUR NEXT CHAPTER</Text>
-                <Text accessibilityRole="header" style={styles.title}>Welcome to FitQuest.</Text>
-                <Text style={styles.subtitle}>Make room for progress.</Text>
-              </View>
-              <View style={styles.card}>
-                <View style={styles.accent} />
-                <Text style={styles.cardTitle}>A fresh start.</Text>
-                <Text style={styles.cardCopy}>Big goals. Small steps. Your own journey.</Text>
-                <View style={styles.backend}>
+              <AccountPanel />
+              <View style={styles.backend}>
                   <Text accessibilityLiveRegion="polite" style={styles.backendStatus}>Backend: {backendStatus}</Text>
                   <Pressable
                     accessibilityRole="button"
@@ -63,9 +55,7 @@ export default function App() {
                   >
                     <Text style={styles.retryText}>Retry</Text>
                   </Pressable>
-                </View>
               </View>
-              <ProfileIntakeForm />
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -77,23 +67,15 @@ export default function App() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F6F7F2' },
   keyboard: { flex: 1 },
-  content: { flexGrow: 1, justifyContent: 'center', padding: 28 },
+  content: { flexGrow: 1, padding: 24 },
   page: { width: '100%', maxWidth: 480, alignSelf: 'center' },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   mark: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#176B5B', alignItems: 'center', justifyContent: 'center' },
   markText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
   wordmark: { color: '#193B34', fontSize: 22, fontWeight: '700' },
-  hero: { marginTop: 56, marginBottom: 36, gap: 14 },
-  eyebrow: { color: '#49675C', fontSize: 12, fontWeight: '700', letterSpacing: 2 },
-  title: { color: '#193B34', fontSize: 44, fontWeight: '700', letterSpacing: -1.5 },
-  subtitle: { color: '#52655E', fontSize: 19, lineHeight: 28 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#DDE5DD', gap: 10 },
-  accent: { width: 32, height: 4, borderRadius: 2, backgroundColor: '#176B5B', marginBottom: 8 },
-  cardTitle: { color: '#193B34', fontSize: 22, fontWeight: '600' },
-  cardCopy: { color: '#52655E', fontSize: 16, lineHeight: 25 },
-  backend: { marginTop: 12, gap: 12 },
-  backendStatus: { color: '#193B34', fontSize: 16, lineHeight: 25, fontWeight: '600' },
-  retry: { alignSelf: 'flex-start', paddingVertical: 12, paddingHorizontal: 20, minHeight: 44, borderRadius: 12, backgroundColor: '#176B5B' },
+  backend: { marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
+  backendStatus: { color: '#52655E', fontSize: 14, lineHeight: 21 },
+  retry: { padding: 12, minHeight: 44 },
   retryDimmed: { opacity: 0.5 },
-  retryText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  retryText: { color: '#176B5B', fontSize: 14, fontWeight: '600' },
 });

@@ -43,15 +43,16 @@ export function validateIntake(fields: IntakeFields): { payload: IntakePayload }
 }
 
 type IntakeFetcher = (url: string, options: {
-  method: 'POST'; headers: { 'Content-Type': string }; body: string; signal: AbortSignal;
+  method: 'POST'; headers: { 'Content-Type': string; Authorization: string }; body: string; signal: AbortSignal;
 }) => Promise<Pick<Response, 'status' | 'json'>>;
 
 export async function submitIntake(
   apiUrl: string | undefined,
   payload: IntakePayload,
   signal: AbortSignal,
+  token: string,
   fetcher: IntakeFetcher = fetch,
-): Promise<{ success: true } | { error: string }> {
+): Promise<{ success: true } | { error: string; sessionEnded?: true }> {
   let url: URL;
   try {
     if (!apiUrl) throw new Error();
@@ -65,9 +66,11 @@ export async function submitIntake(
   }
   try {
     if (signal.aborted) throw new Error();
+    if (!token) return { error: 'Sign in to save your profile.' };
     const response = await fetcher(url.toString(), { method: 'POST',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal });
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload), signal });
     if (signal.aborted) throw new Error();
+    if (response.status === 401) return { error: 'Your session ended. Please sign in again.', sessionEnded: true };
     if (response.status === 400) return { error: 'The backend rejected these fields. Check your entries and try again.' };
     if (response.status === 404) return { error: 'Profile submission is not available on the backend yet. Please try again after it is updated.' };
     if (response.status !== 200) return { error: 'The backend could not accept your data. Please try again.' };
@@ -81,4 +84,36 @@ export async function submitIntake(
     return { error: signal.aborted ? 'Submission timed out. Please try again.'
       : 'Unable to reach the backend. Check your connection and try again.' };
   }
+}
+
+export type SavedProfile = IntakePayload & { ageCapturedAt: string; updatedAt: string };
+export function profileFields(profile: SavedProfile): IntakeFields {
+  return { firstName: profile.firstName, lastName: profile.lastName,
+    heightFeet: String(Math.floor(profile.height.value / 12)), heightInches: String(profile.height.value % 12),
+    age: String(profile.age), weight: String(profile.weight.value), gender: profile.gender };
+}
+export async function loadProfile(apiUrl: string | undefined, signal: AbortSignal, token: string,
+  fetcher: typeof fetch = fetch): Promise<{ profile: SavedProfile | null } | { error: string; sessionEnded?: true }> {
+  try {
+    if (!apiUrl) throw new Error();
+    const url = new URL(apiUrl);
+    if (url.protocol !== 'https:' || url.username || url.password) throw new Error();
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/profile`; url.search = ''; url.hash = '';
+    if (!token || signal.aborted) throw new Error();
+    const response = await fetcher(url.toString(), { headers: { Authorization: `Bearer ${token}` }, signal });
+    if (signal.aborted) throw new Error();
+    if (response.status === 401) return { error: 'Your session ended. Please sign in again.', sessionEnded: true };
+    if (response.status !== 200 || signal.aborted) throw new Error();
+    const body: unknown = await response.json();
+    if (signal.aborted || typeof body !== 'object' || body === null || !('profile' in body)) throw new Error();
+    if (body.profile === null) return { profile: null };
+    const p = body.profile as SavedProfile;
+    if (typeof p !== 'object' || !p || typeof p.firstName !== 'string' || typeof p.lastName !== 'string' ||
+        typeof p.gender !== 'string' || !Number.isInteger(p.age) || !Number.isInteger(p.height?.value) ||
+        p.height?.unit !== 'in' || p.weight?.unit !== 'lb' || typeof p.weight.value !== 'number' ||
+        typeof p.ageCapturedAt !== 'string' || typeof p.updatedAt !== 'string' ||
+        !Number.isFinite(Date.parse(p.ageCapturedAt)) || !Number.isFinite(Date.parse(p.updatedAt)) ||
+        'error' in validateIntake(profileFields(p))) throw new Error();
+    return { profile: p };
+  } catch { return { error: signal.aborted ? 'Profile loading timed out. Please retry.' : 'Unable to load your profile. Please retry.' }; }
 }

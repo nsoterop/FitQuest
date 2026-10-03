@@ -1,6 +1,27 @@
 import { buildApp } from './app.js';
+import { createPool, postgresProfileStore } from './profileStore.js';
+import { supabaseVerifier } from './auth.js';
 
-const app = buildApp(true);
+const { DATABASE_URL, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = process.env;
+if (!DATABASE_URL || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  throw new Error('Backend database and Supabase configuration are required.');
+}
+try {
+  const authUrl = new URL(SUPABASE_URL);
+  const databaseUrl = new URL(DATABASE_URL);
+  if (authUrl.protocol !== 'https:' || authUrl.username || authUrl.password ||
+      !SUPABASE_PUBLISHABLE_KEY.startsWith('sb_publishable_') ||
+      !['postgres:', 'postgresql:'].includes(databaseUrl.protocol) ||
+      !(databaseUrl.username === 'fitquest_app' || databaseUrl.username.startsWith('fitquest_app.')) ||
+      (process.env.NODE_ENV === 'production' && databaseUrl.searchParams.get('sslmode') !== 'verify-full')) {
+    throw new Error();
+  }
+} catch { throw new Error('Use HTTPS Supabase Auth, a publishable key, and the restricted TLS database role.'); }
+const pool = createPool(DATABASE_URL);
+const app = buildApp({ redact: ['req.headers.authorization', 'req.headers.cookie', 'err'] }, {
+  store: postgresProfileStore(pool), verifyAccount: supabaseVerifier(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+});
+app.addHook('onClose', async () => pool.end());
 const port = Number(process.env.PORT ?? '10000');
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) {

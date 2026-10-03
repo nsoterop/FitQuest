@@ -27,7 +27,8 @@
         {
           "addGeneratedScheme": false
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }
