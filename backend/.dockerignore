@@ -6,3 +6,5 @@
 !src/**
 !certs/
 !certs/**
+!catalog/
+!catalog/**
