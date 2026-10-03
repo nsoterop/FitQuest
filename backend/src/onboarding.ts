@@ -1,19 +1,27 @@
 import { renderOnboardingReply } from './onboardingReply.js';
 import type { Account } from './auth.js';
-import { applyProposal, disclosure, disclosureVersion, limits, opening, OnboardingError, type Command } from './onboardingDomain.js';
+import { applyProposal, disclosure, disclosureVersion, limits, opening, completionReply, OnboardingError, type Command } from './onboardingDomain.js';
 import { validateProposal, type OnboardingProvider, type ProviderResult } from './onboardingProvider.js';
-import type { Conversation, OnboardingStore } from './onboardingStore.js';
+import { completedConversation, type Conversation, type OnboardingStore } from './onboardingStore.js';
 
 export function onboardingService(store:OnboardingStore,provider?:OnboardingProvider,environment=process.env.NODE_ENV) {
   if(provider?.mode==='test' && environment==='production') throw new Error('Test AI is not allowed in production.');
   const present=(conversation:Conversation)=>({...conversation,generationEnabled:!!provider,opening,disclosure,disclosureVersion});
+  const presentStored=async(account:Account,conversation:Conversation)=>{
+    if(!completedConversation(conversation)) return present(conversation);
+    if(!await store.removeCompleted(account,conversation.id)) throw new OnboardingError(409,'revision_conflict');
+    return {id:conversation.id,deleted:true as const,message:completionReply};
+  };
   return {
     create:async(account:Account)=>present(await store.create(account)),
-    read:async(account:Account,id:string)=>present(await store.read(account,id)),
+    read:async(account:Account,id:string)=>presentStored(account,await store.read(account,id)),
     remove:(account:Account,id:string)=>store.remove(account,id),
     async command(account:Account,id:string,command:Command,authorize:()=>Promise<boolean>) {
       const claimed=await store.claim(account,id,command,provider);
-      const presentOperation=async(conversation:Conversation)=>({...present(conversation),operationResult:await store.operation(account,id,command.operationId)});
+      const presentOperation=async(conversation:Conversation)=>{
+        const result=await presentStored(account,conversation);
+        return 'deleted' in result?result:{...result,operationResult:await store.operation(account,id,command.operationId)};
+      };
       if(!claimed.work || !provider) return presentOperation(claimed.conversation);
       const work=claimed.work;
       const controller=new AbortController();

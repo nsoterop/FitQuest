@@ -272,7 +272,7 @@ test('disclosure precedes a minimal conversation; structured context is never si
     return{status:200,json:async()=>saved};
   };
   const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});
-  assert.ok(text(screen).includes('adults 18+'));assert.ok(text(screen).includes('shared with OpenAI'));assert.ok(text(screen).includes('provider retention'));
+  assert.ok(text(screen).includes('adults 18+'));assert.ok(text(screen).includes('shared with OpenAI'));assert.ok(text(screen).includes('Provider retention'));
   assert.equal(screen.root.findAllByProps({accessibilityLabel:'Onboarding message'}).length,0);
   await act(async()=>{press(screen,'Continue to onboarding');await flush()});
   assert.ok(text(screen).includes(saved.opening));
@@ -401,5 +401,71 @@ test('revision conflict reloads saved replies before resending the preserved ans
   await act(async()=>{press(screen,'Send');await flush()});assert.equal((await privateDrafts.read('alice')).pending,null);assert.equal(input(screen,'Send').props.disabled,true);assert.ok(input(screen,'Check for reply'));
   await act(async()=>{press(screen,'Check for reply');await flush()});assert.equal(sent.length,1);assert.equal(input(screen,'Onboarding message').props.value,'Keep tennis first');
   reject=false;await act(async()=>{press(screen,'Send');await flush()});assert.equal(sent[1].expectedRevision,2);assert.notEqual(sent[0].operationId,sent[1].operationId);
+  await act(async()=>screen.unmount());
+});
+
+const deletionReceipt=id=>({id,deleted:true,message:'Onboarding finished. This conversation and its understanding have been deleted. Your profile is unchanged.'});
+test('completion waits for the server, clears draft/transcript, returns to greeting and next start is fresh',async()=>{
+  resetAuth(alice);globalThis.__fitquestSecure.clear();let saved={...onboardingFixture(),generationEnabled:true,turns:[{id:'t',sequence:1,message:'Private tennis report',reply:'Recap: tennis first. Reply Looks good to finish.',questionTopic:'Onboarding recap',state:'completed',error:null}]};
+  let complete;let commands=0;
+  globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
+    if(url.endsWith('/commands')){commands++;return new Promise(resolve=>{complete=resolve})}
+    return{status:200,json:async()=>saved};
+  };
+  const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
+  const oldInput=input(screen,'Onboarding message').props.onChangeText;
+  await act(async()=>{oldInput('Looks good');await flush()});await act(async()=>{press(screen,'Send');await flush()});
+  assert.equal(text(screen).includes('Onboarding finished'),false);assert.ok(await privateDrafts.read('alice'));
+  await act(async()=>{complete({status:200,json:async()=>deletionReceipt(saved.id)});await flush()});
+  assert.ok(text(screen).includes('Hi '));assert.ok(text(screen).includes('Onboarding finished'));assert.equal(text(screen).includes('Private tennis report'),false);assert.equal(await privateDrafts.read('alice'),null);
+  await act(async()=>{oldInput('late private draft');await flush()});assert.equal(await privateDrafts.read('alice'),null);
+  saved={...onboardingFixture(),id:'bbbbbbbb-1111-4111-8111-111111111111'};
+  await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
+  assert.equal(input(screen,'Onboarding message').props.value,'');assert.equal(text(screen).includes('Private tennis report'),false);assert.equal(commands,1);
+  await act(async()=>screen.unmount());
+});
+test('failed device cleanup hides deleted content and retries only local cleanup before closing',async()=>{
+  globalThis.__fitquestSecure.clear();const saved=onboardingFixture();let closed=0,commands=0,fail=true;
+  const drafts={...privateDrafts,clear:async(...args)=>{if(fail)throw Error('synthetic secure deletion failure');return privateDrafts.clear(...args)}};
+  globalThis.fetch=async(url)=>{if(url.endsWith('/commands')){commands++;return{status:200,json:async()=>deletionReceipt(saved.id)}}return{status:200,json:async()=>saved}};
+  const screen=await mountOnboarding({drafts,onClose(){closed++}});const late=input(screen,'Onboarding message').props.onChangeText;
+  await act(async()=>{late('Looks good');await flush()});await act(async()=>{press(screen,'Send');await flush()});
+  assert.equal(closed,0);assert.ok(input(screen,'Finish cleanup'));assert.equal(screen.root.findAllByProps({accessibilityLabel:'Onboarding message'}).length,0);
+  await act(async()=>{late('Do not resurrect deleted draft');await flush()});assert.equal((await privateDrafts.read('alice')).text,'Looks good');
+  fail=false;await act(async()=>{press(screen,'Finish cleanup');await flush()});assert.equal(closed,1);assert.equal(commands,1);assert.equal(await privateDrafts.read('alice'),null);
+  await act(async()=>screen.unmount());
+});
+test('failed server deletion retains the pending operation; retry uses the same ID and a lost committed response recovers from not_found',async()=>{
+  globalThis.__fitquestSecure.clear();const saved=onboardingFixture();const sent=[];let closed='';let step=0;
+  globalThis.fetch=async(url,options)=>{
+    if(!url.endsWith('/commands'))return{status:200,json:async()=>saved};
+    sent.push(JSON.parse(options.body));step++;
+    if(step===1)return{status:503,json:async()=>({code:'unavailable'})};
+    if(step===2)throw Error('deletion committed, response lost');
+    return{status:404,json:async()=>({code:'not_found'})};
+  };
+  const screen=await mountOnboarding({onClose(message){closed=message}});
+  await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Looks good');await flush()});await act(async()=>{press(screen,'Send');await flush()});
+  assert.equal(closed,'');assert.ok(input(screen,'Try again'));
+  await act(async()=>{press(screen,'Try again');await flush()});assert.equal(closed,'');
+  await act(async()=>{press(screen,'Try again');await flush()});assert.equal(closed,'This conversation is no longer stored.');assert.equal(await privateDrafts.read('alice'),null);
+  assert.ok(sent.every(x=>x.operationId===sent[0].operationId&&x.kind==='message'));
+  await act(async()=>screen.unmount());
+});
+test('reopen after completion cleanup discards an old pending draft and does not replay it against a fresh conversation',async()=>{
+  globalThis.__fitquestSecure.clear();const old=onboardingFixture();const next={...old,id:'bbbbbbbb-1111-4111-8111-111111111111'};
+  await privateDrafts.write('alice',{conversationId:old.id,text:'Looks good',pending:{operationId:'old',expectedRevision:4,kind:'message',text:'Looks good'},savedAt:Date.now()});
+  let commands=0;globalThis.fetch=async(url)=>{if(url.endsWith('/commands'))commands++;return{status:200,json:async()=>next}};
+  const screen=await mountOnboarding();assert.equal(input(screen,'Onboarding message').props.value,'');assert.equal(text(screen).includes('Try again'),false);assert.equal(await privateDrafts.read('alice'),null);assert.equal(commands,0);
+  await act(async()=>screen.unmount());
+});
+test('a completion receipt arriving after account switch cannot close or populate the next account',async()=>{
+  resetAuth(alice);globalThis.__fitquestSecure.clear();const saved=onboardingFixture();let complete;
+  globalThis.fetch=async(url)=>{if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};if(url.endsWith('/commands'))return new Promise(resolve=>{complete=resolve});return{status:200,json:async()=>saved}};
+  const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
+  await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Looks good');await flush()});await act(async()=>{press(screen,'Send');await flush()});
+  await act(async()=>{press(screen,'Sign out');await flush()});await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
+  await act(async()=>{complete({status:200,json:async()=>deletionReceipt(saved.id)});await flush()});assert.equal(text(screen).includes('Onboarding finished'),false);assert.equal(await privateDrafts.read('alice'),null);
   await act(async()=>screen.unmount());
 });

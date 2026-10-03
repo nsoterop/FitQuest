@@ -24,6 +24,7 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded, userId }: {
   const [loadError, setLoadError] = useState('');
   const [savedFirstName, setSavedFirstName] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState(false);
+  const [onboardingNotice, setOnboardingNotice] = useState('');
 
   async function restore() {
     if (loading.current || pending.current) return;
@@ -112,10 +113,11 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded, userId }: {
   }
 
   if (savedFirstName !== null) {
-    if (onboarding && userId) return <OnboardingScreen userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onClose={() => setOnboarding(false)} />;
+    if (onboarding && userId) return <OnboardingScreen userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onClose={message => {setOnboarding(false);setOnboardingNotice(message??'')}} />;
     return <View>
       <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.welcome}>Hi {savedFirstName}</Text>
-      {userId && <Pressable accessibilityRole="button" accessibilityLabel="Start onboarding" onPress={() => setOnboarding(true)} style={[styles.button, { marginTop: 24 }]}><Text style={styles.buttonText}>Start onboarding</Text></Pressable>}
+      {!!onboardingNotice && <Text accessibilityLiveRegion="polite" style={styles.copy}>{onboardingNotice}</Text>}
+      {userId && <Pressable accessibilityRole="button" accessibilityLabel="Start onboarding" onPress={() => {setOnboardingNotice('');setOnboarding(true)}} style={[styles.button, { marginTop: 24 }]}><Text style={styles.buttonText}>Start onboarding</Text></Pressable>}
     </View>;
   }
   if (reading) return <Text accessibilityLiveRegion="polite" style={styles.notice}>Loading your profile…</Text>;

@@ -5,6 +5,12 @@ export type OnboardingConversation={id:string;revision:number;state:'collecting'
   context:{items:UnderstandingItem[];skipped:string[];readiness:'needs_clarification'|'ready_with_limits'|'ready';limitations:string[]};
   turns:{id:string;sequence:number;message:string;reply:string|null;questionTopic:string|null;state:'pending'|'completed'|'failed';error:string|null}[];
   profileChanged:boolean;generationEnabled:boolean;opening:string;disclosure:string;disclosureVersion:string};
+export type DeletedOnboarding={id:string;deleted:true;message:string};
+export function isDeletedOnboarding(value:unknown):value is DeletedOnboarding {
+  if(!value||typeof value!=='object')return false;
+  const x=value as DeletedOnboarding;
+  return x.deleted===true&&typeof x.id==='string'&&typeof x.message==='string'&&x.message.length<=300&&Object.keys(x).every(k=>['id','deleted','message'].includes(k));
+}
 export class OnboardingApiError extends Error {
   code:string;sessionEnded:boolean;
   constructor(code:string,sessionEnded=false){super(onboardingErrorText(code));this.code=code;this.sessionEnded=sessionEnded}
@@ -35,7 +41,7 @@ export function isConversation(value:unknown):value is OnboardingConversation {
     Array.isArray(x.context.skipped)&&x.context.skipped.every(s=>typeof s==='string')&&Array.isArray(x.turns)&&x.turns.length<=100&&x.turns.every(t=>typeof t.id==='string'&&typeof t.message==='string'&&
       (t.reply===null||typeof t.reply==='string')&&(t.questionTopic===null||typeof t.questionTopic==='string')&&['pending','completed','failed'].includes(t.state));
 }
-export async function onboardingRequest(method:'POST'|'GET'|'DELETE',id:string|null,command:OnboardingCommand|null,token:string,signal:AbortSignal,fetcher:typeof fetch=fetch):Promise<OnboardingConversation|null> {
+export async function onboardingRequest(method:'POST'|'GET'|'DELETE',id:string|null,command:OnboardingCommand|null,token:string,signal:AbortSignal,fetcher:typeof fetch=fetch):Promise<OnboardingConversation|DeletedOnboarding|null> {
   try {
     const base=process.env.EXPO_PUBLIC_API_URL;if(!base||!token||signal.aborted)throw new Error();
     const url=new URL(base);if(url.protocol!=='https:'||url.username||url.password)throw new Error();
@@ -47,6 +53,7 @@ export async function onboardingRequest(method:'POST'|'GET'|'DELETE',id:string|n
     if(method==='DELETE'&&response.status===204)return null;
     const body:unknown=await response.json();if(signal.aborted)throw new Error();
     if(response.status!==200)throw new OnboardingApiError(typeof body==='object'&&body&&'code'in body&&typeof body.code==='string'?body.code:'unavailable');
+    if(isDeletedOnboarding(body)){if(!id||body.id!==id)throw new Error();return body}
     if(!isConversation(body))throw new Error();return body;
   }catch(error){if(error instanceof OnboardingApiError)throw error;throw new OnboardingApiError('unavailable')}
 }

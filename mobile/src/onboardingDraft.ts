@@ -8,14 +8,23 @@ export function onboardingDrafts(storage:ReturnType<typeof secureSessionStorage>
     return (d.conversationId===null||typeof d.conversationId==='string')&&typeof d.text==='string'&&d.text.length<=4000&&Number.isFinite(d.savedAt)&&
       (d.pending===null||typeof d.pending==='object'&&typeof d.pending.operationId==='string'&&Number.isInteger(d.pending.expectedRevision)&&['message','retry','edit','skip','confirm'].includes(d.pending.kind))&&JSON.stringify(d).length<=10000;
   };
+  let queue:Promise<unknown>=Promise.resolve();
+  const run=<T>(operation:()=>Promise<T>)=>{const result=queue.then(operation);queue=result.catch(()=>{});return result};
   return {
-    async read(userId:string):Promise<OnboardingDraft|null>{
+    read:(userId:string):Promise<OnboardingDraft|null>=>run(async()=>{
       const raw=await storage.getItem(key(userId));if(!raw)return null;
       try{const value:unknown=JSON.parse(raw);if(valid(value)&&Date.now()-value.savedAt<86400000&&value.savedAt<=Date.now())return value}catch{}
       await storage.removeItem(key(userId));return null;
-    },
-    async write(userId:string,draft:OnboardingDraft){if(!valid(draft))throw new Error('Draft exceeds limits.');await storage.setItem(key(userId),JSON.stringify(draft))},
-    clear:(userId:string)=>storage.removeItem(key(userId)),
+    }),
+    write:(userId:string,draft:OnboardingDraft)=>run(async()=>{if(!valid(draft))throw new Error('Draft exceeds limits.');await storage.setItem(key(userId),JSON.stringify(draft))}),
+    clear:(userId:string,conversationId?:string)=>run(async()=>{
+      if(conversationId!==undefined){
+        const raw=await storage.getItem(key(userId));if(!raw)return;
+        let saved:unknown;try{saved=JSON.parse(raw)}catch{}
+        if(valid(saved)&&saved.conversationId!==conversationId)return;
+      }
+      await storage.removeItem(key(userId));
+    }),
   };
 }
 export type OnboardingDraftStore=ReturnType<typeof onboardingDrafts>;

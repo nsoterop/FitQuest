@@ -69,9 +69,9 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       await send({kind:'skip',topic:'Schedule'});
       await send({kind:'edit',itemId:null,topic:'Availability correction',value:correctedAvailability});
       await send({kind:'message',text:'I am ready to review with unknowns. Keep the knee uncertainty and both goals.'});
-      assert.equal(sent,3);const reviewed=structuredClone(a.context);const version=a.revision;
-      await send({kind:'confirm',reviewedRevision:version});assert.equal(sent,3);assert.equal(a.confirmedRevision,version);assert.deepEqual(a.context,reviewed);
-      assert.deepEqual((await postgresOnboardingStore(pool).read(alice,a.id)).context,reviewed);
+      assert.equal(sent,3);const version=a.revision;
+      await send({kind:'confirm',reviewedRevision:version});assert.equal(sent,3);assert.equal(a.deleted,true);
+      await assert.rejects(store.read(alice,a.id),{code:'not_found'});
     }finally{await local.close()}
   });
   await t.test('compacted provider context still rejects fabricated original sources and quotes before content commit',async()=>{
@@ -80,7 +80,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       const a=await fresh();
       const service=onboardingService(store,{...provider,prepare(input){return{body:serializeInput(input,'synthetic'),reserveMicro:100}},call:async()=>({proposal:{...proposal,additions:[addition]},usage:{input:100,output:20,cached:0,cacheWrite:0}})},'test');
       const result=await service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:0,kind:'message',text:'Tennis and a pull-up; restrictions are uncertain.'},async()=>true);
-      assert.equal(result.turns[0]?.state,'failed');assert.equal(result.turns[0]?.reply,null);
+      assert.ok('turns' in result);assert.equal(result.turns[0]?.state,'failed');assert.equal(result.turns[0]?.reply,null);
       assert.equal(JSON.stringify(result.context).includes('Invented'),false);
       assert.ok(result.context.items.some(x=>x.value==='Tennis and a pull-up; restrictions are uncertain.'));
     }
@@ -105,7 +105,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     a=await service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'edit',itemId:null,topic:'Priority',value:'Tennis is still first.'},async()=>true);
     const reviewed=structuredClone(a.context);
     a=await service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'confirm',reviewedRevision:a.revision},async()=>true);
-    assert.deepEqual(a.context,reviewed);assert.equal(a.state,'confirmed');assert.equal(dispatches,before+1);
+    assert.equal(a.deleted,true);await assert.rejects(store.read(alice,a.id),{code:'not_found'});assert.equal(dispatches,before+1);
   });
   await t.test('conversational recap, correction, agreement and reopen never confirm unseen items or spend on acknowledgement',async()=>{
     let a=await fresh();const observed:any[]=[];let responseIndex=0;
@@ -126,12 +126,14 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       await send('Public courts. I walk now and have no important limitations.');assert.ok(a.turns.at(-1).reply.includes('Looks good'));assert.equal(a.turns.at(-1).questionTopic,'Onboarding recap');
       await send('Can you summarize that?');assert.equal(responseIndex,4);assert.equal(a.turns.at(-1).questionTopic,'Onboarding recap');
       await send('Actually only one half-hour session, not two.');assert.equal(responseIndex,5);assert.ok(a.turns.at(-1).reply.includes('One flexible half-hour session'));assert.ok(observed[4].sources.m2.includes('Two half-hour'));assert.ok(observed[4].sources.m5.includes('only one'));
-      const before=calls, op=randomUUID(), beforeContext=structuredClone(a.context);
-      await send('Looks good',op);assert.equal(calls,before);assert.equal(a.turns.at(-1).questionTopic,'Onboarding complete');assert.ok(a.turns.at(-1).reply.includes('finished and saved'));
-      assert.equal(a.state,'collecting');assert.equal(a.confirmedRevision,null);assert.deepEqual(a.context.items.slice(0,beforeContext.items.length),beforeContext.items);assert.ok(a.context.items.every((x:any)=>x.review==='unreviewed'));
-      await send('Looks good',op);assert.equal(calls,before);assert.equal(a.turns.length,6);
-      const reopened=await postgresOnboardingStore(pool).read(alice,a.id);assert.deepEqual(reopened.turns,a.turns);assert.equal(reopened.confirmedRevision,null);
-      await send('I can add another session after all.');assert.equal(responseIndex,6);assert.equal(a.turns.at(-1).questionTopic,'Availability');assert.equal(a.confirmedRevision,null);
+      const before=calls, op=randomUUID(), oldId=a.id, revision=a.revision;
+      await send('Looks good',op);assert.equal(calls,before);assert.equal(a.deleted,true);assert.ok(a.message.includes('deleted'));
+      await assert.rejects(store.read(alice,oldId),{code:'not_found'});
+      const retry=await local.inject({method:'POST',url:`/onboarding/${oldId}/commands`,headers:{authorization:'Bearer alice'},payload:{operationId:op,expectedRevision:revision,kind:'message',text:'Looks good'}});
+      assert.equal(retry.statusCode,404);assert.equal(calls,before);
+      a=await store.create(alice);assert.notEqual(a.id,oldId);assert.equal(a.turns.length,0);
+      await send('I can add another session after all.');assert.equal(responseIndex,6);assert.equal(a.turns.at(-1).questionTopic,'Availability');
+
     }finally{await local.close()}
   });
   await t.test('recorded synthetic shoulder, comprehensive and irregular/skip dialogues preserve displayed recaps through agreement and reopen',async()=>{
@@ -142,14 +144,14 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       const service=onboardingService(store,replay,'test');
       const send=(text:string)=>service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'message',text},async()=>true);
       for(const turn of fixture.turns){
-        a=await send(turn.message);const shown=a.turns.at(-1)!;
+        const result=await send(turn.message);assert.ok('turns' in result);a=result;const shown=a.turns.at(-1)!;
         assert.equal(shown.state,'completed',fixture.name);
         assert.equal(shown.reply,renderOnboardingReply(turn.proposal as ModelProposal));assert.notEqual(shown.questionTopic,'Onboarding complete');
       }
       assert.equal(a.turns.at(-1)?.questionTopic,'Onboarding recap');
-      a=await send('Looks good');assert.equal(dispatched,fixture.turns.length);assert.equal(a.turns.at(-1)?.questionTopic,'Onboarding complete');
-      assert.equal(a.confirmedRevision,null);assert.ok(a.context.items.every((x:{review:string})=>x.review==='unreviewed'));
-      assert.deepEqual((await store.read(alice,a.id)).turns,a.turns);
+      const deleted=await send('Looks good');assert.equal(dispatched,fixture.turns.length);assert.ok('deleted' in deleted);
+      await assert.rejects(store.read(alice,a.id),{code:'not_found'});
+      assert.equal((await store.create(alice)).turns.length,0);
     }
   });
   await t.test('a context edit after a recap invalidates conversational agreement to that old recap',async()=>{
@@ -190,18 +192,19 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     assert.equal(calls,before+1);assert.equal(a.turns[0].state,'completed');
     assert.equal((await command(a.id,0,{kind:'message',text:'Tennis and my first pull-up'},op)).json().revision,a.revision);assert.equal(calls,before+1);
     assert.equal((await command(a.id,0,{kind:'message',text:'Different payload'},op)).statusCode,409);
-    const review=structuredClone(a.context);const confirmed=await command(a.id,a.revision,{kind:'confirm',reviewedRevision:a.revision});
-    assert.equal(confirmed.statusCode,200);assert.equal(confirmed.json().state,'confirmed');assert.equal(confirmed.json().confirmedRevision,a.revision);assert.deepEqual(confirmed.json().context,review);assert.equal(calls,before+1);
-    const reopened=await store.read(alice,a.id);assert.deepEqual(reopened.context,review);
     assert.deepEqual((await command(a.id,0,{kind:'message',text:'Tennis and my first pull-up'},op)).json().operationResult,operationResult);
     assert.equal((await command(a.id,0,{kind:'confirm',reviewedRevision:0})).statusCode,409);
+    const confirmed=await command(a.id,a.revision,{kind:'confirm',reviewedRevision:a.revision});
+    assert.equal(confirmed.statusCode,200);assert.equal(confirmed.json().deleted,true);assert.equal(calls,before+1);
+    await assert.rejects(store.read(alice,a.id),{code:'not_found'});
+
   });
   await t.test('skip/correction provenance and uncertainty can be confirmed; no silent profile write',async()=>{
     let a=await fresh();a=(await command(a.id,a.revision,{kind:'skip',topic:'Schedule'})).json();
     const original=a.context.items[0];a=(await command(a.id,a.revision,{kind:'edit',itemId:original.id,topic:'Age report',value:'I reported my age incorrectly; I am 30.'})).json();
     assert.equal(a.context.items[0].review,'disputed');const edited=a.context.items.at(-1);assert.equal(edited.origin,'user_report');assert.equal(edited.review,'confirmed');assert.equal(edited.supersedes,original.id);
     assert.equal((await profiles.read(alice))?.age,29);
-    const confirmed=(await command(a.id,a.revision,{kind:'confirm',reviewedRevision:a.revision})).json();assert.equal(confirmed.state,'confirmed');assert.ok(confirmed.context.skipped.includes('Schedule'));
+    const confirmed=(await command(a.id,a.revision,{kind:'confirm',reviewedRevision:a.revision})).json();assert.equal(confirmed.deleted,true);await assert.rejects(store.read(alice,a.id),{code:'not_found'});
   });
   await t.test('claim is atomic across service instances and pool is released during provider work',async()=>{
     let finish!:(result:ProviderResult)=>void;respond=()=>new Promise(resolve=>{finish=resolve});const a=await fresh();const op=randomUUID();const before=calls;
@@ -260,7 +263,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     const exhausted=(await command(a.id,0,{kind:'message',text:'Save this despite no budget'})).json();assert.equal(exhausted.turns[0].error,'budget_exhausted');
     const before=calls;provider.capMicro=1000000;
     const off=onboardingService(store,undefined,'test');await request('DELETE',`/onboarding/${a.id}`);const freshOff=await off.create(alice);
-    const saved=await off.command(alice,freshOff.id,{operationId:randomUUID(),expectedRevision:0,kind:'message',text:'Do not run AI'},async()=>true);assert.equal(saved.turns[0]?.error,'ai_disabled');assert.equal(calls,before);
+    const saved=await off.command(alice,freshOff.id,{operationId:randomUUID(),expectedRevision:0,kind:'message',text:'Do not run AI'},async()=>true);assert.ok('turns' in saved);assert.equal(saved.turns[0]?.error,'ai_disabled');assert.equal(calls,before);
     await profiles.save(alice,{...profile,age:17});const minor=await fresh();const denied=(await command(minor.id,0,{kind:'message',text:'Goal'})).json();assert.equal(denied.turns[0].error,'adults_only');assert.equal(calls,before);await profiles.save(alice,profile);
     const reserves=(await owner.query('SELECT coalesce(sum(reserved_micro),0) AS amount FROM fitquest.ai_budget')).rows[0].amount;
     assert.ok(Number(reserves)>0);
@@ -274,7 +277,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     const a=await fresh();
     const restarted=onboardingService(postgresOnboardingStore(pool),{...provider,capMicro:Number(before.spent_micro)+Number(before.reserved_micro)+99},'test');
     const denied=await restarted.command(alice,a.id,{operationId:randomUUID(),expectedRevision:0,kind:'message',text:'Do not renew the allowance'},async()=>true);
-    assert.equal(denied.turns[0]?.error,'budget_exhausted');
+    assert.ok('turns' in denied);assert.equal(denied.turns[0]?.error,'budget_exhausted');
     const after=(await owner.query('SELECT * FROM fitquest.ai_budget')).rows[0];assert.deepEqual(after,before);
     assert.ok((await owner.query("SELECT * FROM fitquest.onboarding_attempts WHERE state='settled' AND created_at<now()-interval '1 year'")).rowCount!>0);
   });
@@ -335,7 +338,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     assert.equal(Number(after.reserved_micro),Number(budget.reserved_micro)+100);
     assert.equal(Number(after.evaluation_reserved_micro),Number(budget.evaluation_reserved_micro)+100);
   });
-  await t.test('multi-turn evaluation harness uses production HTTP/store assembly and does not replay an existing conversation',async()=>{
+  await t.test('multi-turn evaluation harness uses production HTTP/store assembly and deletes explicit completion without another call',async()=>{
     const account={userId:'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',sessionId:'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'};
     await owner.query('INSERT INTO auth.users VALUES($1)',[account.userId]);
     await owner.query('INSERT INTO auth.sessions VALUES($1,$2,NULL)',[account.sessionId,account.userId]);
@@ -346,7 +349,55 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     });
     const result=await evaluateConversation(pool,adapter,async value=>{records.push(value)});
     assert.equal(result.calls,3);assert.equal(calls,3);assert.equal(records.length,7);
-    await assert.rejects(evaluateConversation(pool,adapter,async()=>{}));assert.equal(calls,3);
+    const next=await store.create(account);assert.equal(next.turns.length,0);assert.equal(calls,3);
+  });
+  await t.test('completion deletion is recoverable, scoped to the old ID and preserves profiles, other accounts and spending',async()=>{
+    const old=await store.create(alice);await store.remove(alice,old.id);
+    let a=await store.create(alice), generated=0;
+    const service=onboardingService(store,{...provider,call:async()=>{generated++;return{proposal:{...proposal,nextQuestion:{topic:'Onboarding recap',text:'Ready?',decision:'Synthetic complete context.'}},usage:{input:100,output:20,cached:0,cacheWrite:0}}}},'test');
+    const recap=await service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:0,kind:'message',text:'Synthetic private goal and schedule.'},async()=>true);
+    assert.ok('turns' in recap);a=recap;
+    const profileBefore=await profiles.read(alice), bobBefore=await store.create(bob);
+    const ledger=async()=>({budget:(await owner.query('SELECT * FROM fitquest.ai_budget')).rows,attempts:(await owner.query('SELECT * FROM fitquest.onboarding_attempts ORDER BY id')).rows});
+    const before=await ledger();const finish={operationId:randomUUID(),expectedRevision:a.revision,kind:'message' as const,text:'Looks good'};
+    await owner.query("CREATE FUNCTION fitquest.fail_test_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic delete failure'; END $$; CREATE CONSTRAINT TRIGGER fail_test_delete AFTER DELETE ON fitquest.onboarding_conversations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fitquest.fail_test_delete()");
+    try {
+      await assert.rejects(service.command(alice,a.id,finish,async()=>true));
+      assert.equal((await store.read(alice,a.id)).turns.at(-1)?.questionTopic,'Onboarding complete');
+      await assert.rejects(service.create(alice)); // No new session until cleanup commits.
+      assert.equal(generated,1);
+    }finally{await owner.query('DROP TRIGGER fail_test_delete ON fitquest.onboarding_conversations; DROP FUNCTION fitquest.fail_test_delete()')}
+    const deleted=await service.command(alice,a.id,finish,async()=>true);
+    assert.ok('deleted' in deleted);assert.equal(generated,1);assert.equal('context' in deleted,false);assert.equal('turns' in deleted,false);
+    for(const table of ['onboarding_conversations','onboarding_context_revisions','onboarding_turns','onboarding_operations']){
+      const field=table==='onboarding_conversations'?'id':'conversation_id';
+      assert.equal((await owner.query(`SELECT count(*)::int AS n FROM fitquest.${table} WHERE user_id=$1 AND ${field}=$2`,[alice.userId,a.id])).rows[0].n,0);
+    }
+    assert.deepEqual(await ledger(),before);assert.deepEqual(await profiles.read(alice),profileBefore);assert.deepEqual(await store.read(bob,bobBefore.id),bobBefore);
+    await assert.rejects(service.command(alice,a.id,finish,async()=>true),{code:'not_found'});assert.equal(generated,1);
+    const fresh=await service.create(alice);assert.notEqual(fresh.id,a.id);assert.equal(fresh.turns.length,0);
+    assert.equal(await store.removeCompleted(alice,a.id),true);assert.equal((await store.read(alice,fresh.id)).id,fresh.id);
+    assert.equal(await store.removeCompleted(bob,fresh.id),true);assert.equal((await store.read(alice,fresh.id)).id,fresh.id);
+  });
+  await t.test('authenticated reopen cleans explicit completion markers and legacy confirmation, never recap/readiness; late work cannot restore deleted content',async()=>{
+    const previous=await store.create(alice);await store.remove(alice,previous.id);
+    const service=onboardingService(store,provider,'test');let a=await store.create(alice);
+    const pending=await store.claim(alice,a.id,{operationId:randomUUID(),expectedRevision:0,kind:'message',text:'Unfinished report'},provider);assert.ok(pending.work);
+    await store.finish(alice,a.id,pending.work,{...pending.conversation.context,readiness:'ready'},'Synthetic recap',undefined,'Onboarding recap');
+    a=await store.read(alice,a.id);assert.equal((await service.create(alice)).id,a.id);assert.equal((await service.read(alice,a.id)).id,a.id);
+    // Simulate completion saved by the preceding deployment, or an interrupted cleanup.
+    const complete=await store.claim(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'message',text:'Looks good'},provider);assert.equal(complete.work,undefined);
+    const fresh=await service.create(alice);assert.notEqual(fresh.id,a.id);assert.equal(fresh.turns.length,0);
+    await assert.rejects(store.read(alice,a.id),{code:'not_found'});
+    const work=await store.claim(alice,fresh.id,{operationId:randomUUID(),expectedRevision:0,kind:'message',text:'Pending legacy report'},provider);assert.ok(work.work);
+    await store.claim(alice,fresh.id,{operationId:randomUUID(),expectedRevision:work.conversation.revision,kind:'confirm',reviewedRevision:work.conversation.revision},provider);
+    const budget=(await owner.query('SELECT * FROM fitquest.ai_budget')).rows;
+    const removed=await service.read(alice,fresh.id);assert.ok('deleted' in removed);
+    const newest=await service.create(alice);assert.notEqual(newest.id,fresh.id);
+    await assert.rejects(store.finish(alice,fresh.id,work.work,work.conversation.context,'Late private reply',undefined),{code:'not_found'});
+    assert.deepEqual((await owner.query('SELECT * FROM fitquest.ai_budget')).rows,budget);
+    assert.equal((await store.read(alice,newest.id)).turns.length,0);
+    await store.settle(alice,pending.work.attempt,null);await store.settle(alice,work.work.attempt,null);
   });
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);

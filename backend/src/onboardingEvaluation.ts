@@ -104,7 +104,7 @@ export async function evaluateConversation(pool: Pool, provider: OnboardingProvi
       const value = response.json();
       await record({ kind: (fields as {kind: string}).kind, statusCode: response.statusCode, metrics: metrics.slice(priorCalls), snapshot: value });
       assert.equal(response.statusCode, 200);current = value;
-      assert.notEqual(current.turns.at(-1)?.state, 'failed', 'Stop after a failed provider/content result.');
+      assert.notEqual(current.turns?.at(-1)?.state, 'failed', 'Stop after a failed provider/content result.');
     };
     if (resume) await step({ kind: 'retry', turnId: current.turns.at(-1).id });
     else {
@@ -114,13 +114,13 @@ export async function evaluateConversation(pool: Pool, provider: OnboardingProvi
       await step({ kind: 'edit', itemId: null, topic: 'Availability correction', value: correctedAvailability });
       await step({ kind: 'message', text: 'I am ready to review now. Keep the skipped topic unknown and the knee concern unresolved. Keep tennis first and the pull-up as a longer-term goal. Please do not ask more questions or produce a plan.' });
     }
-    const reviewed = structuredClone(current.context), revision = current.revision, calls = metrics.length;
+    const skipped = [...current.context.skipped], revision = current.revision, calls = metrics.length, id = current.id;
     await step({ kind: 'confirm', reviewedRevision: revision });
-    assert.equal(metrics.length, calls);assert.deepEqual(current.context, reviewed);assert.equal(current.confirmedRevision, revision);
-    const reopened = await postgresOnboardingStore(pool).read(account, current.id);
-    assert.deepEqual(reopened.context, reviewed);assert.equal(reopened.state, 'confirmed');
-    await record({ verified: 'Exact reviewed revision confirmed and reopened without another model call.', revision, calls });
-    return { calls, confirmedRevision: revision, skipped: current.context.skipped, metrics: metrics.map(({ input: _input, proposal: _proposal, ...rest }: any) => rest) };
+    assert.equal(metrics.length, calls);assert.equal(current.deleted, true);
+    await assert.rejects(postgresOnboardingStore(pool).read(account, id), {code:'not_found'});
+    await record({ verified: 'Explicit completion deleted conversation content without another model call.', revision, calls });
+    return { calls, confirmedRevision: revision, skipped, metrics: metrics.map(({ input: _input, proposal: _proposal, ...rest }: any) => rest) };
+
   } finally { await app.close(); }
 }
 
@@ -136,6 +136,10 @@ async function main() {
     const directory = new URL('../.ai-evaluation/', import.meta.url);
     await mkdir(directory, { recursive: true, mode: 0o700 });
     if (['--conversation', '--resume-conversation'].includes(process.argv[2]!)) {
+      if(process.argv[2]!=='--resume-conversation'){
+        const previous=await readFile(new URL('conversation-results.jsonl',directory),'utf8').catch((error:NodeJS.ErrnoException)=>{if(error.code!=='ENOENT')throw error;return ''});
+        if(previous.trim())throw new Error('Existing evaluation records require inspection; completion deletion does not authorize rerunning paid evaluation.');
+      }
       const result = await evaluateConversation(pool, provider, value => appendFile(new URL('conversation-results.jsonl', directory), JSON.stringify(value) + '\n', { mode: 0o600 }), process.argv[2] === '--resume-conversation');
       console.log(JSON.stringify(result));return;
     }

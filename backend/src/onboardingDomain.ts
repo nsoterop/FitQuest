@@ -3,11 +3,12 @@ import { createHash } from 'node:crypto';
 export const limits = { message: 4000, items: 80, contextBytes: 32000, inputBytes: 24000, output: 2000, turns: 100, operations: 240, deadlineMs: 35000 };
 export const disclosureVersion = 'onboarding-adults-v1';
 export const opening = 'What would you like to improve, and what would progress look like for you?';
-export const disclosure = 'AI onboarding is for adults 18+. Relevant profile information, messages and conversation context are shared with OpenAI. History stays until you delete it; provider retention and backups are separate. No training plan or medical clearance is produced.';
+export const disclosure = 'AI onboarding is for adults 18+. Relevant profile information, messages and conversation context are shared with OpenAI. Unfinished conversations stay until you finish or delete them. Completing onboarding deletes its conversation and understanding; provider retention and backups are separate. No training plan or medical clearance is produced.';
 export const recapTopic = 'Onboarding recap';
 export const completeTopic = 'Onboarding complete';
-export const recapQuestion = 'Does that capture what matters? Reply “Looks good” to finish initial onboarding, or tell me what to change or add.';
-export const completionReply = 'Your initial onboarding is finished and saved. You can add or correct anything here later. No training plan has been created.';
+export const recapQuestion = 'Does that capture what matters? Reply “Looks good” to finish initial onboarding and delete this conversation, or tell me what to change or add.';
+export const completionPendingReply = 'Onboarding complete. Removing this conversation…';
+export const completionReply = 'Onboarding finished. This conversation and its understanding have been deleted. Your profile is unchanged.';
 // Agreement applies only to the immediately preceding, displayed recap. Added details,
 // corrections, ordinary summary requests and model readiness alone never complete onboarding.
 export function acceptsRecap(previous: { state: string; questionTopic: string | null } | undefined, text: string) {

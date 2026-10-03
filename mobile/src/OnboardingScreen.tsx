@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { OnboardingApiError, onboardingErrorText, onboardingRequest, operationId, type OnboardingCommand, type OnboardingConversation } from './onboardingApi';
+import { isDeletedOnboarding, type DeletedOnboarding, OnboardingApiError, onboardingErrorText, onboardingRequest, operationId, type OnboardingCommand, type OnboardingConversation } from './onboardingApi';
 import { useConversationScroll } from './ConversationScrollView';
 import { privateDrafts } from './onboardingDraftStorage';
 import type { OnboardingDraftStore } from './onboardingDraft';
 
 export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,drafts=privateDrafts}: {
-  userId:string;accessToken:()=>Promise<string>;onSessionEnded?:()=>void;onClose:()=>void;drafts?:OnboardingDraftStore;
+  userId:string;accessToken:()=>Promise<string>;onSessionEnded?:()=>void;onClose:(message?:string)=>void;drafts?:OnboardingDraftStore;
 }) {
   const [accepted,setAccepted]=useState(false);
   const [conversation,setConversation]=useState<OnboardingConversation|null>(null);
@@ -15,7 +15,9 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
   const [needsRefresh,setNeedsRefresh]=useState(false);const [optionsOpen,setOptionsOpen]=useState(false);
   const [deleteRequested,setDeleteRequested]=useState(false);
   const alive=useRef(true);const request=useRef<AbortController|null>(null);const tokenGetter=useRef(accessToken);tokenGetter.current=accessToken;
-  const sending=useRef(false);
+  const sending=useRef(false);const ending=useRef(false);
+  const [cleanup,setCleanup]=useState<DeletedOnboarding|null>(null);
+  const [cleanupError,setCleanupError]=useState(false);
   const composer=useRef<View>(null), question=useRef<View>(null);
   const {reveal}=useConversationScroll();
   const answerLayout=()=>reveal({composer,question});
@@ -23,11 +25,20 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
   const current=useRef<OnboardingConversation|null>(null);current.current=conversation;
 
   async function saveDraft(nextText:string,nextPending:OnboardingCommand|null,id=current.current?.id??null) {
-    if(!alive.current)return;
+    if(!alive.current||ending.current)return;
     try{await drafts.write(userId,{conversationId:id,text:nextText,pending:nextPending,savedAt:Date.now()});if(alive.current)setDraftError('')}
     catch{if(alive.current)setDraftError('Could not save your draft. Keep this screen open and try again.')}
   }
-  async function perform(action:(token:string,signal:AbortSignal)=>Promise<OnboardingConversation|null>,after?:(result:OnboardingConversation|null)=>Promise<void>|void) {
+  async function finishDeleted(result:DeletedOnboarding) {
+    if(!alive.current)return;
+    ending.current=true;setCleanup(result);setCleanupError(false);
+    setConversation(null);current.current=null;setText('');setPending(null);setError('');setDraftError('');
+    try {
+      await drafts.clear(userId,result.id);
+      if(alive.current)onClose(result.message);
+    } catch {if(alive.current)setCleanupError(true)}
+  }
+  async function perform(action:(token:string,signal:AbortSignal)=>Promise<OnboardingConversation|DeletedOnboarding|null>,after?:(result:OnboardingConversation|null)=>Promise<void>|void) {
     if(request.current)return;
     const controller=new AbortController();request.current=controller;setBusy(true);setError('');setNeedsRefresh(false);
     const timeout=setTimeout(()=>controller.abort(),75000);
@@ -35,9 +46,12 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
       const token=await tokenGetter.current();if(!alive.current||controller.signal.aborted)return;
       const result=await action(token,controller.signal);
       if(!alive.current||controller.signal.aborted||request.current!==controller)return;
+      if(isDeletedOnboarding(result)){await finishDeleted(result);return}
+      if(result===null&&current.current){await finishDeleted({id:current.current.id,deleted:true,message:'Conversation deleted.'});return}
       setConversation(result);current.current=result;await after?.(result);
     }catch(error){if(request.current!==controller)return;if(alive.current&&!controller.signal.aborted){
       if(error instanceof OnboardingApiError&&error.sessionEnded){ended.current?.();return}
+      if(error instanceof OnboardingApiError&&error.code==='not_found'&&current.current){await finishDeleted({id:current.current.id,deleted:true,message:'This conversation is no longer stored.'});return}
       setError(error instanceof OnboardingApiError?error.message:'Could not load the conversation. Try again.');
       setNeedsRefresh(!(error instanceof OnboardingApiError&&['context_limit','storage_limit'].includes(error.code)));
     }else if(alive.current){setError('This is taking longer than expected. Try again.');setNeedsRefresh(true)}}
@@ -47,7 +61,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
     await perform((token,signal)=>onboardingRequest('POST',null,null,token,signal),async result=>{
       const draft=await drafts.read(userId);if(!alive.current)return;
       if(draft&&draft.conversationId===result?.id){setText(draft.text);setPending(draft.pending)}
-      else if(draft)await drafts.clear(userId);
+      else if(draft)await drafts.clear(userId,draft.conversationId??undefined);
       setAccepted(true);
     });
   }
@@ -57,13 +71,13 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
     await perform((token,signal)=>onboardingRequest('GET',conversation.id,null,token,signal));
   }
   async function send(command:OnboardingCommand) {
-    if(!conversation||request.current||sending.current)return;
+    if(!conversation||request.current||sending.current||ending.current)return;
     sending.current=true;setBusy(true);setDraftError('');
     setPending(command);
     // Await durable operation ID before dispatch. A lost response replays this same command.
     try{await drafts.write(userId,{conversationId:conversation.id,text,pending:command,savedAt:Date.now()})}
     catch{if(alive.current){setError('Could not save your answer on this device. Try again.');setBusy(false)}sending.current=false;return}
-    if(!alive.current||request.current){sending.current=false;return}
+    if(!alive.current||request.current||ending.current){sending.current=false;return}
     await perform(async(token,signal)=>{
       try{return await onboardingRequest('POST',conversation.id,command,token,signal)}
       catch(error){
@@ -76,7 +90,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
       }
     },async()=>{
       setPending(null);setText('');
-      await drafts.clear(userId);if(alive.current)setDraftError('');
+      await drafts.clear(userId,conversation.id);if(alive.current)setDraftError('');
       // Failed responses remain visible; only an explicit retry can call AI again.
     });
     sending.current=false;
@@ -89,6 +103,10 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
   }
   const activeTurn=conversation?.turns.find(t=>t.state==='pending');const latest=conversation?.turns.at(-1);
   const failure=latest?.state==='failed'?onboardingErrorText(latest.error??'provider_error'):'';
+  if(cleanup)return <View style={styles.section}>
+    <Text accessibilityLiveRegion="polite" style={styles.copy}>{cleanup.message}</Text>
+    {cleanupError&&<><Text accessibilityRole="alert" style={styles.error}>Could not clear the device draft. Try again.</Text>{button('Finish cleanup',()=>void finishDeleted(cleanup),false,true)}</>}
+  </View>;
   return <View style={styles.section}>
     <View style={styles.optionsRow}>
       <Pressable accessibilityRole="button" accessibilityLabel="Conversation options" accessibilityState={{expanded:optionsOpen}} onPress={()=>{setOptionsOpen(!optionsOpen);setDeleteRequested(false)}} style={styles.optionsButton}><Text style={styles.optionsText}>···</Text></Pressable>
@@ -98,7 +116,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
         <Text style={styles.copy}>Delete this conversation and device draft? Your profile and account remain. Provider retention, backups and usage records are separate.</Text>
         {button('Delete conversation permanently',()=>{
           request.current?.abort();request.current=null;
-          void perform((token,signal)=>onboardingRequest('DELETE',conversation!.id,null,token,signal),async()=>{await drafts.clear(userId);if(alive.current)onClose()});
+          void perform((token,signal)=>onboardingRequest('DELETE',conversation!.id,null,token,signal));
         },false)}
         {button('Keep conversation',()=>setDeleteRequested(false),busy,true)}
       </>:<>
@@ -108,7 +126,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
     </View>}
     {!accepted?<>
       <Text accessibilityRole="header" style={styles.title}>Before we begin</Text>
-      <Text style={styles.copy}>AI onboarding is for adults 18+. Your messages and relevant profile information are shared with OpenAI. Conversation history stays until you delete it; provider retention and backups are separate.</Text>
+      <Text style={styles.copy}>AI onboarding is for adults 18+. Your messages and relevant profile information are shared with OpenAI. Unfinished conversations stay until you finish or delete them. Completing onboarding deletes the conversation and its understanding. Provider retention and backups are separate.</Text>
       {button('Continue to onboarding',()=>void start())}
     </>:conversation?<>
       {conversation.turns.length===0&&<View ref={question} collapsable={false} onLayout={answerLayout}><Text style={styles.copy}>{conversation.opening}</Text></View>}

@@ -27,7 +27,13 @@ export function secureSessionStorage(store: SecureStorage) {
       const items = await keys(key);
       if (!items) return null;
       const chunks = await Promise.all(items.map(k => store.getItemAsync(k)));
-      return chunks.some(x => x === null) ? null : chunks.join('');
+      if (chunks.some(x => x === null)) {
+        // A prior partial deletion must be finished on reopen, not hidden by a null read.
+        await Promise.all(items.map(k => store.deleteItemAsync(k)));
+        await store.deleteItemAsync(indexKey(key));
+        return null;
+      }
+      return chunks.join('');
     }),
     setItem: (key: string, value: string) => run(async () => {
       if (value.length > 50000) throw new Error('Session too large.');
@@ -48,8 +54,10 @@ export function secureSessionStorage(store: SecureStorage) {
     }),
     removeItem: (key: string) => run(async () => {
       const old = await keys(key) ?? [];
+      // Keep the index until every referenced chunk is removed so a failed deletion
+      // remains retryable; never report successful cleanup while private chunks remain.
+      await Promise.all(old.map(k => store.deleteItemAsync(k)));
       await store.deleteItemAsync(indexKey(key));
-      await cleanup(old);
     }),
   };
 }

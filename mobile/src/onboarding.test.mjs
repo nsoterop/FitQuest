@@ -23,3 +23,20 @@ test('onboarding API checks HTTPS, validates reply, cancels stale requests, and 
   await assert.rejects(onboardingRequest('DELETE','id',null,'synthetic',controller.signal,delayed));
   assert.equal(await onboardingRequest('DELETE','id',null,'synthetic',new AbortController().signal,async()=>({status:204,json:async()=>({})})),null);
 });
+
+test('deletion receipts must match the requested conversation and cannot contain deleted content',async()=>{
+  process.env.EXPO_PUBLIC_API_URL='https://fitquest-api.example';const signal=new AbortController().signal;
+  const receipt={id:'old',deleted:true,message:'Conversation deleted.'};
+  assert.deepEqual(await onboardingRequest('GET','old',null,'synthetic',signal,async()=>({status:200,json:async()=>receipt})),receipt);
+  for(const body of [{...receipt,id:'new'},{...receipt,turns:[{message:'private'}]},{...receipt,deleted:'true'}])await assert.rejects(onboardingRequest('GET','old',null,'synthetic',signal,async()=>({status:200,json:async()=>body})));
+  await assert.rejects(onboardingRequest('POST',null,null,'synthetic',signal,async()=>({status:200,json:async()=>receipt})));
+});
+test('scoped draft cleanup waits for in-flight writes and cannot remove a newer conversation or another account',async()=>{
+  const map=new Map();let release;let block=true;
+  const storage={getItem:async k=>map.get(k)??null,setItem:async(k,v)=>{if(block)await new Promise(resolve=>{release=resolve});map.set(k,v)},removeItem:async k=>{map.delete(k)}};
+  const drafts=onboardingDrafts(storage);const draft={conversationId:'old',text:'private draft',pending:null,savedAt:Date.now()};
+  const writing=drafts.write('alice',draft);await new Promise(resolve=>setImmediate(resolve));const clearing=drafts.clear('alice','old');
+  block=false;release();await writing;await clearing;assert.equal(await drafts.read('alice'),null);
+  await drafts.write('alice',{...draft,conversationId:'new'});await drafts.write('bob',draft);
+  await drafts.clear('alice','old');assert.equal((await drafts.read('alice')).conversationId,'new');assert.equal((await drafts.read('bob')).conversationId,'old');
+});

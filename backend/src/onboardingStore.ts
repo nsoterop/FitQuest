@@ -1,4 +1,4 @@
-import { acceptsRecap, completeTopic, completionReply } from './onboardingDomain.js';
+import { acceptsRecap, completeTopic, completionPendingReply } from './onboardingDomain.js';
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import type { Account } from './auth.js';
@@ -8,6 +8,11 @@ import { minimizeModelInput, promptVersion, schemaVersion, type OnboardingProvid
 export type Turn = { id: string; sequence: number; message: string; reply: string | null; questionTopic: string | null; state: 'pending' | 'completed' | 'failed'; error: string | null };
 export type Conversation = { id: string; revision: number; state: 'collecting' | 'confirmed'; confirmedRevision: number | null; context: Context; turns: Turn[]; profileChanged: boolean };
 export type Claim = { conversation: Conversation; work?: { attempt: string; turnId: string; revision: number; profileVersion: string; body: string; sources: Record<string,string> } };
+
+export function completedConversation(conversation: Conversation) {
+  const last = conversation.turns.at(-1);
+  return conversation.state === 'confirmed' || (last?.state === 'completed' && last.questionTopic === completeTopic);
+}
 
 export function postgresOnboardingStore(pool: Pool) {
   async function transaction<T>(account: Account, operation: (c: PoolClient) => Promise<T>, verifySession = true): Promise<T> {
@@ -66,7 +71,11 @@ export function postgresOnboardingStore(pool: Pool) {
         await rate(c,account); const p=await profile(c,account);
         // Serializes create/resume for this verified account without a global lock.
         await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[account.userId]);
-        let id=(await c.query('SELECT id FROM fitquest.onboarding_conversations WHERE user_id=$1',[account.userId])).rows[0]?.id;
+        let id=(await c.query('SELECT id FROM fitquest.onboarding_conversations WHERE user_id=$1 FOR UPDATE',[account.userId])).rows[0]?.id;
+        if (id && completedConversation(await snapshot(c,account,id))) {
+          await c.query('DELETE FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2',[account.userId,id]);
+          id=undefined;
+        }
         if (!id) {
           id=randomUUID(); await c.query('INSERT INTO fitquest.onboarding_conversations(user_id,id,disclosure_version) VALUES($1,$2,$3)',[account.userId,id,disclosureVersion]);
           const context=emptyContext();
@@ -82,6 +91,14 @@ export function postgresOnboardingStore(pool: Pool) {
     async remove(account: Account,id:string) { return transaction(account,async c=>{
       await rate(c,account); await c.query('DELETE FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2',[account.userId,id]);
     }); },
+    async removeCompleted(account: Account,id:string) { return transaction(account,async c=>{
+      // Lock and match this ID only; delayed cleanup must never target a new conversation.
+      const row=(await c.query('SELECT id FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2 FOR UPDATE',[account.userId,id])).rows[0];
+      if (!row) return true;
+      if (!completedConversation(await snapshot(c,account,id))) return false;
+      await c.query('DELETE FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2',[account.userId,id]);
+      return true;
+    }); },
     async operation(account:Account,id:string,operationId:string) {
       return transaction(account,async c=>(await c.query('SELECT id,result_revision AS revision,status,error_code AS code FROM fitquest.onboarding_operations WHERE user_id=$1 AND conversation_id=$2 AND id=$3',[account.userId,id,operationId])).rows[0]);
     },
@@ -89,6 +106,8 @@ export function postgresOnboardingStore(pool: Pool) {
       return transaction(account,async c=>{
         await rate(c,account);
         const conv=await lock(c,account,id); await recover(c,account,id);
+        const last=(await c.query('SELECT state,question_topic FROM fitquest.onboarding_turns WHERE user_id=$1 AND conversation_id=$2 ORDER BY sequence DESC LIMIT 1',[account.userId,id])).rows[0];
+        if (conv.state==='confirmed'||last?.state==='completed'&&last.question_topic===completeTopic) return {conversation:await snapshot(c,account,id)};
         const prior=(await c.query('SELECT digest FROM fitquest.onboarding_operations WHERE user_id=$1 AND conversation_id=$2 AND id=$3',[account.userId,id,command.operationId])).rows[0];
         if (prior) {
           if (prior.digest!==commandDigest(command)) throw new OnboardingError(409,'operation_conflict');
@@ -154,7 +173,7 @@ export function postgresOnboardingStore(pool: Pool) {
           let failure='ai_disabled';
           if(finishing) {
             // Persist conversational agreement, never confirm unseen structured items. No AI call.
-            await c.query("UPDATE fitquest.onboarding_turns SET state='completed',reply=$4,question_topic=$5,error_code=NULL WHERE user_id=$1 AND conversation_id=$2 AND id=$3",[account.userId,id,turnId,completionReply,completeTopic]);
+            await c.query("UPDATE fitquest.onboarding_turns SET state='completed',reply=$4,question_topic=$5,error_code=NULL WHERE user_id=$1 AND conversation_id=$2 AND id=$3",[account.userId,id,turnId,completionPendingReply,completeTopic]);
           } else if(provider && p.age>=18) {
             await rate(c,account,true);
             // Every raw report stays in context. Never truncate goals/restrictions to make a prompt fit.
