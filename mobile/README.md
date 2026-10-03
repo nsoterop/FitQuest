@@ -1,8 +1,21 @@
 # FitQuest mobile
 
-React Native / TypeScript on Expo SDK 57. Email sign-in/sign-up is the entry screen; authenticated users see their profile form. Backend health status remains in a small footer. Supabase supplies accounts and private profile storage through Fastify.
+React Native / TypeScript on Expo SDK 57. **Work paused by the owner on October 2, 2026 (America/New_York).** Commands below are reference for resuming, not instructions to restart work automatically.
 
-## iPhone development
+## Implemented flow and publication state
+
+Email/password sign-in or sign-up is the entry screen. Required email confirmation precedes access to private profile data. Sign-out clears that account's UI.
+
+- Published application `49e1ff3aed30a009172df44049bfae9ea405f897`: authenticated accounts see the profile form, with saved values restored when present; a committed save displays **User Data Saved**.
+- **Newer, uncommitted local change:** a saved profile opens **Hi &lt;firstname&gt;**; a new account fills the form and reaches the greeting only after the API confirms a committed save. Loading hides the form; failed reads offer retry, not a misleading empty form. Failed saves retain entries. There is no edit-profile navigation from the greeting yet.
+- The local greeting changes are in `src/ProfileIntakeForm.tsx` and `src/accountFlow.test.mjs`. Preserve them; they are not part of the published application checkpoint.
+- Existing brand, sign-out and small backend-status footer remain. This is not a dashboard.
+
+Profile fields: first name, last name, height (feet/inches, sent as total inches), age, weight (lb) and gender. Fastify owns validation, account authorization and persistence. The API still returns exactly `{"message":"User Data Saved"}`; the greeting UI consumes that response instead of displaying it as a success message.
+
+## iPhone development setup
+
+The [refreshed development build](https://expo.dev/accounts/nsoterop/projects/fitquest/builds/67f13060-1006-4b6f-a2f5-f59eed28d594) succeeded at `49e1ff3` and contains Expo SecureStore. The owner confirmed the app runs after installation. No replacement native build is required for the subsequent greeting-only change; a development build loads current JavaScript from Metro.
 
 ```sh
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile ci
@@ -10,40 +23,45 @@ cp -n /Users/nicksoteropoulos/Code/FitQuest/mobile/.env.example /Users/nicksoter
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile start
 ```
 
-Keep the Mac/iPhone on the same Wi-Fi. Open FitQuest's development build and scan Metro's QR. If “Searching for development servers” persists, choose **Enter URL manually** and use the Mac's current LAN URL (previously `http://192.168.87.227:8081`). Keep local-network access enabled. Stop Metro with Control-C.
+Keep Mac and iPhone on the same network. Open FitQuest's development build and scan Metro's QR. If discovery fails, use **Enter URL manually** with the Mac's current LAN URL. The last Engineering-verified address was `http://172.20.10.2:8081` on October 2; it is not a permanent address. The locally generated QR at `.expo/current-metro-qr.png` can also become stale. Recheck connectivity on resuming. This pause did not stop or restart Metro.
 
-The existing [installed development build](https://expo.dev/accounts/nsoterop/projects/fitquest/builds/761d3147-f99b-46ef-8c03-da8e82b0bc89) predates SecureStore. **A refreshed development build is required** before testing these account changes:
+Resolved setup issues:
+
+- A stale Metro cache caused a Supabase dependency-resolution 500. Engineering restarted with `npm run start -- --clear` and verified manifest/bundle 200 responses.
+- The previous native build lacked `ExpoSecureStore`. Installing build `67f13060` resolved the launch error; JavaScript reload alone cannot add native modules.
+
+Future native builds, only when assigned:
 
 ```sh
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile run build:ios -- --no-wait
 ```
 
-Use existing included EAS credits only; no upgrade or extra paid resources. The owner handles Apple login/2FA. EAS project `@nsoterop/fitquest`, development bundle `com.nsoterop.fitquest.dev`, scheme `fitquest-dev` and the LAN workflow stay the same. No new build has been queued yet.
+Use only verified included EAS credits, never paid upgrades/overages. The completed build used existing signing with `--non-interactive --freeze-credentials`. The owner handles any future Apple login/2FA. EAS project: `@nsoterop/fitquest`; bundle ID: `com.nsoterop.fitquest.dev`; scheme: `fitquest-dev`. A Mac-hosted development build is not a TestFlight or App Store release.
 
-## Configuration and account behavior
+## Configuration and account boundary
 
-In ignored `.env.local`, set `EXPO_PUBLIC_API_URL=https://fitquest-api-dpk5.onrender.com`, plus the intended Free project's `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. These are public client values; never put secret/service-role/database credentials there. Restart Metro after changes.
+Ignored `.env.local` contains `EXPO_PUBLIC_API_URL=https://fitquest-api-dpk5.onrender.com`, `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. These client values are public; never put secret/service-role/database credentials there. Restart Metro after environment changes.
 
-Email/password account creation requires confirmation; sign-in creates a session and sign-out clears the displayed account/profile immediately. Sessions persist in iOS Keychain through Expo SecureStore, chunked with an atomic index to support larger/Unicode tokens. No tokens or profiles are stored in plaintext. Foreground AppState controls refresh. Failed remote sign-out hides the profile and offers retry before switching accounts.
+Sessions use iOS Keychain through Expo SecureStore with chunked, serialized writes. No profile cache or session tokens are intentionally persisted in plaintext. Session restoration verifies identity before showing private content; foreground AppState controls refresh. Logout cancels profile work and removes the visible account; delayed responses cannot populate the next account. Failed sign-out hides the profile and offers retry.
 
-Signup requests `fitquest-dev://auth`; the project's redirect allowlist must contain that exact URL. Confirmation remains enabled. Supabase's default SMTP delivers only to authorized organization team addresses and is not ready for public signup. New Free projects cannot customize those default templates. Inspect actual settings; do not disable confirmation or make testers privileged project members. Any custom email provider/domain setup needs the owner's choice/access; agents cannot provision paid subscriptions. [Supabase SMTP restrictions](https://supabase.com/docs/guides/auth/auth-smtp), [Free template change](https://supabase.com/changelog/46599-changes-to-email-template-customisation-on-free-tier).
+The callback `fitquest-dev://auth` is configured. Email confirmation remains enabled. At the last Engineering check, custom SMTP was disabled; default email delivery was limited to authorized organization-team addresses. General public signup needs an owner-selected email-delivery setup. Do not bypass confirmation, make testers privileged project members, or provision paid services. [Supabase email restrictions](https://supabase.com/docs/guides/auth/auth-smtp).
 
-## Profile and connection
+The public health check runs on mount and Retry, not continuously. Only the expected HTTP 200 contract displays **Backend: Connected**. Authenticated profile reads/writes use the current account's token and preserve the API's account boundary.
 
-The screen checks public `/health` at mount and on Retry, with a 75-second timeout and cleanup cancellation. Only the expected HTTP 200 health contract shows **Backend: Connected**. There is no polling.
+## Verification at pause
 
-After sign-in, Fastify's `/profile` restores first/last names, height as feet/inches, age, weight in lb and gender. Save sends the existing six-field payload to `/profile-intake` with the latest account-matched token. Local validation/units are preserved. Fields and duplicate submission are locked during a write; failures retain entries. Only the exact committed-write acknowledgment shows **User Data Saved**. Delayed reads and retries cannot overwrite edits. Logout unmounts profile state and cancels work; late responses cannot populate the next account.
+- At published `49e1ff3`: HQ passed mobile typecheck, **27 tests** and online Expo compatibility; Engineering verified iOS Hermes export.
+- For the uncommitted greeting: Engineering passed typecheck and **28 tests**, including existing-profile/confirmed-save greetings, pending/failed saves, failed-read retry, refresh and account-switch clearing. Engineering also verified the updated Metro iOS bundle returned 200.
+- The component tests mock native/Auth/network surfaces. Secure-storage tests cover serialized writes, reopen, large Unicode tokens and failed writes; they are not native Keychain acceptance.
+- Owner confirmed phone launch. Engineering's hosted aggregate checks confirmed one persisted profile linked to the confirmed account. The earlier zero-user reset snapshot is historical, not current.
+- Physical-phone greeting, sign-out/sign-in restoration, reopen/session refresh and hosted two-account isolation remain unverified. No tests were rerun for this documentation-only pause update.
 
-## Verification / remaining work
+Future local checks:
 
 ```sh
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile run check
 ```
 
-TypeScript, online Expo dependency compatibility, 27 mobile tests and an iOS Hermes bundle export pass. Tests include actual React screens with mocked native/Auth/network surfaces: sign-in/sign-up and confirmation, verified session restoration, edits surviving delayed loading/failed saves, logout removing old values, and old account responses not populating a new account. Secure storage tests exercise reopen, serialized refresh/logout, large Unicode sessions and failed writes. Native iOS Keychain and real hosted signup/refresh/persistence have not been verified yet. No physical-phone acceptance is claimed for this change.
+When the owner resumes, the pending phone walkthrough is to reconnect the installed build to Metro, confirm the saved account opens its greeting, check sign-out/sign-in and app reopen, and verify a new profile reaches its greeting only after a confirmed save. A second-account check needs a legitimately confirmed account; do not weaken confirmation. Greeting code publication also remains pending.
 
-Existing Free project `wqvxddvihlobnalxpzow` now has a fresh application baseline. The owner requested removal of all legacy tables/RPCs, accounts/identities/sessions/tokens, and storage bucket/policies. The only app table, `fitquest.profiles`, was recreated empty with forced RLS; the dashboard confirms zero Auth users. Old accounts cannot be reused; fresh signup will be required.
-
-Public signup confirmation is still blocked by custom SMTP being disabled; the owner's email-delivery choice/configuration is pending. The Auth redirect allowlist is empty; `fitquest-dev://auth` needs adding. Render environment and reviewed publication/deployment are pending. Existing live checkpoint `2317297` acknowledges intake without persistence. Next: finish email/redirect setup and hosted real-session verification, deploy the reviewed backend, install the refreshed development build, then perform the two-account synthetic phone walkthrough.
-
-The inherited Expo toolchain audit reports 4 high/8 moderate findings through node-forge/uuid. npm's suggested fix downgrades Expo to SDK 44; that is not a suitable scoped change.
+Previously reported dependency audit: 4 high / 8 moderate findings through inherited Expo tooling (`node-forge`/`uuid`). This was not rescanned during documentation reconciliation. npm's proposed Expo SDK 44 downgrade was not applied; no dependency remediation is authorized by this pause.
