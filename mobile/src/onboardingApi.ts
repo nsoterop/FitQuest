@@ -10,18 +10,18 @@ export class OnboardingApiError extends Error {
   constructor(code:string,sessionEnded=false){super(onboardingErrorText(code));this.code=code;this.sessionEnded=sessionEnded}
 }
 export function onboardingErrorText(code:string):string {
-  const messages:Record<string,string>={ai_disabled:'AI conversation is not activated yet. Your message was saved; you can review and edit your understanding.',
-    adults_only:'AI conversation is currently limited to adults based on the saved profile. Account and profile access remain available.',
-    budget_exhausted:'AI conversation has reached its spending limit. Your message was saved; review and editing remain available.',
-    context_limit:'This change was not saved because it exceeds the conversation limit. Shorten your draft, or review and confirm the saved understanding. Earlier goals and restrictions are unchanged.',
-    revision_conflict:'Your understanding changed. Refresh it before continuing.',review_changed:'The reviewed version changed. Refresh and review again.',
-    operation_conflict:'This operation differs from the saved request. Refresh before trying again.',
-    profile_changed:'Your profile changed. Review the disputed profile references before continuing.',
-    rate_limit:'Too many requests. Please try again later.',storage_limit:'This change was not saved because the conversation is full. Review the saved understanding, or delete the conversation to start again.',
-    session_ended:'Your session ended. Please sign in again.',unavailable:'Conversation is unavailable. Please retry.',
-    interrupted:'The previous attempt was interrupted. You can retry it.',stale_attempt:'Your understanding changed before the reply arrived. Refresh to continue.',
-    refused:'AI could not answer this onboarding message. You can edit your understanding or retry.',incomplete:'AI returned an incomplete response. You can retry.',
-    provider_error:'AI could not finish. Your saved message is available to retry.',not_found:'This conversation was deleted or is unavailable.'};
+  const messages:Record<string,string>={ai_disabled:'AI replies are unavailable. Your answer is saved.',
+    adults_only:'AI onboarding is for adults 18+. Your account and profile are still available.',
+    budget_exhausted:'AI replies have reached the spending limit. Your answer is saved.',
+    context_limit:'This answer was not saved. Try a shorter answer.',
+    revision_conflict:'The conversation changed. Load the latest replies to continue.',review_changed:'The conversation changed. Load the latest replies to continue.',
+    operation_conflict:'Could not send this answer. Load the conversation again.',
+    profile_changed:'Your profile changed. Load the conversation again.',
+    rate_limit:'Please wait a moment before trying again.',storage_limit:'This conversation is full. Your earlier answers are saved.',
+    session_ended:'Your session ended. Please sign in again.',unavailable:'Could not load the conversation. Try again.',
+    interrupted:'The reply was interrupted. You can try again.',stale_attempt:'The conversation changed before the reply arrived.',
+    refused:'AI could not answer. You can try again.',incomplete:'The reply was incomplete. You can try again.',
+    provider_error:'Could not finish the reply. Your answer is saved.',not_found:'This conversation was deleted or is unavailable.'};
   return messages[code]??'Unable to complete onboarding. Please retry.';
 }
 export function isConversation(value:unknown):value is OnboardingConversation {

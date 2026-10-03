@@ -1,3 +1,4 @@
+import { renderOnboardingReply } from './onboardingReply.js';
 import type { Account } from './auth.js';
 import { applyProposal, disclosure, disclosureVersion, limits, opening, OnboardingError, type Command } from './onboardingDomain.js';
 import { validateProposal, type OnboardingProvider, type ProviderResult } from './onboardingProvider.js';
@@ -5,7 +6,7 @@ import type { Conversation, OnboardingStore } from './onboardingStore.js';
 
 export function onboardingService(store:OnboardingStore,provider?:OnboardingProvider,environment=process.env.NODE_ENV) {
   if(provider?.mode==='test' && environment==='production') throw new Error('Test AI is not allowed in production.');
-  const present=(conversation:Conversation)=>({...conversation,generationEnabled:!!provider,opening,disclosure:provider?disclosure.replace('AI conversation is not activated yet. When enabled,','AI conversation is enabled.'):disclosure,disclosureVersion});
+  const present=(conversation:Conversation)=>({...conversation,generationEnabled:!!provider,opening,disclosure,disclosureVersion});
   return {
     create:async(account:Account)=>present(await store.create(account)),
     read:async(account:Account,id:string)=>present(await store.read(account,id)),
@@ -33,7 +34,7 @@ export function onboardingService(store:OnboardingStore,provider?:OnboardingProv
         try {
           const proposal=validateProposal(result.proposal);
           context=applyProposal(claimed.conversation.context,proposal,work.sources,new Date().toISOString());
-          reply=[proposal.reply,proposal.nextQuestion?.text].filter(Boolean).join('\n\n');
+          reply=renderOnboardingReply(proposal);
           questionTopic=proposal.nextQuestion?.topic;
           if(reply.length>3000) throw new OnboardingError(422,'invalid_model_output');
         }catch{failure='incomplete'}

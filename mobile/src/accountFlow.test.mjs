@@ -57,7 +57,7 @@ registerHooks({
       export async function getItemAsync(k){return globalThis.__fitquestSecure.get(k)??null}
       export async function setItemAsync(k,v){if(globalThis.__fitquestSecureFailure)throw Error('synthetic storage failure');globalThis.__fitquestSecure.set(k,v)}
       export async function deleteItemAsync(k){globalThis.__fitquestSecure.delete(k)}`, shortCircuit:true };
-    if (url === 'fitquest-test:safe') return { format: 'module', source: "export const SafeAreaProvider='SafeAreaProvider', SafeAreaView='SafeAreaView';", shortCircuit: true };
+    if (url === 'fitquest-test:safe') return { format: 'module', source: "export const SafeAreaProvider='SafeAreaProvider', SafeAreaView='SafeAreaView'; export const useSafeAreaInsets=()=>({top:62,bottom:34,left:0,right:0});", shortCircuit: true };
     if (url === 'fitquest-test:auth') return { format: 'module', source: 'export const supabase=globalThis.__fitquestTestClient;', shortCircuit: true };
     if (url.endsWith('.tsx')) return { format: 'module', source: ts.transpileModule(readFileSync(fileURLToPath(url), 'utf8'), {
       compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
@@ -264,17 +264,21 @@ async function mountOnboarding(props={}) {
   let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(OnboardingScreen,{userId:'alice',accessToken:async()=> 'alice-token',onClose(){},...props}));await flush()});
   await act(async()=>{press(screen,'Continue to onboarding');await flush()});return screen;
 }
-test('greeting opens onboarding disclosure; review and exact-version confirmation work without AI',async()=>{
-  resetAuth(alice);let saved=onboardingFixture();let calls=0;
+test('disclosure precedes a minimal conversation; structured context is never silently confirmed',async()=>{
+  resetAuth(alice);let saved={...onboardingFixture(),generationEnabled:true};let commands=[];
   globalThis.fetch=async(url,options)=>{
     if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
-    if(url.endsWith('/commands')){const c=JSON.parse(options.body);assert.equal(c.kind,'confirm');assert.equal(c.reviewedRevision,0);saved={...saved,revision:1,state:'confirmed',confirmedRevision:0};calls++}
+    if(url.endsWith('/commands'))commands.push(JSON.parse(options.body));
     return{status:200,json:async()=>saved};
   };
-  const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});assert.ok(text(screen).includes('provider retention'));assert.ok(text(screen).includes('Live AI requires owner activation'));
+  const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});
+  assert.ok(text(screen).includes('adults 18+'));assert.ok(text(screen).includes('shared with OpenAI'));assert.ok(text(screen).includes('provider retention'));
+  assert.equal(screen.root.findAllByProps({accessibilityLabel:'Onboarding message'}).length,0);
   await act(async()=>{press(screen,'Continue to onboarding');await flush()});
-  await act(async()=>{press(screen,'Review understanding')});assert.ok(text(screen).includes('Athlete report'));assert.ok(text(screen).includes('Current activity unknown'));
-  await act(async()=>{press(screen,'Confirm this understanding');await flush()});assert.equal(calls,1);assert.ok(text(screen).includes('Understanding saved'));
+  assert.ok(text(screen).includes(saved.opening));
+  for(const extra of ['Review understanding','Your understanding','Current activity unknown','Athlete report','Provisional retention','Refresh conversation','Skip this topic','Delete conversation','Back to greeting','Draft saved','Confirm this understanding'])assert.equal(text(screen).includes(extra),false,extra);
+  assert.deepEqual(screen.root.findAllByType('Pressable').map(x=>x.props.accessibilityLabel).filter(x=>x!=='Sign out'),['Conversation options','Send']);
+  assert.equal(commands.length,0);assert.equal(saved.state,'collecting');
   await act(async()=>screen.unmount());
 });
 test('lost response retains an encrypted operation; reopen replays the same ID rather than sending a new message',async()=>{
@@ -284,23 +288,49 @@ test('lost response retains an encrypted operation; reopen replays the same ID r
     return{status:200,json:async()=>saved};
   };
   let screen=await mountOnboarding();await act(async()=>{input(screen,'Onboarding message').props.onChangeText('My schedule varies');await flush()});
-  await act(async()=>{press(screen,'Send message');press(screen,'Send message');await flush()});assert.equal(sent.length,1);assert.ok(text(screen).includes('Recover saved operation'));
+  await act(async()=>{press(screen,'Send');press(screen,'Send');await flush()});assert.equal(sent.length,1);assert.ok(text(screen).includes('Try again'));
   assert.equal((await privateDrafts.read('alice')).pending.operationId,sent[0].operationId);assert.equal(await privateDrafts.read('bob'),null);
   await act(async()=>screen.unmount());
-  screen=await mountOnboarding();assert.ok(text(screen).includes('Recovered your secure device draft'));
+  screen=await mountOnboarding();assert.equal(input(screen,'Onboarding message').props.value,'My schedule varies');assert.equal(text(screen).includes('Recovered your secure device draft'),false);
   globalThis.fetch=async(_url,options)=>{const command=JSON.parse(options.body);sent.push(command);return{status:200,json:async()=>({...saved,revision:1,turns:[{id:'turn',sequence:1,message:command.text,reply:null,questionTopic:null,state:'failed',error:'ai_disabled'}]})}};
-  await act(async()=>{press(screen,'Recover saved operation');await flush()});assert.equal(sent[1].operationId,sent[0].operationId);assert.equal(sent.length,2);assert.equal(await privateDrafts.read('alice'),null);assert.ok(text(screen).includes('not activated'));
+  await act(async()=>{press(screen,'Try again');await flush()});assert.equal(sent[1].operationId,sent[0].operationId);assert.equal(sent.length,2);assert.equal(await privateDrafts.read('alice'),null);assert.ok(text(screen).includes('AI replies are unavailable'));
   await act(async()=>screen.unmount());
 });
-test('correction and skip commands preserve entered words; secure write failure prevents dispatch',async()=>{
-  globalThis.__fitquestSecure.clear();let saved=onboardingFixture();const commands=[];
-  globalThis.fetch=async(url,options)=>{if(url.endsWith('/commands')){commands.push(JSON.parse(options.body));saved={...saved,revision:saved.revision+1}}return{status:200,json:async()=>saved}};
-  const screen=await mountOnboarding();await act(async()=>{press(screen,'Skip this topic');await flush()});assert.equal(commands[0].topic,'Goals');
-  await act(async()=>{press(screen,'Review understanding')});await act(async()=>{press(screen,'Edit i1')});
-  await act(async()=>{input(screen,'Understanding correction').props.onChangeText('Balance and coordination matter equally')});
-  await act(async()=>{press(screen,'Save correction');await flush()});assert.equal(commands[1].value,'Balance and coordination matter equally');assert.equal(commands[1].itemId,'i1');
-  await act(async()=>{press(screen,'Back to conversation')});await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Private unsent draft');await flush()});
-  globalThis.__fitquestSecureFailure=true;await act(async()=>{press(screen,'Send message');await flush()});assert.equal(commands.length,2);assert.ok(text(screen).includes('Unable to save your pending operation securely'));globalThis.__fitquestSecureFailure=false;
+test('corrections are ordinary messages; secure write failure prevents dispatch',async()=>{
+  globalThis.__fitquestSecure.clear();let saved={...onboardingFixture(),generationEnabled:true};const commands=[];
+  globalThis.fetch=async(url,options)=>{if(url.endsWith('/commands')){const c=JSON.parse(options.body);commands.push(c);saved={...saved,revision:saved.revision+1,turns:[{id:'t',sequence:1,message:c.text,reply:'What matters most?',questionTopic:'Goals',state:'completed',error:null}]}}return{status:200,json:async()=>saved}};
+  const screen=await mountOnboarding();
+  await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Actually, balance and coordination matter equally.');await flush()});
+  await act(async()=>{press(screen,'Send');await flush()});
+  assert.equal(commands[0].kind,'message');assert.equal(commands[0].text,'Actually, balance and coordination matter equally.');
+  assert.ok(text(screen).includes('What matters most?'));assert.equal(text(screen).includes('Draft saved'),false);
+  await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Private unsent draft');await flush()});
+  globalThis.__fitquestSecureFailure=true;await act(async()=>{press(screen,'Send');await flush()});
+  assert.equal(commands.length,1);assert.ok(text(screen).includes('Could not save your answer on this device'));assert.ok(input(screen,'Try again'));
+  globalThis.__fitquestSecureFailure=false;await act(async()=>{press(screen,'Try again');await flush()});assert.equal(commands.length,2);assert.equal(commands[1].text,'Private unsent draft');
+  await act(async()=>screen.unmount());
+});
+test('persisted replies and an unsent draft reopen quietly; navigation stays in the secondary menu',async()=>{
+  globalThis.__fitquestSecure.clear();let closed=0;
+  const saved={...onboardingFixture(),generationEnabled:true,turns:[{id:'t',sequence:1,message:'I enjoy tennis',reply:'What would you like to improve in tennis?',questionTopic:'Goals',state:'completed',error:null}]};
+  const requests=[];globalThis.fetch=async(_url,options)=>{requests.push(options);return{status:200,json:async()=>saved}};
+  let screen=await mountOnboarding();await act(async()=>{input(screen,'Onboarding message').props.onChangeText('My serve');await flush()});await act(async()=>screen.unmount());
+  screen=await mountOnboarding({onClose(){closed++}});assert.ok(text(screen).includes(saved.turns[0].reply));assert.equal(input(screen,'Onboarding message').props.value,'My serve');
+  assert.equal(text(screen).includes('Draft saved'),false);assert.equal(text(screen).includes('Try again'),false);assert.ok(requests.every(r=>!JSON.parse(r.body).kind));
+  await act(async()=>{press(screen,'Conversation options')});assert.ok(input(screen,'Delete conversation'));await act(async()=>{press(screen,'Back to greeting')});assert.equal(closed,1);
+  await act(async()=>screen.unmount());
+});
+test('failed and pending replies have only the needed recovery action and never retry automatically',async()=>{
+  globalThis.__fitquestSecure.clear();let commands=[];let saved={...onboardingFixture(),generationEnabled:true,turns:[{id:'t',sequence:1,message:'Tennis',reply:null,questionTopic:null,state:'pending',error:null}]};
+  globalThis.fetch=async(url,options)=>{
+    if(options.method==='GET')saved={...saved,turns:[{...saved.turns[0],state:'failed',error:'provider_error'}]};
+    if(url.endsWith('/commands')){commands.push(JSON.parse(options.body));saved={...saved,turns:[{...saved.turns[0],state:'completed',error:null,reply:'What would you like to improve?'}]}};
+    return{status:200,json:async()=>saved};
+  };
+  const screen=await mountOnboarding();assert.ok(text(screen).includes('Thinking'));assert.ok(input(screen,'Check for reply'));assert.equal(input(screen,'Onboarding message').props.editable,false);
+  assert.equal(commands.length,0);await act(async()=>{press(screen,'Check for reply');await flush()});assert.equal(commands.length,0);assert.ok(input(screen,'Retry reply'));assert.ok(text(screen).includes('Your answer is saved'));
+  await act(async()=>{press(screen,'Retry reply');await flush()});assert.equal(commands.length,1);assert.equal(commands[0].kind,'retry');assert.equal(commands[0].turnId,'t');
+  assert.equal(text(screen).includes('Retry reply'),false);assert.equal(text(screen).includes('Check for reply'),false);assert.equal(input(screen,'Onboarding message').props.editable,true);
   await act(async()=>screen.unmount());
 });
 test('sign out clears onboarding UI and encrypted draft; late response cannot populate the next account',async()=>{
@@ -311,7 +341,7 @@ test('sign out clears onboarding UI and encrypted draft; late response cannot po
   };
   const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
   await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Private Alice goal');await flush()});
-  await act(async()=>{press(screen,'Send message');await flush()});assert.ok(await privateDrafts.read('alice'));
+  await act(async()=>{press(screen,'Send');await flush()});assert.ok(await privateDrafts.read('alice'));
   await act(async()=>{press(screen,'Sign out');await flush()});assert.equal(await privateDrafts.read('alice'),null);assert.equal(text(screen).includes('Private Alice'),false);
   await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
   await act(async()=>{complete({status:200,json:async()=>({...saved,turns:[{id:'t',sequence:1,message:'Private Alice goal',reply:'Private reply',questionTopic:null,state:'completed',error:null}]})});await flush()});
@@ -325,14 +355,16 @@ test('onboarding session rejection returns to sign in; explicit deletion removes
   globalThis.fetch=async(url,options)=>url.endsWith('/commands')?new Promise(resolve=>{late=resolve}):({status:options.method==='DELETE'?204:200,json:async()=>saved});
   screen=await mountOnboarding({onClose(){closed++}});
   await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Unsent goal');await flush()});
-  await act(async()=>{press(screen,'Send message');await flush();press(screen,'Delete onboarding')});
+  await act(async()=>{press(screen,'Send');await flush()});
+  await act(async()=>{press(screen,'Conversation options')});
+  await act(async()=>{press(screen,'Delete conversation')});
   assert.ok(text(screen).includes('Your profile and account remain'));
   await act(async()=>{press(screen,'Delete conversation permanently');await flush()});assert.equal(closed,1);assert.equal(await privateDrafts.read('alice'),null);
   await act(async()=>{late({status:200,json:async()=>saved});await flush()});assert.equal(text(screen).includes('Unsent goal'),false);
   await act(async()=>screen.unmount());
 });
 
-test('explicit context rejection preserves editable draft and permits shorter send or reviewed confirmation',async()=>{
+test('explicit context rejection preserves editable draft and permits a shorter conversational answer',async()=>{
   globalThis.__fitquestSecure.clear();let saved=onboardingFixture();let reject=true;const sent=[];
   globalThis.fetch=async(url,options)=>{
     if(url.endsWith('/commands')){
@@ -344,18 +376,30 @@ test('explicit context rejection preserves editable draft and permits shorter se
   };
   const screen=await mountOnboarding();
   await act(async()=>{input(screen,'Onboarding message').props.onChangeText('A detailed answer I may need to shorten');await flush()});
-  await act(async()=>{press(screen,'Send message');await flush()});
-  assert.ok(text(screen).includes('This change was not saved'));
+  await act(async()=>{press(screen,'Send');await flush()});
+  assert.ok(text(screen).includes('This answer was not saved'));
   assert.equal(input(screen,'Onboarding message').props.value,'A detailed answer I may need to shorten');
   assert.equal(input(screen,'Onboarding message').props.editable,true);
   assert.equal((await privateDrafts.read('alice')).pending,null);
-  assert.equal(text(screen).includes('Recover saved operation'),false);
+  assert.equal(text(screen).includes('Try again'),false);
   reject=false;
   await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Keep both goals.');await flush()});
-  await act(async()=>{press(screen,'Send message');await flush()});
+  await act(async()=>{press(screen,'Send');await flush()});
   assert.notEqual(sent[0].operationId,sent[1].operationId);assert.equal(sent[1].expectedRevision,0);
-  await act(async()=>{press(screen,'Review understanding')});
-  await act(async()=>{press(screen,'Confirm this understanding');await flush()});
-  assert.ok(text(screen).includes('Understanding saved'));
+  assert.ok(sent.every(c=>c.kind==='message'));assert.equal(saved.state,'collecting');
+  await act(async()=>screen.unmount());
+});
+
+test('revision conflict reloads saved replies before resending the preserved answer',async()=>{
+  globalThis.__fitquestSecure.clear();let saved={...onboardingFixture(),generationEnabled:true};const sent=[];let reject=true;
+  globalThis.fetch=async(url,options)=>{
+    if(options.method==='GET')saved={...saved,revision:2};
+    if(url.endsWith('/commands')){sent.push(JSON.parse(options.body));if(reject)return{status:409,json:async()=>({code:'revision_conflict'})};saved={...saved,revision:3}}
+    return{status:200,json:async()=>saved};
+  };
+  const screen=await mountOnboarding();await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Keep tennis first');await flush()});
+  await act(async()=>{press(screen,'Send');await flush()});assert.equal((await privateDrafts.read('alice')).pending,null);assert.equal(input(screen,'Send').props.disabled,true);assert.ok(input(screen,'Check for reply'));
+  await act(async()=>{press(screen,'Check for reply');await flush()});assert.equal(sent.length,1);assert.equal(input(screen,'Onboarding message').props.value,'Keep tennis first');
+  reject=false;await act(async()=>{press(screen,'Send');await flush()});assert.equal(sent[1].expectedRevision,2);assert.notEqual(sent[0].operationId,sent[1].operationId);
   await act(async()=>screen.unmount());
 });

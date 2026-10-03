@@ -1,3 +1,4 @@
+import { acceptsRecap, completeTopic, completionReply } from './onboardingDomain.js';
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import type { Account } from './auth.js';
@@ -133,6 +134,9 @@ export function postgresOnboardingStore(pool: Pool) {
           const pending=(await c.query("SELECT id FROM fitquest.onboarding_turns WHERE user_id=$1 AND conversation_id=$2 AND state='pending'",[account.userId,id])).rowCount;
           if(pending) throw new OnboardingError(409,'turn_pending');
           const turns=(await c.query('SELECT * FROM fitquest.onboarding_turns WHERE user_id=$1 AND conversation_id=$2 ORDER BY sequence',[account.userId,id])).rows;
+          const previous=turns.at(-1);
+          const finishing=command.kind==='message' && acceptsRecap(previous?{state:previous.state,questionTopic:previous.question_topic}:undefined,command.text) &&
+            (await c.query("SELECT 1 FROM fitquest.onboarding_operations WHERE user_id=$1 AND conversation_id=$2 AND turn_id=$3 AND result_revision=$4 AND status='completed' LIMIT 1",[account.userId,id,previous.id,conv.revision])).rowCount===1;
           let message:string; let sequence:number;
           if(command.kind==='message') {
             if(turns.length>=limits.turns) throw new OnboardingError(422,'storage_limit');
@@ -148,7 +152,10 @@ export function postgresOnboardingStore(pool: Pool) {
           if(old.profile_version!==p.version) throw new OnboardingError(409,'profile_changed');
           await revision(c,account,id,number,context,p.version);
           let failure='ai_disabled';
-          if(provider && p.age>=18) {
+          if(finishing) {
+            // Persist conversational agreement, never confirm unseen structured items. No AI call.
+            await c.query("UPDATE fitquest.onboarding_turns SET state='completed',reply=$4,question_topic=$5,error_code=NULL WHERE user_id=$1 AND conversation_id=$2 AND id=$3",[account.userId,id,turnId,completionReply,completeTopic]);
+          } else if(provider && p.age>=18) {
             await rate(c,account,true);
             // Every raw report stays in context. Never truncate goals/restrictions to make a prompt fit.
             const sources:Record<string,string>={};
@@ -171,7 +178,7 @@ export function postgresOnboardingStore(pool: Pool) {
               }else failure='budget_exhausted';
             }
           }else if(provider) failure='adults_only';
-          if(!work) await c.query('UPDATE fitquest.onboarding_turns SET error_code=$4 WHERE user_id=$1 AND conversation_id=$2 AND id=$3',[account.userId,id,turnId,failure]);
+          if(!work&&!finishing) await c.query('UPDATE fitquest.onboarding_turns SET error_code=$4 WHERE user_id=$1 AND conversation_id=$2 AND id=$3',[account.userId,id,turnId,failure]);
         }
         const turnStatus=turnId?(await c.query('SELECT state,error_code FROM fitquest.onboarding_turns WHERE user_id=$1 AND conversation_id=$2 AND id=$3',[account.userId,id,turnId])).rows[0]:{state:'completed',error_code:null};
         await c.query('INSERT INTO fitquest.onboarding_operations(user_id,conversation_id,id,digest,kind,turn_id,result_revision,attempt_id,status,error_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[account.userId,id,command.operationId,commandDigest(command),command.kind,turnId,number,work?.attempt??null,turnStatus.state,turnStatus.error_code]);

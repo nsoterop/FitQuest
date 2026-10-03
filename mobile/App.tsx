@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { checkBackendHealth } from './src/backendHealth';
+import { ConversationScrollView } from './src/ConversationScrollView';
 import { AccountPanel } from './src/AccountPanel';
 
 export default function App() {
@@ -34,8 +35,7 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" />
-        <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        <ConversationScrollView contentContainerStyle={styles.content}>
             <View style={styles.page}>
               <View style={styles.brand}>
                 <View style={styles.mark} accessibilityElementsHidden>
@@ -57,8 +57,7 @@ export default function App() {
                   </Pressable>
               </View>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </ConversationScrollView>
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -66,7 +65,6 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F6F7F2' },
-  keyboard: { flex: 1 },
   content: { flexGrow: 1, padding: 24 },
   page: { width: '100%', maxWidth: 480, alignSelf: 'center' },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12 },

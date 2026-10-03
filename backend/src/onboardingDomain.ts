@@ -2,8 +2,19 @@ import { createHash } from 'node:crypto';
 
 export const limits = { message: 4000, items: 80, contextBytes: 32000, inputBytes: 24000, output: 2000, turns: 100, operations: 240, deadlineMs: 35000 };
 export const disclosureVersion = 'onboarding-adults-v1';
-export const opening = 'What would you like to improve, and what would progress look like for you? You can skip anything or review your understanding at any time.';
-export const disclosure = 'AI conversation is not activated yet. When enabled, relevant profile facts, messages and your evolving understanding will be sent to OpenAI. FitQuest keeps this conversation and its revisions until you delete them. Deletion leaves your profile and account intact. Provider retention and infrastructure backups are separate; store:false does not mean zero retention. AI onboarding is for adults 18 and older; account and profile access remain available to others. No training plan or medical clearance is produced.';
+export const opening = 'What would you like to improve, and what would progress look like for you?';
+export const disclosure = 'AI onboarding is for adults 18+. Relevant profile information, messages and conversation context are shared with OpenAI. History stays until you delete it; provider retention and backups are separate. No training plan or medical clearance is produced.';
+export const recapTopic = 'Onboarding recap';
+export const completeTopic = 'Onboarding complete';
+export const recapQuestion = 'Does that capture what matters? Reply “Looks good” to finish initial onboarding, or tell me what to change or add.';
+export const completionReply = 'Your initial onboarding is finished and saved. You can add or correct anything here later. No training plan has been created.';
+// Agreement applies only to the immediately preceding, displayed recap. Added details,
+// corrections, ordinary summary requests and model readiness alone never complete onboarding.
+export function acceptsRecap(previous: { state: string; questionTopic: string | null } | undefined, text: string) {
+  return previous?.state === 'completed' && previous.questionTopic === recapTopic &&
+    /^(looks good|yes|yes,? looks good|that[’']?s right|that is right)[.!]?$/i.test(text.trim());
+}
+
 
 export type Item = { id: string; topic: string; value: string; origin: 'profile' | 'user_report' | 'model_inference' | 'assumption' | 'unknown';
   review: 'unreviewed' | 'confirmed' | 'disputed'; source: string; quote: string; supersedes: string | null; recordedAt: string };
@@ -60,6 +71,7 @@ export function applyProposal(context: Context, proposal: ModelProposal, sources
     if (!seen.has(key)) next.items.push({ ...item, id: `i${next.items.length + 1}`, review: 'unreviewed', supersedes: null, recordedAt: now });
     seen.add(key);
   }
+  if (proposal.nextQuestion?.topic === completeTopic) throw new OnboardingError(422, 'invalid_model_output');
   if (proposal.nextQuestion && (next.skipped.some(x => x.toLowerCase() === proposal.nextQuestion!.topic.toLowerCase()) ||
       ['first name', 'last name', 'height', 'age', 'weight', 'gender'].includes(proposal.nextQuestion.topic.toLowerCase()))) {
     throw new OnboardingError(422, 'repeated_known_topic');

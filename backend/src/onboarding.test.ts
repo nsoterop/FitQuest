@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyProposal, bounded, emptyContext, type ModelInput, type ModelProposal } from './onboardingDomain.js';
+import { acceptsRecap, recapTopic, completeTopic, applyProposal, bounded, emptyContext, type ModelInput, type ModelProposal } from './onboardingDomain.js';
 import { minimizeModelInput, configuredProvider, openAIProvider, serializeInput, validateProposal } from './onboardingProvider.js';
 import { onboardingService } from './onboarding.js';
 import type { OnboardingStore } from './onboardingStore.js';
@@ -111,4 +111,13 @@ test('provider context omits identifying details while original reports remain i
   for(const privateValue of ['Alex','Example','alex@example.test','private-token','sk-privateKey','eyJheader.payload.signature','11111111-1111-4111-8111-111111111111'])assert.equal(encoded.includes(privateValue),false);
   assert.ok(safe.sources.m1?.includes('tennis and a pull-up'));assert.equal(original.sources.m1,words);
   assert.throws(()=>applyProposal(emptyContext(),{...proposal,additions:[{...proposal.additions[0]!,value:'[private detail removed]',quote:'[private detail removed]'}]},original.sources,new Date().toISOString()));
+});
+
+test('only explicit agreement to the last displayed recap finishes; readiness, summaries and corrections do not',()=>{
+  const recap={state:'completed',questionTopic:recapTopic};
+  for(const text of ['Looks good','Yes.','That’s right!'])assert.equal(acceptsRecap(recap,text),true);
+  for(const text of ['Please summarize','Yes, but only one day','Looks good except my shoulder','No','Not sure','Finish onboarding'])assert.equal(acceptsRecap(recap,text),false);
+  assert.equal(acceptsRecap({state:'completed',questionTopic:'Goals'},'Yes'),false);
+  assert.equal(acceptsRecap({state:'pending',questionTopic:recapTopic},'Yes'),false);
+  assert.throws(()=>applyProposal(emptyContext(),{...proposal,nextQuestion:{topic:completeTopic,text:'Done',decision:'Model says ready'}},input.sources,new Date().toISOString()));
 });

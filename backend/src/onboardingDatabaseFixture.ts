@@ -1,3 +1,5 @@
+import { renderOnboardingReply } from './onboardingReply.js';
+import { dialogueFixtures } from './onboardingDialogueFixture.js';
 // Synthetic local-only integration fixture, called after the disposable baseline test.
 import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
@@ -104,6 +106,60 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     const reviewed=structuredClone(a.context);
     a=await service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'confirm',reviewedRevision:a.revision},async()=>true);
     assert.deepEqual(a.context,reviewed);assert.equal(a.state,'confirmed');assert.equal(dispatches,before+1);
+  });
+  await t.test('conversational recap, correction, agreement and reopen never confirm unseen items or spend on acknowledgement',async()=>{
+    let a=await fresh();const observed:any[]=[];let responseIndex=0;
+    const replies=[
+      {...proposal,nextQuestion:{topic:'Availability',text:'How much time is realistic for you?',decision:'Availability is still missing.'}},
+      {...proposal,nextQuestion:{topic:'Equipment',text:'What equipment or facilities can you use?',decision:'Equipment is still missing.'}},
+      {...proposal,reply:'Tennis first; two flexible half-hour sessions, walking now, public courts, no reported limitations.',nextQuestion:{topic:'Onboarding recap',text:'Ready?',decision:'Practical context supplied.'}},
+      {...proposal,reply:'Tennis first, flexible sessions and public courts; no plan has been created.',nextQuestion:{topic:'Onboarding recap',text:'Ready?',decision:'Summary requested, not agreement.'}},
+      {...proposal,reply:'Correction noted.',nextQuestion:{topic:'Onboarding recap',text:'One flexible half-hour session, not two. Tennis, walking, public courts and no reported limitations remain. Ready?',decision:'Updated recap needs agreement.'}},
+      {...proposal,nextQuestion:{topic:'Availability',text:'How long could that extra session be?',decision:'A new correction reopened the discussion.'}},
+    ];
+    const scripted={...provider,prepare(input:any){observed.push(structuredClone(input));return provider.prepare(input)},call:async()=>{calls++;return{proposal:replies[responseIndex++],usage:{input:100,output:20,cached:0,cacheWrite:0}}}};
+    const local=buildApp(false,{store:profiles,verifyAccount:async()=>alice,onboarding:onboardingService(store,scripted,'test')});
+    const send=async(text:string,op=randomUUID())=>{const r=await local.inject({method:'POST',url:`/onboarding/${a.id}/commands`,headers:{authorization:'Bearer alice'},payload:{operationId:op,expectedRevision:a.revision,kind:'message',text}});assert.equal(r.statusCode,200);a=r.json();return a};
+    try{
+      await send('Tennis is my priority.');assert.equal(a.turns.at(-1).questionTopic,'Availability');
+      await send('Two half-hour sessions, but days vary.');assert.equal(a.turns.at(-1).questionTopic,'Equipment');assert.ok(observed[1].recent.some((x:any)=>x.text.includes('How much time')));
+      await send('Public courts. I walk now and have no important limitations.');assert.ok(a.turns.at(-1).reply.includes('Looks good'));assert.equal(a.turns.at(-1).questionTopic,'Onboarding recap');
+      await send('Can you summarize that?');assert.equal(responseIndex,4);assert.equal(a.turns.at(-1).questionTopic,'Onboarding recap');
+      await send('Actually only one half-hour session, not two.');assert.equal(responseIndex,5);assert.ok(a.turns.at(-1).reply.includes('One flexible half-hour session'));assert.ok(observed[4].sources.m2.includes('Two half-hour'));assert.ok(observed[4].sources.m5.includes('only one'));
+      const before=calls, op=randomUUID(), beforeContext=structuredClone(a.context);
+      await send('Looks good',op);assert.equal(calls,before);assert.equal(a.turns.at(-1).questionTopic,'Onboarding complete');assert.ok(a.turns.at(-1).reply.includes('finished and saved'));
+      assert.equal(a.state,'collecting');assert.equal(a.confirmedRevision,null);assert.deepEqual(a.context.items.slice(0,beforeContext.items.length),beforeContext.items);assert.ok(a.context.items.every((x:any)=>x.review==='unreviewed'));
+      await send('Looks good',op);assert.equal(calls,before);assert.equal(a.turns.length,6);
+      const reopened=await postgresOnboardingStore(pool).read(alice,a.id);assert.deepEqual(reopened.turns,a.turns);assert.equal(reopened.confirmedRevision,null);
+      await send('I can add another session after all.');assert.equal(responseIndex,6);assert.equal(a.turns.at(-1).questionTopic,'Availability');assert.equal(a.confirmedRevision,null);
+    }finally{await local.close()}
+  });
+  await t.test('recorded synthetic shoulder, comprehensive and irregular/skip dialogues preserve displayed recaps through agreement and reopen',async()=>{
+    for(const fixture of dialogueFixtures){
+      const old=await store.create(alice);await store.remove(alice,old.id);
+      let a=await store.create(alice), dispatched=0;
+      const replay={...provider,call:async()=>({proposal:fixture.turns[dispatched++]!.proposal,usage:{input:100,output:20,cached:0,cacheWrite:0}})};
+      const service=onboardingService(store,replay,'test');
+      const send=(text:string)=>service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'message',text},async()=>true);
+      for(const turn of fixture.turns){
+        a=await send(turn.message);const shown=a.turns.at(-1)!;
+        assert.equal(shown.state,'completed',fixture.name);
+        assert.equal(shown.reply,renderOnboardingReply(turn.proposal as ModelProposal));assert.notEqual(shown.questionTopic,'Onboarding complete');
+      }
+      assert.equal(a.turns.at(-1)?.questionTopic,'Onboarding recap');
+      a=await send('Looks good');assert.equal(dispatched,fixture.turns.length);assert.equal(a.turns.at(-1)?.questionTopic,'Onboarding complete');
+      assert.equal(a.confirmedRevision,null);assert.ok(a.context.items.every((x:{review:string})=>x.review==='unreviewed'));
+      assert.deepEqual((await store.read(alice,a.id)).turns,a.turns);
+    }
+  });
+  await t.test('a context edit after a recap invalidates conversational agreement to that old recap',async()=>{
+    let a=await fresh(), dispatched=0;
+    const service=onboardingService(store,{...provider,call:async()=>{dispatched++;return{proposal:{...proposal,nextQuestion:{topic:'Onboarding recap',text:'Ready?',decision:'Synthetic recap.'}},usage:{input:100,output:20,cached:0,cacheWrite:0}}}},'test');
+    const send=(fields:any)=>service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,...fields},async()=>true);
+    a=await send({kind:'message',text:'Tennis, walking now, two short sessions, public courts, no limitations.'});
+    a=await send({kind:'edit',itemId:null,topic:'Availability',value:'Only one short session.'});
+    a=await send({kind:'message',text:'Looks good'});
+    assert.equal(dispatched,2);assert.equal(a.turns.at(-1)?.questionTopic,'Onboarding recap');assert.equal(a.confirmedRevision,null);
   });
   await t.test('forward migration preserves profile data; RLS, privileges, owner composite keys and API isolation',async()=>{
     const a=await create();const b=await create('bob');assert.notEqual(a.id,b.id);assert.equal((await create()).id,a.id);

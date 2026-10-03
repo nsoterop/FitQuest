@@ -35,13 +35,19 @@ export function evaluationInput(item: typeof evaluationCases[number]): ModelInpu
 // Uses the SAME durable reservation/settlement functions as the app. No schema initialization,
 // fixture teardown, allowance reset, automatic retry or monthly renewal is available here.
 export async function evaluateCase(pool: Pool, provider: OnboardingProvider, item: typeof evaluationCases[number]) {
+  return evaluateModelInput(pool, provider, evaluationInput(item), item.name, item.expect);
+}
+
+// Also supports explicitly authorized synthetic comparisons against the one active ledger.
+// Only operational attempt rows are written; no Auth/profile/conversation fixtures are created.
+export async function evaluateModelInput(pool: Pool, provider: OnboardingProvider, input: ModelInput, name: string, expectation: string, version=promptVersion) {
   const account = { userId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', sessionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
-  const input = evaluationInput(item), prepared = provider.prepare(input), attempt = randomUUID();
+  const prepared = provider.prepare(input), attempt = randomUUID();
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
     await c.query("SELECT set_config('fitquest.user_id',$1,true)", [account.userId]);
-    await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,'evaluation','not_dispatched',$3,$4,$5)", [account.userId, attempt, provider.model, promptVersion, schemaVersion]);
+    await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,'evaluation','not_dispatched',$3,$4,$5)", [account.userId, attempt, provider.model, version, schemaVersion]);
     const reserved = await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed', [attempt, prepared.reserveMicro, provider.capMicro]);
     if (!reserved.rows[0]?.allowed) throw new Error('Evaluation allowance unavailable.');
     await c.query('COMMIT');
@@ -59,7 +65,7 @@ export async function evaluateCase(pool: Pool, provider: OnboardingProvider, ite
       applyProposal(input.context, proposal, input.sources, new Date().toISOString());
     } catch { failure = 'invalid_model_output'; }
   }
-  return { case: item.name, expectation: item.expect, attempt, latencyMs: Math.round(performance.now() - start),
+  return { case: name, expectation, attempt, latencyMs: Math.round(performance.now() - start),
     usage: 'usage' in result ? result.usage : undefined, accountedMicro: cost, reservedMicro: prepared.reserveMicro,
     failure, proposal, quality: 'Requires human assessment; schema validity is not model quality.' };
 }
