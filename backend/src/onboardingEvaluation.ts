@@ -40,7 +40,7 @@ export async function evaluateCase(pool: Pool, provider: OnboardingProvider, ite
 
 // Also supports explicitly authorized synthetic comparisons against the one active ledger.
 // Only operational attempt rows are written; no Auth/profile/conversation fixtures are created.
-export async function evaluateModelInput(pool: Pool, provider: OnboardingProvider, input: ModelInput, name: string, expectation: string, version=promptVersion) {
+export async function evaluateModelInput(pool: Pool, provider: OnboardingProvider, input: ModelInput, name: string, expectation: string, version=promptVersion, validateResult?:(value:unknown)=>unknown) {
   const account = { userId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', sessionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
   const prepared = provider.prepare(input), attempt = randomUUID();
   const c = await pool.connect();
@@ -58,11 +58,14 @@ export async function evaluateModelInput(pool: Pool, provider: OnboardingProvide
   const cost = 'usage' in result && result.usage ? provider.cost(result.usage) : null;
   await postgresOnboardingStore(pool).settle(account, attempt, cost);
   let failure: string | undefined = result.failure;
-  let proposal;
+  let proposal:unknown;
   if (!failure) {
     try {
-      proposal = validateProposal('proposal' in result ? result.proposal : undefined);
-      applyProposal(input.context, proposal, input.sources, new Date().toISOString());
+      if(validateResult)proposal=validateResult('proposal' in result?result.proposal:undefined);
+      else {
+        const checked=validateProposal('proposal' in result ? result.proposal : undefined);
+        applyProposal(input.context,checked,input.sources,new Date().toISOString());proposal=checked;
+      }
     } catch { failure = 'invalid_model_output'; }
   }
   return { case: name, expectation, attempt, latencyMs: Math.round(performance.now() - start),
@@ -92,7 +95,7 @@ export async function evaluateConversation(pool: Pool, provider: OnboardingProvi
   const app = buildApp(false, { store: postgresProfileStore(pool), verifyAccount: async token => token === 'synthetic-evaluation' ? account : null,
     onboarding: onboardingService(postgresOnboardingStore(pool), observed, 'test') });
   try {
-    let response = await app.inject({ method: 'POST', url: '/onboarding', headers: { authorization: 'Bearer synthetic-evaluation' }, payload: { disclosureVersion: 'onboarding-adults-v1' } });
+    let response = await app.inject({ method: 'POST', url: '/onboarding', headers: { authorization: 'Bearer synthetic-evaluation' }, payload: { disclosureVersion: 'onboarding-planning-v2' } });
     assert.equal(response.statusCode, 200);let current = response.json();
     // Never reset a partially completed evaluation or its accounting on a rerun.
     if (!resume) assert.equal(current.revision, 0, 'Existing evaluation conversation requires inspection before further calls.');

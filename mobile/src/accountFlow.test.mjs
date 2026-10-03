@@ -69,6 +69,7 @@ const { ProfileIntakeForm } = await import('./ProfileIntakeForm.tsx');
 const { AccountPanel } = await import('./AccountPanel.tsx');
 const { default: App } = await import('../App.tsx');
 const { OnboardingScreen } = await import('./OnboardingScreen.tsx');
+const { TrainingScreen } = await import('./TrainingScreen.tsx');
 const { privateDrafts } = await import('./onboardingDraftStorage.ts');
 const payload = { firstName: 'Alex', lastName: 'Example', height: { value: 68, unit: 'in' }, age: 29,
   weight: { value: 155.5, unit: 'lb' }, gender: 'Prefer not to say',
@@ -259,7 +260,7 @@ test('failed sign out cannot revive private state from later auth notifications'
 
 const onboardingFixture = () => ({ id:'aaaaaaaa-1111-4111-8111-111111111111',revision:0,state:'collecting',confirmedRevision:null,
   context:{items:[{id:'i1',topic:'Goal',value:'Coordination',origin:'user_report',review:'unreviewed',source:'m1',quote:'Coordination',supersedes:null,recordedAt:'2026-10-02T12:00:00Z'}],skipped:[],readiness:'needs_clarification',limitations:['Current activity unknown']},
-  turns:[],profileChanged:false,generationEnabled:false,opening:'What would you like to improve?',disclosure:'Provisional retention details.',disclosureVersion:'onboarding-adults-v1'});
+  turns:[],profileChanged:false,generationEnabled:false,opening:'What would you like to improve?',disclosure:'Provisional retention details.',disclosureVersion:'onboarding-planning-v2'});
 async function mountOnboarding(props={}) {
   let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(OnboardingScreen,{userId:'alice',accessToken:async()=> 'alice-token',onClose(){},...props}));await flush()});
   await act(async()=>{press(screen,'Continue to onboarding');await flush()});return screen;
@@ -467,5 +468,96 @@ test('a completion receipt arriving after account switch cannot close or populat
   await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Looks good');await flush()});await act(async()=>{press(screen,'Send');await flush()});
   await act(async()=>{press(screen,'Sign out');await flush()});await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
   await act(async()=>{complete({status:200,json:async()=>deletionReceipt(saved.id)});await flush()});assert.equal(text(screen).includes('Onboarding finished'),false);assert.equal(await privateDrafts.read('alice'),null);
+  await act(async()=>screen.unmount());
+});
+
+const trainingState=()=>({summary:{revision:1,timeZone:'America/New_York',document:['goals','availability','equipment','experience','limitations'].map(category=>({category,text:`Synthetic ${category}`,origin:category==='limitations'?'unknown':'user_report'}))},plans:[{id:'cccccccc-1111-4111-8111-111111111111',summaryRevision:1,timeZone:'America/New_York',dates:Array.from({length:7},(_,i)=>`2026-10-${String(4+i).padStart(2,'0')}`),catalogVersion:'fitquest-2026-10-03-v1',outline:null,days:[],jobs:[]}]});
+function trainingServer(initial=trainingState()) {
+  let saved=initial;const requests=[];
+  globalThis.fetch=async(url,options)=>{
+    requests.push({url,method:options.method,body:options.body?JSON.parse(options.body):null});
+    if(url.endsWith('/training/summary')){const b=JSON.parse(options.body);saved={...saved,summary:{revision:saved.summary.revision+1,timeZone:b.timeZone,document:b.document}}}
+    if(url.endsWith('/training/generate')){const b=JSON.parse(options.body);const p=saved.plans[0];
+      if(b.target==='outline'){p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:[]};p.jobs=[{target:'outline',status:'completed',error:null,attemptId:'outline-attempt'}]}
+      else p.days.push({date:b.target,detail:{date:b.target,coverage:[],sessions:[],activities:{},catalogVersion:p.catalogVersion}});
+    }
+    return {status:200,json:async()=>structuredClone(saved)};
+  };
+  return {requests,get saved(){return saved}};
+}
+async function mountTraining(extra={}){let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(TrainingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},...extra}));await flush()});return screen}
+
+test('completion opens planning only after committed summary receipt and local draft cleanup, then generates outline and tomorrow only',async()=>{
+  resetAuth(alice);globalThis.__fitquestSecure.clear();const mock=trainingServer();const trainingFetch=globalThis.fetch;
+  const saved={...onboardingFixture(),generationEnabled:true};
+  globalThis.fetch=async(url,options)=>{
+    if(url.includes('/training')){assert.equal(await privateDrafts.read('alice'),null);return trainingFetch(url,options)}
+    if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
+    if(url.endsWith('/commands'))return{status:200,json:async()=>({...deletionReceipt(saved.id),summarySaved:true})};
+    return{status:200,json:async()=>saved};
+  };
+  const screen=await mount();await act(async()=>press(screen,'Start onboarding'));await act(async()=>{press(screen,'Continue to onboarding');await flush()});
+  await act(async()=>input(screen,'Onboarding message').props.onChangeText('Looks good'));
+  await act(async()=>{press(screen,'Send');await flush()});
+  assert.ok(text(screen).includes('Your training'));assert.equal(text(screen).includes('Private tennis report'),false);
+  assert.deepEqual(mock.requests.filter(r=>r.url.endsWith('/generate')).map(r=>r.body.target),['outline','2026-10-04']);
+  assert.ok(text(screen).includes('Rest — no prescribed session.'));await act(async()=>screen.unmount());
+});
+
+test('training reopen only reads saved records, later details are on demand, summary edits preserve prior plans',async()=>{
+  const initial=trainingState(),p=initial.plans[0];p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:[]};
+  const server=trainingServer(initial),screen=await mountTraining();assert.equal(server.requests.length,1);assert.equal(server.requests[0].method,'GET');
+  await act(async()=>{press(screen,'Generate 2026-10-05');await flush()});assert.equal(server.requests.filter(r=>r.method==='POST').length,1);
+  await act(async()=>press(screen,'Training summary'));await act(async()=>press(screen,'Edit summary'));await act(async()=>input(screen,'availability 2').props.onChangeText('One short day only.'));
+  await act(async()=>{press(screen,'Save summary');await flush()});
+  assert.equal(server.saved.summary.document[1].origin,'user_report');assert.equal(server.saved.plans[0].days.length,1);
+  assert.ok(text(screen).includes('Create outline from updated summary'));assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,1);
+  await act(async()=>screen.unmount());const reopened=await mountTraining();assert.ok(text(reopened).includes('2026-10-05'));assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,1);await act(async()=>reopened.unmount());
+});
+
+test('failed training generation has explicit retry and summary remains; an unmounted late response cannot revive private state',async()=>{
+  const initial=trainingState();initial.plans[0].jobs=[{target:'outline',status:'failed',error:'provider_error',attemptId:'failed-attempt'}];
+  const server=trainingServer(initial),screen=await mountTraining();assert.equal(server.requests.length,1);assert.ok(text(screen).includes('Synthetic')===false);
+  await act(async()=>{press(screen,'Retry outline generation');await flush()});assert.equal(server.requests.find(r=>r.url.endsWith('/generate')).body.retryAttempt,'failed-attempt');
+  await act(async()=>screen.unmount());
+  let deliver,closed=0;globalThis.fetch=async()=>new Promise(resolve=>deliver=resolve);
+  const late=await mountTraining({onClose(){closed++}});await act(async()=>late.unmount());await act(async()=>{deliver({status:200,json:async()=>initial});await flush()});assert.equal(closed,0);
+});
+
+test('saved training reopen clears a completed conversation draft but preserves a newer unfinished draft',async()=>{
+  globalThis.__fitquestSecure.clear();const initial=trainingState();initial.summary.sourceConversation='completed-old';
+  await privateDrafts.write('alice',{conversationId:'completed-old',text:'old private draft',pending:null,savedAt:Date.now()});
+  trainingServer(initial);const screen=await mountTraining();assert.equal(await privateDrafts.read('alice'),null);await act(async()=>screen.unmount());
+  await privateDrafts.write('alice',{conversationId:'new-unfinished',text:'keep this draft',pending:null,savedAt:Date.now()});
+  trainingServer(initial);const again=await mountTraining();assert.equal((await privateDrafts.read('alice')).text,'keep this draft');await act(async()=>again.unmount());
+});
+
+test('non-rest training renders pounds, miles, load conventions and descriptive weekday outline labels',async()=>{
+  const saved=trainingState(),p=saved.plans[0];
+  const labels=['Upper body','Lower body','Mobility','Easy cardio','Tennis practice'];
+  p.outline={coverage:[],days:p.dates.map((date,i)=>({date,sessions:i<5?[{focus:labels[i],activityIds:i===0?['FQ-ACT-00008','FQ-ACT-00148']:['FQ-ACT-00148']}]:[]}))};
+  const catalog=JSON.parse(readFileSync(new URL('../../backend/catalog/fitquest-v1.json',import.meta.url),'utf8'));
+  const activities=Object.fromEntries(['FQ-ACT-00008','FQ-ACT-00148'].map(id=>{const a=catalog.activities.find(a=>a['Activity ID']===id);return [id,{name:a['Exercise name'],instructions:a['Instructions'],loadConvention:a['Load convention'],setup:a['Setup to record']}]}));
+  const prescription={phase:'main',sets:3,measure:'repetitions',amount:8,effort:'moderate',restSeconds:60,load:'kg',loadKg:9.0718474,side:'each'};
+  p.days=[{date:p.dates[0],detail:{date:p.dates[0],catalogVersion:p.catalogVersion,coverage:[],activities,sessions:[{activities:[{...prescription,id:'FQ-ACT-00008'},{...prescription,id:'FQ-ACT-00148',sets:1,measure:'meters',amount:1609,load:'none',loadKg:null,side:'both'}]}]}}];
+  const mock=trainingServer(saved),screen=await mountTraining();
+  const visible=screen.root.findAllByType('Text').map(n=>n.children.join('')).join('\n');
+  assert.match(visible,/20 lb\. Load per dumbbell \(lb or kg\); record unequal loads separately/);
+  assert.match(visible,/3 × 8 repetitions per side/);assert.match(visible,/1 × 1 mile · moderate effort/);
+  assert.doesNotMatch(visible,/1609 meters|9\.0718474 kg/);
+  for(const [i,weekday] of ['Sunday','Monday','Tuesday','Wednesday','Thursday'].entries())assert.ok(visible.includes(`${weekday}, ${p.dates[i]} · ${labels[i]}`));
+  assert.ok(visible.includes('Friday, 2026-10-09 · Rest'));assert.equal(mock.requests.length,1);
+  await act(async()=>screen.unmount());
+});
+
+test('oversized unpublished outline shows accurate recovery and retries only on an explicit press',async()=>{
+  const saved=trainingState();saved.plans[0].jobs=[{target:'outline',status:'failed',error:'outline_context_limit',attemptId:'oversized-attempt'}];
+  const mock=trainingServer(saved),screen=await mountTraining();
+  const visible=screen.root.findAllByType('Text').map(n=>n.children.join('')).join('\n');
+  assert.match(visible,/outline exceeds the generation limit and was not saved/);assert.doesNotMatch(visible,/Shorten your training summary/);
+  assert.equal(mock.requests.length,1);assert.ok(input(screen,'Retry outline generation'));
+  await act(async()=>{press(screen,'Retry outline generation');await flush()});
+  const requests=mock.requests.filter(r=>r.url.endsWith('/generate'));
+  assert.equal(requests[0].body.retryAttempt,'oversized-attempt');assert.deepEqual(requests.map(r=>r.body.target),['outline','2026-10-04']);
   await act(async()=>screen.unmount());
 });

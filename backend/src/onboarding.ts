@@ -10,10 +10,10 @@ export function onboardingService(store:OnboardingStore,provider?:OnboardingProv
   const presentStored=async(account:Account,conversation:Conversation)=>{
     if(!completedConversation(conversation)) return present(conversation);
     if(!await store.removeCompleted(account,conversation.id)) throw new OnboardingError(409,'revision_conflict');
-    return {id:conversation.id,deleted:true as const,message:completionReply};
+    return {id:conversation.id,deleted:true as const,summarySaved:true as const,message:completionReply};
   };
   return {
-    create:async(account:Account)=>present(await store.create(account)),
+    create:async(account:Account,timeZone?:string)=>present(await store.create(account,timeZone)),
     read:async(account:Account,id:string)=>presentStored(account,await store.read(account,id)),
     remove:(account:Account,id:string)=>store.remove(account,id),
     async command(account:Account,id:string,command:Command,authorize:()=>Promise<boolean>) {
@@ -53,7 +53,7 @@ export function onboardingService(store:OnboardingStore,provider?:OnboardingProv
 }
 export type OnboardingService=ReturnType<typeof onboardingService>;
 const uuid={type:'string',pattern:'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'};
-const base={operationId:uuid,expectedRevision:{type:'integer',minimum:0,maximum:limits.operations}};
+const base={operationId:uuid,expectedRevision:{type:'integer',minimum:0,maximum:limits.operations},timeZone:{type:'string',minLength:1,maxLength:80}};
 const text=(maximum:number)=>({type:'string',minLength:1,maxLength:maximum,pattern:'\\S'});
 export const idSchema={type:'object',additionalProperties:false,required:['id'],properties:{id:uuid}};
 export const commandSchema={oneOf:[

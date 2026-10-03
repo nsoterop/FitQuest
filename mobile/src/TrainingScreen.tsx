@@ -1,0 +1,95 @@
+import { privateDrafts } from './onboardingDraftStorage';
+import { useEffect,useRef,useState } from 'react';
+import { Pressable,StyleSheet,Text,TextInput,View } from 'react-native';
+import { TrainingError,trainingError,trainingRequest,type TrainingState,type TrainingPlan,type TrainingFact,type TrainingDay } from './trainingApi';
+
+const coverageText:Record<string,string>={missing_catalog_coverage:'The catalog does not cover the requested work.',equipment_or_facility_unknown:'Equipment or facility access needs clarification.',skill_partner_or_supervision_unknown:'Skill, partner or supervision requirements need clarification.',limitations_need_clarification:'Relevant limitations need clarification.',summary_needs_correction:'Update the training summary before planning.'};
+const originText:Record<string,string>={user_report:'Reported',model_inference:'AI inference',assumption:'Assumption',unknown:'Unknown'};
+// Canonical storage stays metric. Round for display without losing small distances.
+const displayNumber=(value:number,digits:number)=>String(Number(value.toFixed(digits)));
+const distance=(meters:number)=>{const miles=meters/1609.344;return `${displayNumber(miles,miles<.01?4:2)} ${Math.abs(miles-1)<.005?'mile':'miles'}`};
+const calendarDate=(date:string)=>`${new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`))}, ${date}`;
+export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,generateOnOpen=false}:{userId:string;accessToken:()=>Promise<string>;onClose:()=>void;onSessionEnded?:()=>void;generateOnOpen?:boolean}) {
+  const [state,setState]=useState<TrainingState|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false),[facts,setFacts]=useState<TrainingFact[]>([]),[showSummary,setShowSummary]=useState(false),[selected,setSelected]=useState('');
+  const alive=useRef(true),pending=useRef<AbortController|null>(null),token=useRef(accessToken),ended=useRef(onSessionEnded);token.current=accessToken;ended.current=onSessionEnded;
+  const initial=useRef(generateOnOpen);
+  function update(s:TrainingState){if(alive.current)setState(s)}
+  async function run(work:(request:(path:string,method:'GET'|'POST'|'PUT',body?:unknown)=>Promise<TrainingState>)=>Promise<void>) {
+    if(pending.current)return;const c=new AbortController();pending.current=c;setBusy(true);setError('');
+    const timer=setTimeout(()=>c.abort(),75000);
+    try {
+      const t=await token.current();if(!alive.current||c.signal.aborted)return;
+      const request=async(path:string,method:'GET'|'POST'|'PUT',body?:unknown)=>{if(!alive.current||c.signal.aborted)throw Error();const next=await trainingRequest(path,method,body,t,c.signal);if(!alive.current||c.signal.aborted)throw Error();if(next.summary?.sourceConversation)await privateDrafts.clear(userId,next.summary.sourceConversation);if(!alive.current||c.signal.aborted)throw Error();update(next);return next};
+      await work(request);
+    }catch(e){if(alive.current){if(e instanceof TrainingError&&e.code==='session_ended')ended.current?.();else setError(e instanceof TrainingError?e.message:'Could not finish loading or clearing the device draft. Reload saved training to retry.')}}
+    finally{clearTimeout(timer);if(pending.current===c){pending.current=null;if(alive.current)setBusy(false)}}
+  }
+  const current=state?.plans.find(p=>p.summaryRevision===state.summary?.revision);
+  const shown=state?.plans.find(p=>p.id===selected)??current??state?.plans[0];
+  type Request=Parameters<Parameters<typeof run>[0]>[0];
+  async function initialPlan(request:Request,s:TrainingState,retry=false) {
+    if(!s.summary)return;
+    let p=s.plans.find(x=>x.summaryRevision===s.summary!.revision);
+    if(!p){s=await request('/plans','POST',{revision:s.summary.revision});p=s.plans.find(x=>x.summaryRevision===s.summary!.revision)}
+    if(!p)return;
+    setSelected(p.id);
+    const generate=async(target:string)=>{
+      const job=p!.jobs.find(j=>j.target===target);
+      s=await request('/generate','POST',{summaryRevision:s.summary!.revision,planId:p!.id,target,retryAttempt:retry&&job?.status==='failed'?job.attemptId:null});
+      p=s.plans.find(x=>x.id===p!.id)!;
+    };
+    if(!p.outline)await generate('outline');
+    if(p.outline&&!p.outline.coverage.length&&!p.days.some(d=>d.date===p!.dates[0]))await generate(p.dates[0]!);
+  }
+  useEffect(()=>{alive.current=true;void run(async request=>{const s=await request('','GET');if(initial.current){initial.current=false;await initialPlan(request,s)}});return()=>{alive.current=false;pending.current?.abort();pending.current=null}},[userId]);
+  const button=(label:string,press:()=>void,secondary=false)=><Pressable key={label} accessibilityRole="button" accessibilityLabel={label} disabled={busy} onPress={press} style={[styles.button,secondary&&styles.secondary,busy&&{opacity:.5}]}><Text style={secondary?styles.copy:styles.buttonText}>{label}</Text></Pressable>;
+  function showDay(day:TrainingDay) {
+    const d=day.detail;
+    return <View key={day.date} style={styles.day}>
+      {d.coverage.map(code=><Text key={code} style={styles.copy}>{coverageText[code]??'Catalog coverage is limited.'}</Text>)}
+      {!d.sessions.length&&!d.coverage.length&&<Text style={styles.copy}>Rest — no prescribed session.</Text>}
+      {d.sessions.map((s,i)=><View key={i} style={styles.day}><Text style={styles.label}>Session {i+1}</Text>{s.activities.map((a,j)=>{
+        const entry=d.activities[a.id]!;
+        return <View key={j} style={styles.exercise}><Text style={styles.label}>{a.phase} · {entry.name}</Text>
+          <Text style={styles.copy}>{a.sets} × {a.measure==='meters'?distance(a.amount):`${a.amount} ${a.measure}`}{a.side==='each'?' per side':''} · {a.effort} effort · {a.restSeconds}s rest</Text>
+          <Text style={styles.copy}>{a.load==='kg'?`${displayNumber(a.loadKg! / .45359237,1)} lb`:a.load.replace(/_/g,' ')}. {entry.loadConvention}</Text>
+          <Text style={styles.copy}>{entry.instructions}</Text><Text style={styles.small}>Setup: {entry.setup}</Text>
+        </View>;
+      })}</View>)}
+    </View>;
+  }
+  return <View style={styles.screen}>
+    <Text accessibilityRole="header" style={styles.title}>Your training</Text>
+    <Text style={styles.small}>Prescribed work, not a record of completed workouts. Catalog activities are AI consistency reviewed, not expert validated.</Text>
+    {busy&&<Text accessibilityLiveRegion="polite" style={styles.copy}>Loading or generating…</Text>}
+    {!!error&&<Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+    {button('Reload saved training',()=>void run(async request=>{await request('','GET')}),true)}
+    {state&&!state.summary&&<Text style={styles.copy}>Complete onboarding to save a training summary and create your outline.</Text>}
+    {state?.summary&&<>
+      {button(showSummary?'Hide training summary':'Training summary',()=>setShowSummary(!showSummary),true)}
+      {showSummary&&<View style={styles.day}><Text style={styles.small}>Concise saved context; AI inferences and unknowns have not been confirmed by you.</Text>
+        {(editing?facts:state.summary.document).map((f,i)=><View key={i} style={styles.exercise}><Text style={styles.label}>{f.category} · {originText[f.origin]}</Text>
+          {editing?<TextInput accessibilityLabel={`${f.category} ${i+1}`} value={f.text} multiline maxLength={350} editable={!busy} style={styles.input} onChangeText={text=>setFacts(old=>old.map((x,j)=>j===i?{...x,text,origin:'user_report'}:x))}/>:<Text style={styles.copy}>{f.text}</Text>}
+        </View>)}
+        {editing?<>
+          <Text style={styles.small}>Corrections apply to future generation. Existing outlines and sessions remain saved; create a new outline explicitly after saving.</Text>
+          {button('Save summary',()=>void run(async request=>{await request('/summary','PUT',{revision:state.summary!.revision,document:facts,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone});setEditing(false)}))}
+          {button('Cancel summary edit',()=>setEditing(false),true)}
+        </>:button('Edit summary',()=>{setFacts(structuredClone(state.summary!.document));setEditing(true)},true)}
+      </View>}
+      {!current&&button('Create outline from updated summary',()=>void run(request=>initialPlan(request,state)))}
+      {current&&!current.outline&&button(current.jobs.some(j=>j.status==='failed')?'Retry outline generation':'Generate outline and tomorrow',()=>void run(request=>initialPlan(request,state,true)))}
+    </>}
+    {shown&&<View style={styles.day}><Text style={styles.label}>Seven days · {shown.timeZone}</Text>
+      {shown.summaryRevision!==state?.summary?.revision&&<Text style={styles.small}>Saved before your summary correction. Its existing sessions remain unchanged. Create a new outline for future generation.</Text>}
+      {shown.outline?.coverage.map(code=><Text key={code} style={styles.error}>{coverageText[code]??'Catalog coverage is limited.'} Correct the summary to create a new outline.</Text>)}
+      {shown.jobs.filter(j=>j.status!=='completed').map(j=><Text key={j.target} style={styles.copy}>{j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':trainingError(j.error??'unavailable')}</Text>)}
+      {shown.outline?.days.map(d=><View key={d.date} style={styles.day}><Text style={styles.label}>{calendarDate(d.date)} · {d.sessions.length?d.sessions.map(s=>s.focus).join(' + '):shown.outline!.coverage.length?'Coverage limited':'Rest'}</Text>
+        {shown.days.some(x=>x.date===d.date)?showDay(shown.days.find(x=>x.date===d.date)!):!shown.outline!.coverage.length&&shown.summaryRevision===state?.summary?.revision&&button(`${shown.jobs.some(j=>j.target===d.date&&j.status==='failed')?'Retry':'Generate'} ${d.date}`,()=>void run(async request=>{const job=shown.jobs.find(j=>j.target===d.date);await request('/generate','POST',{planId:shown.id,summaryRevision:state!.summary!.revision,target:d.date,retryAttempt:job?.status==='failed'?job.attemptId:null})}))}
+      </View>)}
+    </View>}
+    {state&&state.plans.length>1&&<View>{state.plans.filter(p=>p.id!==shown?.id).map(p=>button(`View saved outline ${p.dates[0]} · revision ${p.summaryRevision}`,()=>setSelected(p.id),true))}</View>}
+    {button('Back to greeting',onClose,true)}
+  </View>;
+}
+const styles=StyleSheet.create({screen:{gap:14,marginTop:20},title:{fontSize:26,color:'#193B34',fontWeight:'600'},label:{fontSize:16,color:'#193B34',fontWeight:'600'},copy:{fontSize:16,lineHeight:23,color:'#52655E'},small:{fontSize:13,lineHeight:19,color:'#52655E'},day:{gap:12,paddingVertical:12,borderTopWidth:1,borderColor:'#DDE5DD'},exercise:{gap:6},button:{padding:14,borderRadius:12,backgroundColor:'#176B5B',minHeight:46},buttonText:{fontSize:16,color:'#fff',textAlign:'center'},secondary:{backgroundColor:'#EDF2ED'},input:{borderWidth:1,borderColor:'#91A69B',borderRadius:8,padding:10,color:'#193B34',fontSize:16,minHeight:65},error:{color:'#9B302C',fontSize:16}});

@@ -1,3 +1,5 @@
+import { planningStore } from './planningStore.js';
+import { planningService } from './planning.js';
 import { buildApp } from './app.js';
 import { createPool, postgresProfileStore } from './profileStore.js';
 import { supabaseVerifier } from './auth.js';
@@ -21,9 +23,11 @@ try {
   }
 } catch { throw new Error('Use HTTPS Supabase Auth, a publishable key, and the restricted TLS database role.'); }
 const pool = createPool(DATABASE_URL);
+const provider=configuredProvider(process.env);
 const app = buildApp({ redact: ['req.headers.authorization', 'req.headers.cookie', 'err'] }, {
   store: postgresProfileStore(pool), verifyAccount: supabaseVerifier(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
-  onboarding: onboardingService(postgresOnboardingStore(pool), configuredProvider(process.env)),
+  planning:planningService(planningStore(pool),provider),
+  onboarding: onboardingService(postgresOnboardingStore(pool), provider),
 });
 app.addHook('onClose', async () => pool.end());
 const port = Number(process.env.PORT ?? '10000');

@@ -1,6 +1,20 @@
 # FitQuest mobile
 
-React Native / TypeScript on Expo SDK 57. **Only scoped onboarding has resumed under owner authorization through HQ.** Its deployment/activation and phone reconnection are authorized after HQ’s reviewed checkpoint. Native builds and other paused work remain outside scope.
+React Native / TypeScript on Expo SDK 57. **Scoped onboarding and catalog-backed planning are authorized through HQ.** Existing-service deployment and phone reconnection are authorized for HQ’s reviewed checkpoint. Native builds and other paused work remain outside scope.
+
+## Catalog planning — accepted, deployment pending
+
+HQ independently passed all 56 mobile tests/typecheck and offline Expo compatibility, plus 67 backend tests with isolated PostgreSQL. The actual iOS manifest/bundle returned 200 with the corrected training screen. All review findings are resolved and the owner approved publication/deployment. This confirms local serving/compilation, not physical-phone layout or acceptance; Engineering still must verify the deployed backend and current Metro connectivity before the owner tests.
+
+`TrainingScreen.tsx` adds a minimal saved seven-day view, per-day sessions/rest and a secondary **Training summary → Edit summary** affordance. Reported facts, AI inferences, assumptions and unknowns remain labeled. The new completion receipt includes `summarySaved:true`; only after deleting the account/conversation-scoped device draft does the phone open planning and request the outline followed by tomorrow. **View training** reopens saved content without generation. Later day details have explicit Generate/Retry actions. Failed generation preserves the saved summary; unknown response outcomes are checked with **Reload saved training**. Summary corrections preserve existing workouts and offer **Create outline from updated summary**. These are prescriptions, not workout logs.
+
+Review corrections show canonical kg/meter prescriptions as lb/miles with sensible display precision; catalog per-dumbbell/per-side conventions remain visible. Outline headings include weekday/date and concise descriptive session intent (upper body, lower body, mobility, cardio or sport). An oversized unpublished outline offers explicit retry and no longer blames summary length. Added rendered-screen tests use actual catalog entries with 20 lb/approximately one mile, descriptive weekday labels, and failed-outline recovery.
+
+The device supplies its current IANA time zone at start/explicit finish; retries retain the original command. Dates are computed on the server as calendar dates, including DST. The disclosure now says concise summaries/plans remain while the chat is deleted. No new native dependency/build is needed. Existing account-keyed unmount/cancellation guards clear private UI; late responses cannot open another account's plan.
+
+`EXPO_OFFLINE=1 npm --prefix mobile run check` passes typecheck, Expo compatibility and **56 tests**. New component tests cover summary receipt → awaited device cleanup → outline/tomorrow only, saved reopen, on-demand days, edits preserving previous prescriptions, explicit retry and late unmounted responses, and cleanup of completed device drafts without removing newer unfinished drafts. Backend passes 67 tests including local PostgreSQL. Metro was restarted after its previous process had stopped; iOS manifest/bundle returned 200, **4,909,178 bytes**, with planning/disclosure/approved API markers. This verifies serving/compilation, not device layout or phone reachability.
+
+Backend planning is **not deployed yet**. After HQ accepts/publishes and Engineering verifies migration/deployment: reload the installed dev app on the Mac's Wi-Fi (`http://192.168.87.227:8081`), complete a fresh onboarding explicitly, check a dated outline/tomorrow, reopen without regeneration, request a later date, then correct the summary and explicitly generate a new outline. Confirm old saved sessions remain and sign-out clears them. Physical-phone acceptance and final keyboard behavior remain outstanding.
 
 ## Implemented flow and publication state
 
@@ -13,21 +27,28 @@ Email/password sign-in or sign-up is the entry screen. Required email confirmati
 
 Profile fields: first name, last name, height (feet/inches, sent as total inches), age, weight (lb) and gender. Fastify owns validation, account authorization and persistence. The API still returns exactly `{"message":"User Data Saved"}`; the greeting UI consumes that response instead of displaying it as a success message.
 
-## Completion deletion — reviewed, deployment pending
+## Completion deletion — deployed, reload required
 
-HQ acceptance, October 3: independently passed typecheck and all 50 mobile tests, alongside the 50-test backend suite. The source is accepted for publication/deployment and subsequent owner testing; actual phone cleanup/reopen and final keyboard behavior remain unverified. Earlier local-review notes below describe implementation evidence, not an outstanding code-review gate.
+HQ acceptance, October 3: independently passed typecheck and all 50 mobile tests, alongside the 50-test backend suite. Reviewed commit `cd79e78c15bc4cd8d3ad76400be6508566c13e49` is [Live on Render](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db0kg95g1s2s73efutn0); actual phone cleanup/reopen and final keyboard behavior remain unverified. Earlier local-review notes below describe implementation evidence, not an outstanding code-review gate.
 
 The new retention override clears the completed transcript and answer/pending UI on a committed deletion receipt, then clears the account/conversation-scoped device draft and returns to the existing greeting with a brief acknowledgement. Start onboarding uses the existing button and starts fresh. Reopen discards a draft tied to an already-deleted old ID; a lost completion response recovers from `not_found` without an AI retry. Incomplete conversations and drafts still resume as before; sign-out continues to clear local private state.
 
 A failed device cleanup hides the deleted transcript and offers only **Finish cleanup**, which retries local storage without another server/provider request. Cleanup is serialized with writes and matches the old conversation ID, preserving a newer draft and other accounts. Secure storage now propagates private-chunk deletion failures and retains its index until deletion succeeds; reopen finishes a partial deletion or reports failure, rather than leaving inaccessible private fragments. Late callbacks cannot restore the completed screen or draft after close/account switching. Disclosure explains completion deletion and separate provider/backup retention.
 
-Typecheck and **50 mobile tests** pass. The actual Metro iOS manifest/bundle returned 200 (4,885,633 bytes) with the cleanup flow, new disclosure and approved Render URL. Tests include completion acknowledgement timing, greeting/fresh start, failed cleanup, same-ID retry/lost response, stale draft removal, account switching, response validation and interrupted private-chunk cleanup. No native build or device acceptance is claimed. This local source awaits HQ review/publication and backend deployment; the verified live service below is still `4466b4e`.
+Typecheck and **50 mobile tests** pass. The actual Metro iOS manifest/bundle returned 200 (4,885,633 bytes) with the cleanup flow, new disclosure and approved Render URL. Tests include completion acknowledgement timing, greeting/fresh start, failed cleanup, same-ID retry/lost response, stale draft removal, account switching, response validation and interrupted private-chunk cleanup. No native build or device acceptance is claimed. Deployment verification rechecked the same 4,885,633-byte iOS bundle with its deletion-receipt handler, Finish cleanup action, updated disclosure and approved API URL. **Reload JavaScript before testing** so the phone understands the new server receipt.
 
 ## iPhone development setup
 
 ### Conversational onboarding
 
-**Ready for owner testing, October 3:** reviewed commit `4466b4e2bce8deab29ed033458930ab181f0760d` is [Live on Render](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db0jvunavr4c7382l44g). The actual iOS Metro manifest and 4,881,590-byte bundle returned 200 at `http://192.168.87.227:8081`, including the current scroll/follow behavior, safe-area offset and approved Render API URL. On the same Wi-Fi as the Mac, open the installed FitQuest development app and reload; if disconnected, choose **Enter URL manually** and enter that address. Verify keyboard focus, a multiline answer, the latest question and Send above the keyboard, scrolling back through history and refocusing the answer. Then check recap → “Looks good” → saved acknowledgement and reopen. HQ independently passed mobile typecheck and all 41 tests; the corresponding backend passed 48 tests. Final native keyboard behavior remains unverified after Simulator access timed out. Simulator access timed out again during deployment verification; native keyboard success is not claimed.
+**Ready for owner testing, October 3:** `cd79e78` is live, and Metro's actual iOS manifest/bundle both return 200. On the same Wi-Fi as the Mac, reload the installed FitQuest development app; if disconnected, choose **Enter URL manually** and use `http://192.168.87.227:8081`.
+
+1. Reload first, then tap **Start onboarding**. An older explicitly completed/confirmed session should be cleaned and open fresh; unfinished conversations should resume.
+2. Continue to the recap and explicitly agree, for example **Looks good**. Expect a deletion acknowledgement and return to **Hi <firstname>**.
+3. Tap **Start onboarding** again; expect a fresh conversation. Leave an unfinished conversation and reopen to check resume.
+4. Check multiline input, Send above the keyboard, history scrolling and refocusing. If local draft cleanup fails, **Finish cleanup** retries it without another AI call.
+
+These are owner acceptance steps; bundle/server checks do not verify the physical phone or final keyboard layout. No new native build or paid evaluation was needed.
 
 **Reviewed UI simplification, October 3:** greeting → concise 18+/OpenAI retention disclosure → conversation, answer box and compact Send. The normal screen has no structured review/editor/confirmation, skip/refresh/delete stack, provenance/revision details or routine draft notices. Corrections are ordinary messages. A small **···** options menu contains navigation and explicit deletion. Only an actual pending/failed request shows its relevant recovery action. The UI never silently confirms structured context or generates a plan. The deployed backend adds conversational recap/agreement and a persisted finished acknowledgement.
 

@@ -1,3 +1,4 @@
+import { verifyPlanningDatabase } from './planningDatabaseFixture.js';
 import { renderOnboardingReply } from './onboardingReply.js';
 import { dialogueFixtures } from './onboardingDialogueFixture.js';
 // Synthetic local-only integration fixture, called after the disposable baseline test.
@@ -18,6 +19,7 @@ import type { Command, ModelProposal } from './onboardingDomain.js';
 export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Pool,profiles:ProfileStore) {
   const migration=await readFile(new URL('../supabase/migrations/20261003030745_conversational_onboarding.sql',import.meta.url),'utf8');
   await owner.query('BEGIN');await owner.query(migration);await owner.query('COMMIT');
+  await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261003214718_catalog_planning.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   // Synthetic fixture only. Real evaluation/production accounting is never initialized here.
   await owner.query('UPDATE fitquest.ai_budget SET app_enabled=true');
   const alice={userId:'11111111-1111-4111-8111-111111111111',sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};
@@ -28,7 +30,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await profiles.save(alice,profile);await profiles.save(bob,{...profile,firstName:'Jordan'});
   const store=postgresOnboardingStore(pool);
   let calls=0; let allowed=true;
-  const proposal:ModelProposal={reply:'Thanks for explaining your goals.',additions:[],nextQuestion:{topic:'Current activity',text:'What does your current activity look like?',decision:'Avoid assuming a starting point.'},readiness:'ready_with_limits',limitations:['Starting activity remains unknown.']};
+  const proposal:ModelProposal={trainingSummary:null,reply:'Thanks for explaining your goals.',additions:[],nextQuestion:{topic:'Current activity',text:'What does your current activity look like?',decision:'Avoid assuming a starting point.'},readiness:'ready_with_limits',limitations:['Starting activity remains unknown.']};
   let respond:()=>Promise<ProviderResult>=async()=>({proposal,usage:{input:100,output:20,cached:0,cacheWrite:0}});
   const provider:OnboardingProvider={mode:'test',model:'synthetic-contract',capMicro:1000000,
     prepare(input){assert.equal(JSON.stringify(input).includes('Example'),false);assert.equal(JSON.stringify(input).includes(alice.userId),false);assert.equal(input.context.items.some(x=>x.origin==='profile'),false);return {body:JSON.stringify(input),reserveMicro:100}},
@@ -36,7 +38,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   const app=buildApp(false,{store:profiles,verifyAccount:async token=>allowed?(token==='alice'?alice:token==='bob'?bob:null):null,onboarding:onboardingService(store,provider,'test')});
   t.after(()=>app.close());
   const request=(method:'GET'|'POST'|'DELETE',url:string,payload?:object,token='alice')=>app.inject({method,url,payload,headers:{authorization:`Bearer ${token}`}});
-  const create=async(token='alice')=>(await request('POST','/onboarding',{disclosureVersion:'onboarding-adults-v1'},token)).json();
+  const create=async(token='alice')=>(await request('POST','/onboarding',{disclosureVersion:'onboarding-planning-v2'},token)).json();
   const command=(id:string,revision:number,fields:object,operationId=randomUUID())=>request('POST',`/onboarding/${id}/commands`,{operationId,expectedRevision:revision,...fields});
   const fresh=async()=>{const old=await create();await request('DELETE',`/onboarding/${old.id}`);return create()};
   await t.test('detailed multi-turn requests use compact original sources and retain edits, skips, inference and exact review',async()=>{
@@ -377,7 +379,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     await assert.rejects(service.command(alice,a.id,finish,async()=>true),{code:'not_found'});assert.equal(generated,1);
     const fresh=await service.create(alice);assert.notEqual(fresh.id,a.id);assert.equal(fresh.turns.length,0);
     assert.equal(await store.removeCompleted(alice,a.id),true);assert.equal((await store.read(alice,fresh.id)).id,fresh.id);
-    assert.equal(await store.removeCompleted(bob,fresh.id),true);assert.equal((await store.read(alice,fresh.id)).id,fresh.id);
+    await assert.rejects(store.removeCompleted(bob,fresh.id),{code:'not_found'});assert.equal((await store.read(alice,fresh.id)).id,fresh.id);
   });
   await t.test('authenticated reopen cleans explicit completion markers and legacy confirmation, never recap/readiness; late work cannot restore deleted content',async()=>{
     const previous=await store.create(alice);await store.remove(alice,previous.id);
@@ -399,6 +401,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     assert.equal((await store.read(alice,newest.id)).turns.length,0);
     await store.settle(alice,pending.work.attempt,null);await store.settle(alice,work.work.attempt,null);
   });
+  await verifyPlanningDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);
     assert.equal((await request('GET',`/onboarding/${a.id}`)).statusCode,429);

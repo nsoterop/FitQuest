@@ -1,4 +1,5 @@
 // Invented athletes and recorded Luna v4 outputs (2026-10-03). No live calls in tests.
+// trainingSummary:null marks that these older responses predate the compact summary field.
 // These replay observed response shapes; they do not establish future model quality.
 export const dialogueFixtures = [
   {
@@ -7,7 +8,7 @@ export const dialogueFixtures = [
       {
         "message": "I want better recreational tennis and a first pull-up. I play once a week and sometimes my shoulder aches slightly when serving.",
         "proposal": {
-          "reply": "Got it: improving recreational tennis and working toward your first pull-up are both goals. You play tennis weekly, and you’ve noticed slight shoulder aching when serving; I’ll keep that as an uncertain limitation.",
+          "trainingSummary": null, "reply": "Got it: improving recreational tennis and working toward your first pull-up are both goals. You play tennis weekly, and you’ve noticed slight shoulder aching when serving; I’ll keep that as an uncertain limitation.",
           "additions": [
             {
               "topic": "Goals",
@@ -46,7 +47,7 @@ export const dialogueFixtures = [
       {
         "message": "It is a mild occasional ache only with serves, not a known injury. I have no other restrictions to report and would like to focus on goals and practical details.",
         "proposal": {
-          "reply": "Thanks for clarifying—I’ll note the shoulder ache as mild and occasional with serves, not a known injury, and that you have no other restrictions to report.",
+          "trainingSummary": null, "reply": "Thanks for clarifying—I’ll note the shoulder ache as mild and occasional with serves, not a known injury, and that you have no other restrictions to report.",
           "additions": [
             {
               "topic": "Limitation",
@@ -78,7 +79,7 @@ export const dialogueFixtures = [
       {
         "message": "Tennis is first. Two flexible thirty-minute sessions a week are realistic; I have public courts and a pull-up bar.",
         "proposal": {
-          "reply": "You’re prioritizing better recreational tennis, with a first pull-up as another goal. You play tennis once a week, and two flexible 30-minute sessions weekly are realistic. You have access to public courts and a pull-up bar. You report a mild, occasional shoulder ache only when serving, not a known injury, and no other restrictions. Its cause and significance are unknown.",
+          "trainingSummary": null, "reply": "You’re prioritizing better recreational tennis, with a first pull-up as another goal. You play tennis once a week, and two flexible 30-minute sessions weekly are realistic. You have access to public courts and a pull-up bar. You report a mild, occasional shoulder ache only when serving, not a known injury, and no other restrictions. Its cause and significance are unknown.",
           "additions": [
             {
               "topic": "Goals",
@@ -145,7 +146,7 @@ export const dialogueFixtures = [
       {
         "message": "Please summarize where we are.",
         "proposal": {
-          "reply": "You’re aiming to improve your recreational tennis and get your first pull-up, with tennis as the priority. You play tennis once a week, and two flexible 30-minute sessions a week are realistic. You have access to public courts and a pull-up bar. You report a mild, occasional shoulder ache only with serves, not a known injury, and no other restrictions to report; its cause and significance are unknown.",
+          "trainingSummary": null, "reply": "You’re aiming to improve your recreational tennis and get your first pull-up, with tennis as the priority. You play tennis once a week, and two flexible 30-minute sessions a week are realistic. You have access to public courts and a pull-up bar. You report a mild, occasional shoulder ache only with serves, not a known injury, and no other restrictions to report; its cause and significance are unknown.",
           "additions": [
             {
               "topic": "Goals",
@@ -212,7 +213,7 @@ export const dialogueFixtures = [
       {
         "message": "Actually one thirty-minute session, not two. Keep tennis first and the pull-up goal too.",
         "proposal": {
-          "reply": "Thanks for correcting that—I’ll use one flexible 30-minute session a week, while keeping tennis first and the pull-up goal too.",
+          "trainingSummary": null, "reply": "Thanks for correcting that—I’ll use one flexible 30-minute session a week, while keeping tennis first and the pull-up goal too.",
           "additions": [
             {
               "topic": "Availability",
@@ -249,7 +250,7 @@ export const dialogueFixtures = [
       {
         "message": "Tennis endurance first, a first pull-up second. I play casually once a week and walk daily. Two flexible thirty-minute sessions a week fit my changing schedule. I have public courts and a pull-up bar, no gym. I have no injuries or limitations to report. That covers my situation.",
         "proposal": {
-          "reply": "Got it: tennis endurance is your first priority, with a first pull-up second. You play casually once a week, walk daily, and can fit two flexible 30-minute sessions into your changing schedule. You have public courts and a pull-up bar, no gym, and no injuries or limitations to report.",
+          "trainingSummary": null, "reply": "Got it: tennis endurance is your first priority, with a first pull-up second. You play casually once a week, walk daily, and can fit two flexible 30-minute sessions into your changing schedule. You have public courts and a pull-up bar, no gym, and no injuries or limitations to report.",
           "additions": [
             {
               "topic": "Goals and priorities",
@@ -306,7 +307,7 @@ export const dialogueFixtures = [
       {
         "message": "I want better everyday balance. I walk occasionally. Work shifts vary: sometimes twenty minutes, sometimes none, with no fixed frequency. I have floor space at home and no equipment. I would rather skip health limitations.",
         "proposal": {
-          "reply": "Everyday balance is your goal. You walk occasionally, and your work shifts make availability variable—some days you have about 20 minutes, other days none, with no fixed frequency. You have floor space at home and no equipment. I’ll respect your preference to skip health limitations.",
+          "trainingSummary": null, "reply": "Everyday balance is your goal. You walk occasionally, and your work shifts make availability variable—some days you have about 20 minutes, other days none, with no fixed frequency. You have floor space at home and no equipment. I’ll respect your preference to skip health limitations.",
           "additions": [
             {
               "topic": "Goal",
@@ -359,7 +360,7 @@ export const dialogueFixtures = [
       {
         "message": "Please stop the questions and recap what I have shared, leaving unknowns unknown.",
         "proposal": {
-          "reply": "You’d like better everyday balance. You walk occasionally, and your work shifts mean availability varies—sometimes about 20 minutes, sometimes none, with no fixed frequency. You have floor space at home and no equipment. You’d rather skip health limitations, so those remain unknown.",
+          "trainingSummary": null, "reply": "You’d like better everyday balance. You walk occasionally, and your work shifts mean availability varies—sometimes about 20 minutes, sometimes none, with no fixed frequency. You have floor space at home and no equipment. You’d rather skip health limitations, so those remain unknown.",
           "additions": [],
           "nextQuestion": {
             "topic": "Onboarding recap",

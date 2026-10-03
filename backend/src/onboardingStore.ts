@@ -1,3 +1,4 @@
+import { retainTrainingSummary, checkTimeZone } from './trainingSummary.js';
 import { acceptsRecap, completeTopic, completionPendingReply } from './onboardingDomain.js';
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
@@ -20,6 +21,8 @@ export function postgresOnboardingStore(pool: Pool) {
     try {
       await c.query('BEGIN'); await c.query("SELECT set_config('fitquest.user_id',$1,true)", [account.userId]);
       if (verifySession && !(await c.query('SELECT fitquest.onboarding_session_guard($1,$2) AS active',[account.sessionId,account.userId])).rows[0]?.active) throw new OnboardingError(401,'session_ended');
+      // Same lock order as planning: account, then conversation/summary/profile rows.
+      await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[account.userId]);
       const result = await operation(c); await c.query('COMMIT'); return result;
     } catch(error) { await c.query('ROLLBACK').catch(()=>{}); throw error; }
     finally { c.release(); }
@@ -66,18 +69,21 @@ export function postgresOnboardingStore(pool: Pool) {
     await c.query("UPDATE fitquest.onboarding_conversations SET revision=$3,state='collecting',confirmed_revision=NULL WHERE user_id=$1 AND id=$2",[account.userId,id,number]);
   }
   return {
-    async create(account: Account) {
+    async create(account: Account,timeZone="UTC") {
+      checkTimeZone(timeZone);
       return transaction(account,async c=>{
         await rate(c,account); const p=await profile(c,account);
         // Serializes create/resume for this verified account without a global lock.
         await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[account.userId]);
         let id=(await c.query('SELECT id FROM fitquest.onboarding_conversations WHERE user_id=$1 FOR UPDATE',[account.userId])).rows[0]?.id;
         if (id && completedConversation(await snapshot(c,account,id))) {
+          const old=await lock(c,account,id);
+          await retainTrainingSummary(c,account,(await snapshot(c,account,id)).context,id,old.time_zone);
           await c.query('DELETE FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2',[account.userId,id]);
           id=undefined;
         }
         if (!id) {
-          id=randomUUID(); await c.query('INSERT INTO fitquest.onboarding_conversations(user_id,id,disclosure_version) VALUES($1,$2,$3)',[account.userId,id,disclosureVersion]);
+          id=randomUUID(); await c.query('INSERT INTO fitquest.onboarding_conversations(user_id,id,disclosure_version,time_zone) VALUES($1,$2,$3,$4)',[account.userId,id,disclosureVersion,timeZone]);
           const context=emptyContext();
           for (const [topic,value] of [['age',String(p.age)],['height',`${p.height_inches} in`],['weight',`${p.weight_lb} lb`],['gender',p.gender]]) {
             context.items.push({id:`i${context.items.length+1}`,topic:topic!,value:value!,origin:'profile',review:'unreviewed',source:`profile:${topic}`,quote:value!,supersedes:null,recordedAt:new Date().toISOString()});
@@ -93,9 +99,15 @@ export function postgresOnboardingStore(pool: Pool) {
     }); },
     async removeCompleted(account: Account,id:string) { return transaction(account,async c=>{
       // Lock and match this ID only; delayed cleanup must never target a new conversation.
-      const row=(await c.query('SELECT id FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2 FOR UPDATE',[account.userId,id])).rows[0];
-      if (!row) return true;
-      if (!completedConversation(await snapshot(c,account,id))) return false;
+      const row=(await c.query('SELECT id,time_zone FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2 FOR UPDATE',[account.userId,id])).rows[0];
+      if (!row) {
+        if((await c.query('SELECT 1 FROM fitquest.training_summaries WHERE user_id=$1 AND source_conversation=$2',[account.userId,id])).rowCount)return true;
+        // A manual deletion racing completion must not claim a saved summary exists.
+        throw new OnboardingError(404,'not_found');
+      }
+      const completed=await snapshot(c,account,id);
+      if (!completedConversation(completed)) return false;
+      await retainTrainingSummary(c,account,completed.context,id,row.time_zone);
       await c.query('DELETE FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2',[account.userId,id]);
       return true;
     }); },
@@ -120,6 +132,7 @@ export function postgresOnboardingStore(pool: Pool) {
         let context:Context=structuredClone(old.context); const number=conv.revision+1; const now=new Date().toISOString();
         let turnId:string|null=null; let work:Claim['work'];
         if (command.kind==='confirm') {
+          if(command.timeZone)await c.query('UPDATE fitquest.onboarding_conversations SET time_zone=$3 WHERE user_id=$1 AND id=$2',[account.userId,id,checkTimeZone(command.timeZone)]);
           if(command.reviewedRevision!==conv.revision || old.profile_version!==p.version) throw new OnboardingError(409,'review_changed');
           // Persist the exact reviewed document, including origin and unknowns; no model call.
           await revision(c,account,id,number,context,p.version);
@@ -128,6 +141,7 @@ export function postgresOnboardingStore(pool: Pool) {
           await c.query("UPDATE fitquest.onboarding_operations SET status='failed',error_code='review_changed' WHERE user_id=$1 AND conversation_id=$2 AND status='pending'",[account.userId,id]);
         } else if(command.kind==='edit' || command.kind==='skip') {
           const source=`edit${number}`;
+          delete context.trainingSummary; // Structured correction needs a fresh recap before retaining an AI summary.
           if(command.kind==='edit') {
             const previous=context.items.find(x=>x.id===command.itemId);
             if(command.itemId && !previous) throw new OnboardingError(409,'item_changed');
@@ -172,6 +186,7 @@ export function postgresOnboardingStore(pool: Pool) {
           await revision(c,account,id,number,context,p.version);
           let failure='ai_disabled';
           if(finishing) {
+            if(command.timeZone)await c.query('UPDATE fitquest.onboarding_conversations SET time_zone=$3 WHERE user_id=$1 AND id=$2',[account.userId,id,checkTimeZone(command.timeZone)]);
             // Persist conversational agreement, never confirm unseen structured items. No AI call.
             await c.query("UPDATE fitquest.onboarding_turns SET state='completed',reply=$4,question_topic=$5,error_code=NULL WHERE user_id=$1 AND conversation_id=$2 AND id=$3",[account.userId,id,turnId,completionPendingReply,completeTopic]);
           } else if(provider && p.age>=18) {

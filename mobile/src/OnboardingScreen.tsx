@@ -6,7 +6,7 @@ import { privateDrafts } from './onboardingDraftStorage';
 import type { OnboardingDraftStore } from './onboardingDraft';
 
 export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,drafts=privateDrafts}: {
-  userId:string;accessToken:()=>Promise<string>;onSessionEnded?:()=>void;onClose:(message?:string)=>void;drafts?:OnboardingDraftStore;
+  userId:string;accessToken:()=>Promise<string>;onSessionEnded?:()=>void;onClose:(message?:string,summarySaved?:boolean)=>void;drafts?:OnboardingDraftStore;
 }) {
   const [accepted,setAccepted]=useState(false);
   const [conversation,setConversation]=useState<OnboardingConversation|null>(null);
@@ -35,7 +35,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
     setConversation(null);current.current=null;setText('');setPending(null);setError('');setDraftError('');
     try {
       await drafts.clear(userId,result.id);
-      if(alive.current)onClose(result.message);
+      if(alive.current)onClose(result.message,result.summarySaved===true);
     } catch {if(alive.current)setCleanupError(true)}
   }
   async function perform(action:(token:string,signal:AbortSignal)=>Promise<OnboardingConversation|DeletedOnboarding|null>,after?:(result:OnboardingConversation|null)=>Promise<void>|void) {
@@ -72,6 +72,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
   }
   async function send(command:OnboardingCommand) {
     if(!conversation||request.current||sending.current||ending.current)return;
+    command={...command,timeZone:command.timeZone??Intl.DateTimeFormat().resolvedOptions().timeZone};
     sending.current=true;setBusy(true);setDraftError('');
     setPending(command);
     // Await durable operation ID before dispatch. A lost response replays this same command.
@@ -126,7 +127,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
     </View>}
     {!accepted?<>
       <Text accessibilityRole="header" style={styles.title}>Before we begin</Text>
-      <Text style={styles.copy}>AI onboarding is for adults 18+. Your messages and relevant profile information are shared with OpenAI. Unfinished conversations stay until you finish or delete them. Completing onboarding deletes the conversation and its understanding. Provider retention and backups are separate.</Text>
+      <Text style={styles.copy}>AI onboarding is for adults 18+. Your messages and relevant profile information are shared with OpenAI. Unfinished conversations stay until you finish or delete them. Completing onboarding keeps a concise editable training summary and plans, and deletes the chat. The summary and relevant profile facts are shared with OpenAI for planning. Provider retention and backups are separate.</Text>
       {button('Continue to onboarding',()=>void start())}
     </>:conversation?<>
       {conversation.turns.length===0&&<View ref={question} collapsable={false} onLayout={answerLayout}><Text style={styles.copy}>{conversation.opening}</Text></View>}

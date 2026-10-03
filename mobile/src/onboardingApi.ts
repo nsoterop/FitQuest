@@ -1,15 +1,15 @@
 export type UnderstandingItem={id:string;topic:string;value:string;origin:'profile'|'user_report'|'model_inference'|'assumption'|'unknown';review:'unreviewed'|'confirmed'|'disputed';source:string;quote:string;supersedes:string|null;recordedAt:string};
-export type OnboardingCommand={operationId:string;expectedRevision:number}&(
+export type OnboardingCommand={operationId:string;expectedRevision:number;timeZone?:string}&(
   {kind:'message';text:string}|{kind:'retry';turnId:string}|{kind:'skip';topic:string}|{kind:'edit';itemId:string|null;topic:string;value:string}|{kind:'confirm';reviewedRevision:number});
 export type OnboardingConversation={id:string;revision:number;state:'collecting'|'confirmed';confirmedRevision:number|null;
   context:{items:UnderstandingItem[];skipped:string[];readiness:'needs_clarification'|'ready_with_limits'|'ready';limitations:string[]};
   turns:{id:string;sequence:number;message:string;reply:string|null;questionTopic:string|null;state:'pending'|'completed'|'failed';error:string|null}[];
   profileChanged:boolean;generationEnabled:boolean;opening:string;disclosure:string;disclosureVersion:string};
-export type DeletedOnboarding={id:string;deleted:true;message:string};
+export type DeletedOnboarding={id:string;deleted:true;summarySaved?:boolean;message:string};
 export function isDeletedOnboarding(value:unknown):value is DeletedOnboarding {
   if(!value||typeof value!=='object')return false;
   const x=value as DeletedOnboarding;
-  return x.deleted===true&&typeof x.id==='string'&&typeof x.message==='string'&&x.message.length<=300&&Object.keys(x).every(k=>['id','deleted','message'].includes(k));
+  return x.deleted===true&&typeof x.id==='string'&&typeof x.message==='string'&&x.message.length<=300&&(x.summarySaved===undefined||typeof x.summarySaved==='boolean')&&Object.keys(x).every(k=>['id','deleted','message','summarySaved'].includes(k));
 }
 export class OnboardingApiError extends Error {
   code:string;sessionEnded:boolean;
@@ -47,7 +47,7 @@ export async function onboardingRequest(method:'POST'|'GET'|'DELETE',id:string|n
     const url=new URL(base);if(url.protocol!=='https:'||url.username||url.password)throw new Error();
     url.pathname=`${url.pathname.replace(/\/$/,'')}/onboarding${id?`/${encodeURIComponent(id)}`:''}${command?'/commands':''}`;url.search='';url.hash='';
     const response=await fetcher(url.toString(),{method,signal,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
-      ...(method==='POST'?{body:JSON.stringify(command??{disclosureVersion:'onboarding-adults-v1'})}:{})});
+      ...(method==='POST'?{body:JSON.stringify(command??{disclosureVersion:'onboarding-planning-v2',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone})}:{})});
     if(signal.aborted)throw new Error();
     if(response.status===401)throw new OnboardingApiError('session_ended',true);
     if(method==='DELETE'&&response.status===204)return null;

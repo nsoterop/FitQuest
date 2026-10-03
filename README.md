@@ -1,13 +1,27 @@
 # FitQuest
 
-iOS-first adaptive fitness-coach project. The current deployment provides email accounts, a persistent athlete profile and conversational AI onboarding. Training-plan generation is outside this scope.
+iOS-first adaptive fitness-coach project. The current deployment provides email accounts, a persistent athlete profile and conversational AI onboarding. Catalog-backed seven-day planning passed HQ review and is approved for publication/deployment; the hosted service is still the onboarding checkpoint below until deployment is verified.
 
-**Conversational onboarding is the only resumed scope.** The owner authorized its context fix, multi-turn verification, reviewed publication/activation on existing services and reconnection of the installed phone app. Engineering deployed and activated HQ’s reviewed SHA on October 3. Other paused work and native builds remain outside scope.
+**Conversational onboarding and the assigned catalog-backed planning slice are the resumed scope.** The owner authorized its context fix, multi-turn verification, reviewed publication/activation on existing services and reconnection of the installed phone app. Engineering deployed and activated HQ’s reviewed SHA on October 3. Other paused work and native builds remain outside scope.
 
 - [Product goals](docs/PRODUCT_BRIEF.md) — long-term vision, not an active roadmap
 - [Development scope and ownership](AGENTS.md) — pause, permissions and chat responsibilities
 - [iPhone setup and UI state](mobile/README.md)
 - [Backend, database and deployment](backend/README.md)
+
+## Catalog-backed planning — accepted, deployment pending
+
+HQ independently passed **67 backend tests** with isolated PostgreSQL and zero skips, **56 mobile tests**, both TypeScript checks and diff checks. Offline Expo compatibility and the served iOS manifest/bundle passed; a synthetic three-session mobility/upper-body/swim day passed request sizing. All three review findings are resolved. No paid calls or hosted changes were made during HQ review. The owner approved publication and the existing-service deployment; actual phone acceptance remains pending.
+
+Explicit completion now saves a concise private training summary and a dated seven-day plan shell in the same transaction that deletes the completed transcript/context/operations. The phone clears the device draft before opening planning. Summary facts retain report/inference/assumption/unknown labels; no unseen structured facts are called confirmed. The outline starts tomorrow in the device time zone captured at completion, then only tomorrow’s details are generated. Later dates are requested on demand; saved prescriptions are not completion logs. Summary corrections require an explicit new outline and leave saved sessions unchanged.
+
+The checked catalog snapshot preserves 255 stable IDs and source/review metadata, with **251 eligible activities**. Four Needs revision IDs and links to them are excluded. The source XLSX is unchanged. This draft has AI consistency review, not expert validation. Details use validated catalog IDs and structured activity-specific quantities; missing coverage is shown rather than substituted.
+
+Verification: **67 backend tests** including isolated PostgreSQL with zero skips, **56 mobile tests**, both TypeScript checks and offline Expo dependency compatibility pass. The iOS Metro manifest and actual **4,909,178-byte** bundle returned 200 with the planning UI and approved API URL. Three synthetic live Luna calls (summary, outline, tomorrow) used **$0.002089**; maximum reservations summed to $0.009130 against a $0.02 run ceiling. The sample selected three training days/four rest days and a 20-minute walking session with warmup/cooldown. Latest shared ledger: **$0.014424 total spent, $0.010515 evaluation spent, zero reservations**, preserving the $7/$0.25 caps. These are application accounting figures, not provider balance. A small sample does not establish coaching quality.
+
+HQ review corrections: prescriptions display lb/miles while preserving canonical units and catalog load conventions. The weekly view shows weekday/date and concise athlete-specific session labels, including upper/lower-body distinctions. Before publishing an outline, every detailed request is sized with full catalog rows and maximum prior prescriptions; oversized outlines remain unpublished with explicit retry. The 48,000-byte/2,000-token limits and accounting are unchanged. Regression tests cover a real non-rest screen, 25-activity rejection, late-week boundaries and database-backed recovery/settlement. This correction pass made no paid calls or hosted changes.
+
+Prepared additive migration: `backend/supabase/migrations/20261003214718_catalog_planning.sql` adds four private, forced-RLS tables and the conversation time zone; it does not initialize or reset accounting. **Hosted migration/deployment is authorized but not yet verified.** HQ owns the reviewed commit/push; Engineering verifies safe migration-before-deployment ordering and deploys the exact checkpoint. Phone acceptance and keyboard behavior remain unverified. After deployment/reload, check finish → summary retained/chat deleted → dated outline/tomorrow → saved reopen → request another day → correct summary/create new outline → sign-out/account isolation. Older sessions without a compact summary expose missing fields for correction before paid planning; deleted conversations are never recovered.
 
 ## Stack and current state
 
@@ -16,7 +30,7 @@ iOS-first adaptive fitness-coach project. The current deployment provides email 
 | Mobile | React Native 0.86 / React 19 / TypeScript / Expo SDK 57; iOS development build with Mac-hosted Metro |
 | API | Fastify 5 / TypeScript / Node 24 on the existing Render `fitquest-api` service |
 | Accounts and database | Supabase Free project `wqvxddvihlobnalxpzow`; email/password with confirmation; PostgreSQL private `fitquest.profiles` table |
-| Published application | `4466b4e2bce8deab29ed033458930ab181f0760d` on `codex/reset-backend-connectivity`; deployed to Render |
+| Published application | `cd79e78c15bc4cd8d3ad76400be6508566c13e49` on `codex/reset-backend-connectivity`; deployed to Render |
 | iPhone build | [67f13060-1006-4b6f-a2f5-f59eed28d594](https://expo.dev/accounts/nsoterop/projects/fitquest/builds/67f13060-1006-4b6f-a2f5-f59eed28d594), built from `49e1ff3`; owner confirmed launch after installation |
 | Reviewed UI | `Hi <firstname>` after successful save or existing-profile load; included in this source checkpoint |
 | Onboarding | Hosted AI active with GPT-6 Luna and the single $7 lifetime allowance. Reviewed mobile UI: concise disclosure → conversation/answer/Send; navigation/deletion in a secondary menu, with draft and conditional recovery retained. Phone acceptance pending. |
@@ -31,15 +45,15 @@ Signed out → email sign-in or account creation → required email confirmation
 - Current JavaScript: an existing profile or confirmed save opens **Hi &lt;firstname&gt;**. There is no profile-edit navigation from that greeting yet.
 - Sign-out clears account-specific UI and returns to authentication. Backend status remains in a small footer.
 
-The greeting now opens onboarding. This records an understanding, including reports, inferences and unknowns; confirmation is not independent verification or medical clearance. Plan generation, training logs, nutrition features and Apple Health remain outside this assignment.
+The greeting now opens onboarding. This records an understanding, including reports, inferences and unknowns; confirmation is not independent verification or medical clearance. Catalog-backed planning is the current local assignment; training logs, nutrition features and Apple Health remain outside it.
 
-## Completion retention override — reviewed, deployment pending
+## Completion retention override — deployed
 
-The owner now wants each explicitly completed onboarding deleted. Local source removes its transcript, derived context/revisions and conversation operations, clears its device draft/pending data, and returns to the greeting with a brief deletion acknowledgement. The next start is fresh. Authenticated reopen also cleans an older explicit completion marker or legacy confirmed session; readiness, a recap or an absent next question do not trigger deletion. Unfinished conversations remain resumable. Accounts/profiles, independent spending records and uncertain charges remain intact; provider/backups remain separate.
+The owner now wants each explicitly completed onboarding deleted. The deployed service removes its transcript, derived context/revisions and conversation operations, clears its device draft/pending data, and returns to the greeting with a brief deletion acknowledgement. The next start is fresh. Authenticated reopen also cleans an older explicit completion marker or legacy confirmed session; readiness, a recap or an absent next question do not trigger deletion. Unfinished conversations remain resumable. Accounts/profiles, independent spending records and uncertain charges remain intact; provider/backups remain separate.
 
-HQ independently passed **50 backend tests** including isolated PostgreSQL with zero skips and **50 mobile tests**, plus typechecks and diff checks. Cases cover a deletion failure at COMMIT, recovery without paid retry, lost response, fresh start, completed/incomplete reopen, stale cleanup, account switching and interrupted secure-chunk deletion. Review passed with no blocking findings; this source checkpoint is accepted for publication and Engineering deployment. No live AI calls or hosted purge/migration/configuration change were performed for this review. The last verified deployed service remains `4466b4e` until Engineering records the new exact SHA live. Phone acceptance remains pending. Existing deployment notes below are preserved.
+HQ independently passed **50 backend tests** including isolated PostgreSQL with zero skips and **50 mobile tests**, plus typechecks and diff checks. Cases cover a deletion failure at COMMIT, recovery without paid retry, lost response, fresh start, completed/incomplete reopen, stale cleanup, account switching and interrupted secure-chunk deletion. Review passed with no blocking findings; this source checkpoint is accepted for publication and Engineering deployment. No live AI calls or hosted purge/migration/configuration change were performed for this review. Engineering verified [cd79e78 Live on Render](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db0kg95g1s2s73efutn0) on October 3. Runtime reports `onboarding-v5`; the four deployed onboarding artifacts match the reviewed local build by SHA-256. `/health` returned 200; every signed-out onboarding route and invalid-token read returned 401/no-store. Metro serves the matching 4,885,633-byte iOS bundle. No migration, configuration/accounting change, owner-data inspection or paid AI call was needed. Phone acceptance remains pending. Existing deployment notes below are historical.
 
-## Latest fixes — deployed, ready for phone testing
+## Previous conversation and keyboard deployment
 
 HQ follow-up review, October 3: independently passed all 48 backend tests (isolated PostgreSQL, no skips), 41 mobile tests, typechecks and diff checks. The duplicate closing invitation is fixed for the recorded cases without losing recap facts. HQ published this checkpoint and Engineering verified its deployment to the existing service. Final keyboard behavior still requires native/device acceptance; test success is not a claim that the phone issue is resolved.
 
@@ -75,7 +89,7 @@ October 3 activation: `/health` 200; all signed-out onboarding routes and invali
 ## Phone acceptance and scope boundaries
 
 - HQ review, publication and scoped activation are complete. On the same Wi-Fi as the Mac, open the installed FitQuest development app and enter `http://192.168.87.227:8081`. The actual iOS manifest/bundle returned 200 and point to the approved Render backend.
-- The owner checks greeting → Start onboarding → disclosure → conversation/answer/Send, then app reopen and sign-out/sign-in. These device behaviors are not established by server or bundle checks.
+- **Reload the phone JavaScript first:** completion now returns a deletion receipt. Tap Start onboarding: an older explicitly completed session is cleaned and a fresh conversation opens; unfinished sessions resume. At the recap, explicit agreement (for example, “Looks good”) should return to the greeting with a deletion acknowledgement. Start again should be fresh. Also check keyboard/scrolling, reopen and sign-out/sign-in. These device behaviors remain unverified.
 - Configure an owner-selected email-delivery solution before public signup or general two-account testing. Custom SMTP was disabled at the last Engineering check; default delivery is limited to authorized Supabase team addresses. The callback `fitquest-dev://auth` is configured and confirmation remains enabled.
 - Revisit the previously reported dependency audit findings in the mobile README when scoped; no blanket dependency upgrade is authorized.
 
@@ -88,4 +102,4 @@ npm --prefix /Users/nicksoteropoulos/Code/FitQuest/backend run check
 npm --prefix /Users/nicksoteropoulos/Code/FitQuest/mobile run check
 ```
 
-The backend command skips the opt-in database integration test unless its isolated local fixture is configured. The latest 48-test result above includes that fixture.
+The backend command skips the opt-in database integration test unless its isolated local fixture is configured. The latest 50-test result above includes that fixture.

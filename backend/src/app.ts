@@ -1,3 +1,7 @@
+import type { PlanningService } from './planning.js';
+import { summarySchema } from './trainingSummary.js';
+import type { TrainingSummary } from './trainingSummary.js';
+import type { GenerationRequest } from './planningStore.js';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import type { Account, VerifyAccount } from './auth.js';
 import type { ProfileInput, ProfileStore } from './profileStore.js';
@@ -5,7 +9,7 @@ import { commandSchema, idSchema, type OnboardingService } from './onboarding.js
 import { OnboardingError, type Command } from './onboardingDomain.js';
 
 export function buildApp(logger: FastifyServerOptions['logger'] = false,
-  options: { store?: ProfileStore; verifyAccount?: VerifyAccount; onboarding?: OnboardingService } = {}) {
+  options: { store?: ProfileStore; verifyAccount?: VerifyAccount; onboarding?: OnboardingService; planning?:PlanningService } = {}) {
   const app = Fastify({ logger, ajv: { customOptions: { coerceTypes: false, removeAdditional: false } } });
   const accounts = new WeakMap<object, Account>();
 
@@ -106,7 +110,7 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
       return reply.code(status).send({code:error instanceof OnboardingError?error.code:status<500?'invalid_request':'unavailable',message:'Unable to complete onboarding. Please retry.'});
     }};
   const onboarding=()=>{if(!options.onboarding) throw new OnboardingError(503,'unavailable'); return options.onboarding};
-  app.post('/onboarding',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['disclosureVersion'],properties:{disclosureVersion:{const:'onboarding-adults-v1'}}}}},async request=>onboarding().create(accounts.get(request)!));
+  app.post<{Body:{disclosureVersion:string;timeZone?:string}}>('/onboarding',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['disclosureVersion'],properties:{disclosureVersion:{const:'onboarding-planning-v2'},timeZone:{type:'string',minLength:1,maxLength:80}}}}},async request=>onboarding().create(accounts.get(request)!,request.body.timeZone));
   app.get<{Params:{id:string}}>('/onboarding/:id',{...privateRoute,schema:{params:idSchema}},async request=>onboarding().read(accounts.get(request)!,request.params.id));
   app.post<{Params:{id:string};Body:Command}>('/onboarding/:id/commands',{...privateRoute,schema:{params:idSchema,body:commandSchema}},async request=>{
     const account=accounts.get(request)!;
@@ -119,6 +123,18 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
   });
   app.delete<{Params:{id:string}}>('/onboarding/:id',{...privateRoute,schema:{params:idSchema}},async(request,reply)=>{
     await onboarding().remove(accounts.get(request)!,request.params.id); return reply.code(204).send();
+  });
+  const planning=()=>{if(!options.planning)throw new OnboardingError(503,'unavailable');return options.planning};
+  const revision={type:'integer',minimum:1,maximum:1000000};
+  const planId={type:'string',pattern:'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'};
+  app.get('/training',privateRoute,async request=>planning().read(accounts.get(request)!));
+  app.put<{Body:{revision:number;document:TrainingSummary;timeZone:string}}>('/training/summary',{...privateRoute,bodyLimit:16000,schema:{body:{type:'object',additionalProperties:false,required:['revision','document','timeZone'],properties:{revision,document:summarySchema,timeZone:{type:'string',minLength:1,maxLength:80}}}}},async request=>planning().edit(accounts.get(request)!,request.body.revision,request.body.document,request.body.timeZone));
+  app.post<{Body:{revision:number}}>('/training/plans',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['revision'],properties:{revision}}}},async request=>planning().ensurePlan(accounts.get(request)!,request.body.revision));
+  app.post<{Body:GenerationRequest}>('/training/generate',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['summaryRevision','planId','target','retryAttempt'],properties:{summaryRevision:revision,planId,target:{type:'string',pattern:'^(outline|[0-9]{4}-[0-9]{2}-[0-9]{2})$'},retryAttempt:{anyOf:[{type:'null'},planId]}}}}},async request=>{
+    const account=accounts.get(request)!;
+    return planning().generate(account,request.body,async()=>{
+      try{const next=await options.verifyAccount!(request.headers.authorization!.slice(7));return next?.userId===account.userId&&next.sessionId===account.sessionId}catch{return false}
+    });
   });
   return app;
 }

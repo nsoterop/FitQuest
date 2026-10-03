@@ -1,0 +1,100 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { catalog,eligibleActivities,activity,catalogIndex } from './activityCatalog.js';
+import { sevenDates,checkedSummary,summaryFromContext } from './trainingSummary.js';
+import { checkOutline,checkDetail,preparePlanning,savedDetail,checkGeneratableOutline } from './planningDomain.js';
+import { trainingFixture,fixtureOutline,fixtureDetail,fixturePrescription } from './planningFixture.js';
+import { openAIProvider } from './onboardingProvider.js';
+import { applyProposal,emptyContext } from './onboardingDomain.js';
+import { planningLiveFixture } from './planningLiveFixture.js';
+
+test('checked workbook export preserves IDs, review/source fields and excludes all unsafe alternative links',()=>{
+  assert.equal(catalog.sourceSha256,'2bff2097078d0e7e88ccf8258562efd82fab6135580422cb8b0c646b847c0ab8');
+  assert.equal(catalog.activities.length,255);assert.equal(eligibleActivities.length,251);
+  assert.equal(catalog.activities.filter(a=>!a['Reference URL']).length,143);
+  for(const id of [...catalog.excluded,'FQ-ACT-99999'])assert.throws(()=>activity(id),{code:'catalog_coverage'});
+  for(const a of eligibleActivities){assert.equal(a['Review status'],'AI consistency reviewed');assert.equal(Object.keys(a).length,28);for(const key of ['Easier alternative IDs','Harder alternative IDs'])for(const id of a[key] as string[])assert.doesNotThrow(()=>activity(id))}
+  assert.equal(catalogIndex.length,251);
+});
+test('seven local calendar dates start tomorrow across midnight, year change and both DST boundaries',()=>{
+  assert.deepEqual(sevenDates('Pacific/Kiritimati',new Date('2026-12-31T12:00:00Z')),['2027-01-02','2027-01-03','2027-01-04','2027-01-05','2027-01-06','2027-01-07','2027-01-08']);
+  assert.equal(sevenDates('America/Los_Angeles',new Date('2026-10-04T02:00:00Z'))[0],'2026-10-04');
+  for(const date of ['2026-03-08T04:30:00Z','2026-11-01T03:30:00Z']){const days=sevenDates('America/New_York',new Date(date));assert.equal(new Set(days).size,7);assert.equal(new Date(days[6]!).getTime()-new Date(days[0]!).getTime(),6*86400000)}
+  assert.throws(()=>sevenDates('not a time zone'),{code:'invalid_timezone'});
+});
+test('summary is concise and provenance-preserving; no raw transcript fallback or fabricated report',()=>{
+  assert.deepEqual(checkedSummary(trainingFixture),trainingFixture);
+  assert.throws(()=>checkedSummary(trainingFixture.slice(1)),{code:'invalid_summary'});
+  const context=emptyContext();context.items.push({id:'i1',topic:'Athlete report',value:'PRIVATE FULL CHAT',origin:'user_report',review:'unreviewed',source:'m1',quote:'PRIVATE FULL CHAT',supersedes:null,recordedAt:''});
+  assert.equal(JSON.stringify(summaryFromContext(context)).includes('PRIVATE'),false);
+  const proposal={trainingSummary:trainingFixture,reply:'Recap',additions:[],nextQuestion:null,readiness:'ready' as const,limitations:[]};
+  assert.throws(()=>applyProposal(context,proposal,{m1:'unrelated'},''),{code:'invalid_evidence'});
+  const sources=Object.fromEntries(trainingFixture.map((f,i)=>['m'+i,f.text]));assert.deepEqual(applyProposal(context,proposal,sources,'').trainingSummary,trainingFixture);
+});
+test('outline and details allow multiple modalities, rest and measured work, reject invented IDs and hidden prose',()=>{
+  const dates=sevenDates('UTC',new Date('2026-10-03'));const outline=fixtureOutline(dates);
+  assert.deepEqual(checkOutline(outline,dates),outline);const first=fixtureDetail(outline,dates[0]!);assert.equal(checkDetail(first,outline.days[0]!).sessions.length,2);
+  assert.deepEqual(checkDetail(fixtureDetail(outline,dates[1]!),outline.days[1]!).sessions,[]);
+  const bad=structuredClone(outline);bad.days[0]!.date=dates[1]!;assert.throws(()=>checkOutline(bad,dates));
+  for(const id of [catalog.excluded[0]!,'FQ-ACT-99999']){const d=structuredClone(first);d.sessions[0]!.activities[0]!.id=id;assert.throws(()=>checkDetail(d,outline.days[0]!))}
+  const repetitions=structuredClone(first);repetitions.sessions[1]!.activities[0]!.measure='repetitions';assert.throws(()=>checkDetail(repetitions,outline.days[0]!));
+  assert.throws(()=>checkDetail({...first,notes:'Do unlisted exercise'},outline.days[0]!));
+  const loaded=structuredClone(first);loaded.sessions[0]!.activities[0]!.load='kg';loaded.sessions[0]!.activities[0]!.loadKg=20;assert.throws(()=>checkDetail(loaded,outline.days[0]!));
+  const coverage={date:dates[0]!,sessions:[],coverage:['equipment_or_facility_unknown']};assert.deepEqual(checkDetail(coverage,outline.days[0]!),coverage);
+  assert.equal(savedDetail(first).activities['FQ-ACT-00148']!.name,'Outdoor walking');
+});
+test('bounded planning requests share the existing model adapter and reserve every possible output token',()=>{
+  const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5});
+  const dates=sevenDates('UTC'),outline=fixtureOutline(dates);
+  for(const kind of ['outline','day'] as const){const p=preparePlanning(provider,{kind,summary:trainingFixture,profile:{age:30,heightInches:68,weightLb:155},dates,...(kind==='day'?{outline,date:dates[0]}:{})});
+    const body=JSON.parse(p.body);assert.equal(body.model,'gpt-6-luna');assert.equal(body.store,false);assert.equal(body.max_output_tokens,2000);assert.ok(Buffer.byteLength(p.body)<48000);assert.equal(p.reserveMicro,Math.ceil(Buffer.byteLength(p.body)*.125+1000));assert.match(body.instructions,/PRESCRIPTIONS only/)}
+});
+test('recorded live summary, dated mixed outline and walking phases still meet catalog contracts',()=>{
+  checkedSummary(planningLiveFixture['compact-summary'].trainingSummary);
+  const outline=checkOutline(planningLiveFixture['seven-day-outline'],sevenDates('America/New_York',new Date('2026-10-03T20:00:00Z')));
+  assert.equal(outline.days.filter(d=>d.sessions.length).length,3);
+  const detail=checkDetail(planningLiveFixture['tomorrow-details'],outline.days[0]!);
+  assert.deepEqual(detail.sessions[0]!.activities.map(a=>a.phase),['warmup','main','cooldown']);
+  assert.equal(detail.sessions[0]!.activities.reduce((n,a)=>n+a.sets*a.amount,0),1200);
+});
+
+test('descriptive weekly labels preserve athlete-selected intent without relaxing activity validation',()=>{
+  const dates=sevenDates('UTC'),outline=fixtureOutline(dates);
+  const labels=['Upper body','Lower body','Mobility','Easy cardio','Tennis practice'];
+  labels.forEach((focus,i)=>outline.days[i]!.sessions=[{focus,activityIds:['FQ-ACT-00008']}]);
+  assert.deepEqual(checkOutline(outline,dates).days.slice(0,5).map(d=>d.sessions[0]!.focus),labels);
+  for(const focus of ['', '   ', 'x'.repeat(65), 'Upper\nbody']){const bad=structuredClone(outline);bad.days[0]!.sessions[0]!.focus=focus;assert.throws(()=>checkOutline(bad,dates),{code:'invalid_plan'})}
+  const invalid=structuredClone(outline);invalid.days[0]!.sessions[0]!.activityIds=['FQ-ACT-00161'];assert.throws(()=>checkOutline(invalid,dates),{code:'catalog_coverage'});
+});
+
+test('oversized multi-session outlines are rejected before publication, with all catalog constraints retained',()=>{
+  const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5});
+  const dates=sevenDates('UTC'),ids=eligibleActivities.slice(0,25).map(a=>String(a['Activity ID']));
+  const outline={coverage:[],days:dates.map((date,i)=>({date,sessions:i===0?[ids.slice(0,9),ids.slice(9,17),ids.slice(17)].map(activityIds=>({focus:'Mixed practice',activityIds})):[]}))};
+  const input={kind:'outline' as const,summary:trainingFixture,profile:{age:30,heightInches:68,weightLb:155},dates};
+  checkOutline(outline,dates);
+  assert.throws(()=>checkGeneratableOutline(provider,input,outline),{code:'outline_context_limit'});
+  const supported=fixtureOutline(dates);checkGeneratableOutline(provider,input,supported);
+  const prepared=preparePlanning(provider,{...input,kind:'day',outline:supported,date:dates[0],previous:[]});
+  const payload=JSON.parse(JSON.parse(prepared.body).input);
+  assert.deepEqual(payload.catalog,supported.days[0]!.sessions.flatMap(s=>s.activityIds).map(activity));
+});
+
+test('late-week admission covers maximum saved prescriptions and rejects the first oversized candidate',()=>{
+  const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5});
+  const dates=sevenDates('UTC'),summary=trainingFixture.map(f=>({...f,text:'a'.repeat(350)}));
+  const input={kind:'outline' as const,summary,profile:{age:30,heightInches:68,weightLb:155},dates};
+  const previous=dates.slice(0,6).map(date=>({date,sessions:[{activities:Array.from({length:15},(_,i)=>({...fixturePrescription('FQ-ACT-00008','repetitions'),phase:i===0?'main' as const:'cooldown' as const,sets:20,amount:100,effort:'challenging',restSeconds:600,load:'kg',loadKg:0.0000012345678901234567,side:'each'}))}]}));
+  let accepted=0,rejected=0,lastSize=0;
+  for(let count=3;count<=25;count++){
+    const ids=eligibleActivities.slice(0,count).map(a=>String(a['Activity ID']));
+    const outline={coverage:[],days:dates.map((date,i)=>({date,sessions:i<6?[{focus:'Upper body',activityIds:['FQ-ACT-00008']}]:[0,1,2].map(n=>({focus:'Mixed practice',activityIds:ids.filter((_,j)=>j%3===n)}))}))};
+    previous.forEach((d,i)=>checkDetail({...d,coverage:[]},outline.days[i]!));
+    try{checkGeneratableOutline(provider,input,outline)}catch(e){assert.equal((e as {code:string}).code,'outline_context_limit');rejected++;continue}
+    accepted++;
+    const p=preparePlanning(provider,{...input,kind:'day',outline,date:dates[6],previous});lastSize=Buffer.byteLength(p.body);
+    assert.ok(lastSize<=48000);assert.equal(JSON.parse(JSON.parse(p.body).input).previous.length,6);
+    assert.equal(p.reserveMicro,Math.ceil(lastSize*.125+1000));
+  }
+  assert.ok(accepted>0&&rejected>0);assert.ok(lastSize>35000);
+});
