@@ -1,6 +1,9 @@
 import { buildApp } from './app.js';
 import { createPool, postgresProfileStore } from './profileStore.js';
 import { supabaseVerifier } from './auth.js';
+import { postgresOnboardingStore } from './onboardingStore.js';
+import { onboardingService } from './onboarding.js';
+import { configuredProvider } from './onboardingProvider.js';
 
 const { DATABASE_URL, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = process.env;
 if (!DATABASE_URL || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
@@ -20,6 +23,7 @@ try {
 const pool = createPool(DATABASE_URL);
 const app = buildApp({ redact: ['req.headers.authorization', 'req.headers.cookie', 'err'] }, {
   store: postgresProfileStore(pool), verifyAccount: supabaseVerifier(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+  onboarding: onboardingService(postgresOnboardingStore(pool), configuredProvider(process.env)),
 });
 app.addHook('onClose', async () => pool.end());
 const port = Number(process.env.PORT ?? '10000');

@@ -3,6 +3,7 @@ import { AppState, Keyboard, Linking, Pressable, StyleSheet, Text, TextInput, Vi
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { ProfileIntakeForm } from './ProfileIntakeForm';
+import { privateDrafts } from './onboardingDraftStorage';
 
 export function AccountPanel() {
   const [session, setSession] = useState<Session | null>(null);
@@ -17,6 +18,7 @@ export function AccountPanel() {
   const lock = useRef(false);
   const current = useRef<Session | null>(null);
   const hidden = useRef(false);
+  const draftAccount = useRef<string | null>(null);
 
   useEffect(() => {
     const client = supabase;
@@ -27,6 +29,12 @@ export function AccountPanel() {
     const apply = async (next: Session | null) => {
       const request = ++validation;
       if (!active) return;
+      if (draftAccount.current && draftAccount.current !== next?.user.id) {
+        current.current = null; setSession(null); setReady(false);
+        try { await privateDrafts.clear(draftAccount.current); draftAccount.current = null; }
+        catch { hidden.current = true; setReady(true); setMessage('Unable to clear your device draft. Retry sign out before switching accounts.'); return; }
+        if (!active || request !== validation) return;
+      }
       if (!next || hidden.current) {
         current.current = null; setSession(null); setReady(true); setPassword('');
         return;
@@ -43,7 +51,7 @@ export function AccountPanel() {
           current.current = null; setSession(null);
           setMessage('Your session could not be verified. Please sign in again.');
         } else {
-          current.current = next; setSession(next); setMessage('');
+          current.current = next; draftAccount.current = next.user.id; setSession(next); setMessage('');
         }
       } catch {
         if (active && request === validation) {
@@ -124,6 +132,7 @@ export function AccountPanel() {
     current.current = null; setSession(null); setEmail(''); setPassword(''); setMessage(''); setBusy(true); setMode('signIn');
     // Hide/unmount profile immediately, including when remote sign-out fails.
     try {
+      if (draftAccount.current) { await privateDrafts.clear(draftAccount.current); draftAccount.current = null; }
       const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) setMessage('Sign-out could not finish. Your profile is hidden; retry sign out before switching accounts.');
       else { hidden.current = false; setMessage(endedMessage); }
@@ -145,7 +154,7 @@ export function AccountPanel() {
       <Text style={styles.email} numberOfLines={1}>{session.user.email}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void signOut()} style={styles.switch}><Text style={styles.switchText}>Sign out</Text></Pressable>
     </View>
-    <ProfileIntakeForm key={session.user.id} accessToken={() => accessToken(session.user.id)} onSessionEnded={() => void signOut('Your session ended. Please sign in again.')} />
+    <ProfileIntakeForm key={session.user.id} userId={session.user.id} accessToken={() => accessToken(session.user.id)} onSessionEnded={() => void signOut('Your session ended. Please sign in again.')} />
   </View>;
   return <View style={styles.card}>
     <Text accessibilityRole="header" style={styles.title}>{mode === 'signUp' ? 'Create your account' : 'Sign in'}</Text>

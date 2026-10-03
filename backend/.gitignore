@@ -6,3 +6,6 @@ dist/
 .DS_Store
 .test-postgres/
 supabase/.temp/
+
+# Persistent real-evaluation accounting. Never remove/reset with disposable test fixtures.
+.ai-evaluation/

@@ -10,10 +10,14 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "npm run build && node --test dist/*.test.js",
-    "check": "npm test"
+    "check": "npm test",
+    "eval:smoke": "npm run build && node --env-file=.env.local dist/onboardingEvaluation.js --smoke",
+    "eval:conversation": "npm run build && node --env-file=.env.local dist/onboardingEvaluation.js --conversation",
+    "eval:suite": "npm run build && node --env-file=.env.local dist/onboardingEvaluation.js --suite"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",
+    "ajv": "8.20.0",
     "fastify": "^5.12.5",
     "pg": "^8.23.1"
   },

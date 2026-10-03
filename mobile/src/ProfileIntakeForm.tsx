@@ -1,34 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { submitIntake, validateIntake, loadProfile, profileFields, type IntakeFields } from './profileIntake';
+import { submitIntake, validateIntake, loadProfile, type IntakeFields } from './profileIntake';
+import { OnboardingScreen } from './OnboardingScreen';
 
 const emptyFields: IntakeFields = {
   firstName: '', lastName: '', heightFeet: '', heightInches: '', age: '', weight: '', gender: '',
 };
 
-export function ProfileIntakeForm({ accessToken, onSessionEnded }: {
-  accessToken: () => Promise<string>; onSessionEnded?: () => void;
+export function ProfileIntakeForm({ accessToken, onSessionEnded, userId }: {
+  accessToken: () => Promise<string>; onSessionEnded?: () => void; userId?: string;
 }) {
   const [fields, setFields] = useState(emptyFields);
   const [submitting, setSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState<{ text: string; success: boolean } | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const pending = useRef<AbortController | null>(null);
   const loading = useRef<AbortController | null>(null);
-  const revision = useRef(0);
   const mounted = useRef(true);
   const tokenGetter = useRef(accessToken);
   tokenGetter.current = accessToken;
   const sessionEnded = useRef(onSessionEnded);
   sessionEnded.current = onSessionEnded;
-  const [reading, setReading] = useState(false);
+  const [reading, setReading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [savedAt, setSavedAt] = useState('');
+  const [savedFirstName, setSavedFirstName] = useState<string | null>(null);
+  const [onboarding, setOnboarding] = useState(false);
 
   async function restore() {
     if (loading.current || pending.current) return;
     const controller = new AbortController();
     loading.current = controller;
-    const before = revision.current;
     setReading(true); setLoadError('');
     const timeout = setTimeout(() => controller.abort(), 75_000);
     try {
@@ -39,8 +39,8 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded }: {
         if (result.sessionEnded) { sessionEnded.current?.(); return; }
         setLoadError(result.error);
       }
-      else if (result.profile && before === 0 && revision.current === 0) {
-        setFields(profileFields(result.profile)); setSavedAt(result.profile.updatedAt);
+      else if (result.profile) {
+        setSavedFirstName(result.profile.firstName);
       }
     } catch { if (mounted.current && loading.current === controller) setLoadError('Unable to restore your profile. Please sign in again.'); }
     finally {
@@ -60,7 +60,6 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded }: {
   }, []);
 
   function update(key: keyof IntakeFields, value: string) {
-    revision.current++;
     setFields((previous) => ({ ...previous, [key]: value }));
     setFeedback(null);
   }
@@ -70,7 +69,7 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded }: {
     if (pending.current || reading) return;
     const validation = validateIntake(fields);
     if ('error' in validation) {
-      setFeedback({ text: validation.error, success: false });
+      setFeedback(validation.error);
       return;
     }
     Keyboard.dismiss();
@@ -89,9 +88,8 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded }: {
     pending.current = null;
     setSubmitting(false);
     if ('error' in result && result.sessionEnded) { sessionEnded.current?.(); return; }
-    setFeedback('success' in result
-      ? { text: 'User Data Saved', success: true }
-      : { text: result.error, success: false });
+    if ('success' in result) setSavedFirstName(validation.payload.firstName);
+    else setFeedback(result.error);
   }
 
   function field(key: keyof IntakeFields, label: string, keyboardType: 'default' | 'number-pad' | 'decimal-pad' = 'default') {
@@ -113,13 +111,25 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded }: {
     );
   }
 
+  if (savedFirstName !== null) {
+    if (onboarding && userId) return <OnboardingScreen userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onClose={() => setOnboarding(false)} />;
+    return <View>
+      <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.welcome}>Hi {savedFirstName}</Text>
+      {userId && <Pressable accessibilityRole="button" accessibilityLabel="Start onboarding" onPress={() => setOnboarding(true)} style={[styles.button, { marginTop: 24 }]}><Text style={styles.buttonText}>Start onboarding</Text></Pressable>}
+    </View>;
+  }
+  if (reading) return <Text accessibilityLiveRegion="polite" style={styles.notice}>Loading your profile…</Text>;
+  if (loadError) return <View style={styles.card}>
+    <Text accessibilityRole="alert" style={styles.error}>{loadError}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel="Retry profile loading" onPress={() => void restore()} style={styles.button}>
+      <Text style={styles.buttonText}>Retry profile loading</Text>
+    </Pressable>
+  </View>;
+
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.title}>Your profile</Text>
       <Text style={styles.copy}>Save your details to your FitQuest account.</Text>
-      {reading && <Text style={styles.hint}>Restoring your profile…</Text>}
-      {loadError ? <View><Text accessibilityRole="alert" style={styles.error}>{loadError}</Text>
-        <Pressable accessibilityRole="button" disabled={submitting || reading} onPress={() => void restore()}><Text style={styles.feedback}>Retry profile loading</Text></Pressable></View> : null}
       {field('firstName', 'First name')}
       {field('lastName', 'Last name')}
       <View style={styles.row}>
@@ -142,17 +152,18 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded }: {
       </Pressable>
       {feedback && (
         <Text accessibilityLiveRegion="polite" accessibilityRole="alert"
-          style={[styles.feedback, !feedback.success && styles.error]}>
-          {feedback.text}
+          style={[styles.feedback, styles.error]}>
+          {feedback}
         </Text>
       )}
-      {savedAt ? <Text style={styles.hint}>Profile restored from your account.</Text> : null}
       <Text style={styles.hint}>Submit to save your profile privately to your account.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  welcome: { marginTop: 32, color: '#193B34', fontSize: 32, fontWeight: '600' },
+  notice: { marginTop: 20, color: '#52655E', fontSize: 16 },
   card: { marginTop: 20, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24,
     borderWidth: 1, borderColor: '#DDE5DD', gap: 14 },
   title: { color: '#193B34', fontSize: 22, fontWeight: '600' },

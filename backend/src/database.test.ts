@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
 import { buildApp } from './app.js';
 import { postgresProfileStore } from './profileStore.js';
+import { verifyOnboardingDatabase } from './onboardingDatabaseFixture.js';
 
 // Explicit opt-in, isolated local cluster only. Never accepts a hosted URL.
 const testUrl = process.env.FITQUEST_TEST_DATABASE_URL;
@@ -144,4 +145,5 @@ test('local PostgreSQL: persistence, RLS isolation, full account reset and fresh
     assert.equal((await owner.query("SELECT has_table_privilege($1,'fitquest.profiles','SELECT') AS allowed", [role])).rows[0].allowed, false);
   }
   assert.deepEqual((await owner.query("SELECT relrowsecurity AS rls,relforcerowsecurity AS forced FROM pg_class WHERE oid='fitquest.profiles'::regclass")).rows[0], {rls:true, forced:true});
+  await verifyOnboardingDatabase(t,owner,reopened,durable);
 });

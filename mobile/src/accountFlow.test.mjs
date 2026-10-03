@@ -18,6 +18,7 @@ let verify = async () => ({ data: { user: session?.user ?? null }, error: null }
 let loginError = null;
 let logoutError = null;
 let signupCalls = 0;
+globalThis.__fitquestSecure = new Map();
 globalThis.__fitquestTestClient = { auth: {
   onAuthStateChange: callback => { authListener = callback; return { data: { subscription: { unsubscribe() {} } } }; },
   getSession: () => restore(),
@@ -37,6 +38,7 @@ registerHooks({
   resolve(specifier, context, next) {
     if (specifier === 'react-native') return { url: 'fitquest-test:native', shortCircuit: true };
     if (specifier === 'expo-status-bar') return { url: 'fitquest-test:status', shortCircuit: true };
+    if (specifier === 'expo-secure-store') return { url: 'fitquest-test:secure', shortCircuit: true };
     if (specifier === 'react-native-safe-area-context') return { url: 'fitquest-test:safe', shortCircuit: true };
     if (specifier === './supabase' && context.parentURL?.endsWith('/AccountPanel.tsx')) return { url: 'fitquest-test:auth', shortCircuit: true };
     if (specifier.startsWith('.') && context.parentURL?.startsWith('file:')) {
@@ -51,6 +53,10 @@ registerHooks({
   load(url, context, next) {
     if (url === 'fitquest-test:native') return { format: 'module', source: native, shortCircuit: true };
     if (url === 'fitquest-test:status') return { format: 'module', source: "export const StatusBar='StatusBar';", shortCircuit: true };
+    if (url === 'fitquest-test:secure') return { format: 'module', source: `export const WHEN_UNLOCKED_THIS_DEVICE_ONLY=1;
+      export async function getItemAsync(k){return globalThis.__fitquestSecure.get(k)??null}
+      export async function setItemAsync(k,v){if(globalThis.__fitquestSecureFailure)throw Error('synthetic storage failure');globalThis.__fitquestSecure.set(k,v)}
+      export async function deleteItemAsync(k){globalThis.__fitquestSecure.delete(k)}`, shortCircuit:true };
     if (url === 'fitquest-test:safe') return { format: 'module', source: "export const SafeAreaProvider='SafeAreaProvider', SafeAreaView='SafeAreaView';", shortCircuit: true };
     if (url === 'fitquest-test:auth') return { format: 'module', source: 'export const supabase=globalThis.__fitquestTestClient;', shortCircuit: true };
     if (url.endsWith('.tsx')) return { format: 'module', source: ts.transpileModule(readFileSync(fileURLToPath(url), 'utf8'), {
@@ -62,6 +68,8 @@ registerHooks({
 const { ProfileIntakeForm } = await import('./ProfileIntakeForm.tsx');
 const { AccountPanel } = await import('./AccountPanel.tsx');
 const { default: App } = await import('../App.tsx');
+const { OnboardingScreen } = await import('./OnboardingScreen.tsx');
+const { privateDrafts } = await import('./onboardingDraftStorage.ts');
 const payload = { firstName: 'Alex', lastName: 'Example', height: { value: 68, unit: 'in' }, age: 29,
   weight: { value: 155.5, unit: 'lb' }, gender: 'Prefer not to say',
   ageCapturedAt: '2026-10-02T12:00:00Z', updatedAt: '2026-10-02T12:00:00Z' };
@@ -83,19 +91,30 @@ async function credentials(screen) {
   await act(async () => { input(screen, 'Email').props.onChangeText('bob@example.test'); input(screen, 'Password').props.onChangeText('synthetic-password'); });
 }
 
-test('actual profile screen does not overwrite edits with a delayed load; failed save keeps fields', async () => {
+test('profile loading hides the form; failed save keeps fields and confirmed save opens the greeting', async () => {
   let deliver; globalThis.fetch = async () => new Promise(resolve => { deliver = resolve; });
   let screen;
   await act(async () => { screen = TestRenderer.create(React.createElement(ProfileIntakeForm, { accessToken: async () => 'alice-token' })); await flush(); });
-  await act(async () => { input(screen, 'First name').props.onChangeText('Unsaved Alex'); });
-  await act(async () => { deliver({ status: 200, json: async () => ({ profile: payload }) }); await flush(); });
-  assert.equal(input(screen, 'First name').props.value, 'Unsaved Alex');
+  assert.ok(text(screen).includes('Loading your profile'));
+  assert.equal(text(screen).includes('First name'), false);
+  await act(async () => { deliver({ status: 200, json: async () => ({ profile: null }) }); await flush(); });
+  await act(async () => { input(screen, 'First name').props.onChangeText(' Renée '); });
   for (const [label, value] of [['Last name', 'Example'], ['Height (feet)', '5'], ['Height (inches)', '8'], ['Age (years)', '29'], ['Weight (lb)', '155.5'], ['Gender', 'Prefer not to say']]) {
     await act(async () => { input(screen, label).props.onChangeText(value); });
   }
   globalThis.fetch = async () => ({ status: 503, json: async () => ({}) });
   await act(async () => { input(screen, 'Submit profile').props.onPress(); await flush(); });
-  assert.equal(input(screen, 'First name').props.value, 'Unsaved Alex'); assert.equal(text(screen).includes('User Data Saved'), false);
+  assert.equal(input(screen, 'First name').props.value, ' Renée '); assert.equal(text(screen).includes('Hi '), false);
+  let finishSave;
+  globalThis.fetch = async (_url, options) => {
+    assert.equal(JSON.parse(options.body).firstName, 'Renée');
+    return new Promise(resolve => { finishSave = resolve; });
+  };
+  await act(async () => { press(screen, 'Submit profile'); await flush(); });
+  assert.equal(text(screen).includes('Hi '), false);
+  await act(async () => { finishSave({ status: 200, json: async () => ({ message: 'User Data Saved' }) }); await flush(); });
+  assert.equal(screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''), 'Hi Renée');
+  assert.equal(text(screen).includes('First name'), false);
   await act(async () => screen.unmount());
 });
 
@@ -105,7 +124,7 @@ test('actual account screen clears profile on logout and rejects old response af
   let screen;
   await act(async () => { screen = TestRenderer.create(React.createElement(AccountPanel)); await flush(); });
   assert.equal(requests[0].token, 'Bearer alice-token');
-  await act(async () => { input(screen, 'First name').props.onChangeText('Private Alice Draft'); });
+  assert.ok(text(screen).includes('Loading your profile'));
   const signOut = screen.root.findAllByType('Pressable').find(x => x.findByType('Text').children.join('') === 'Sign out');
   await act(async () => { signOut.props.onPress(); await flush(); });
   assert.equal(text(screen).includes('Private Alice Draft'), false); assert.equal(text(screen).includes('First name'), false);
@@ -165,8 +184,8 @@ test('reopen verifies the stored session before displaying and restoring only it
   const screen=await mount();
   assert.ok(text(screen).includes('Restoring your session')); assert.equal(reads,0); assert.equal(text(screen).includes('First name'),false);
   await act(async()=>{finishVerification({data:{user:alice.user},error:null}); await flush()});
-  assert.equal(input(screen,'First name').props.value,'Alex');
-  assert.equal(input(screen,'Height (feet)').props.value,'5'); assert.equal(input(screen,'Height (inches)').props.value,'8');
+  assert.equal(screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''), 'Hi Alex');
+  assert.equal(text(screen).includes('First name'), false);
   assert.equal(reads,1); assert.equal(text(screen).includes('Switch to create account'),false);
   await act(async()=>screen.unmount());
 });
@@ -193,12 +212,19 @@ test('late initial session restoration cannot replace a newer signed-in account'
   await act(async()=>screen.unmount());
 });
 
-test('session refresh keeps the current profile draft and does not remount or reload it', async () => {
+test('session refresh keeps the greeting; signing out clears it before another account opens its form', async () => {
   resetAuth(alice); let reads=0;
   globalThis.fetch=async()=>{reads++;return {status:200,json:async()=>({profile:payload})}};
   const screen=await mount();
-  await act(async()=>{input(screen,'First name').props.onChangeText('Unsaved Alice');session={...alice,access_token:'refreshed-token'};authListener('TOKEN_REFRESHED',session);await flush()});
-  assert.equal(input(screen,'First name').props.value,'Unsaved Alice');assert.equal(reads,1);
+  await act(async()=>{session={...alice,access_token:'refreshed-token'};authListener('TOKEN_REFRESHED',session);await flush()});
+  assert.equal(screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''), 'Hi Alex'); assert.equal(reads,1);
+  await act(async()=>{press(screen,'Sign out');await flush()});
+  assert.equal(text(screen).includes('Hi Alex'),false);
+  globalThis.fetch=async()=>({status:200,json:async()=>({profile:null})});
+  await credentials(screen);
+  await act(async()=>{press(screen,'Sign in');await flush()});
+  assert.equal(input(screen,'First name').props.value,'');
+  assert.equal(text(screen).includes('Hi Alex'),false);
   await act(async()=>screen.unmount());
 });
 
@@ -206,6 +232,16 @@ test('backend session rejection clears the form and returns to sign in', async (
   resetAuth(alice); globalThis.fetch=async()=>({status:401,json:async()=>({})});
   const screen=await mount();assert.ok(input(screen,'Sign in'));assert.equal(text(screen).includes('First name'),false);
   assert.ok(text(screen).includes('Your session ended'));assert.equal(session,null);
+  await act(async()=>screen.unmount());
+});
+
+test('failed profile read cannot open the greeting or empty form; retry opens the saved greeting', async () => {
+  resetAuth(alice); globalThis.fetch=async()=>({status:503,json:async()=>({})});
+  const screen=await mount();
+  assert.equal(text(screen).includes('Hi '),false); assert.equal(text(screen).includes('First name'),false);
+  globalThis.fetch=async()=>({status:200,json:async()=>({profile:payload})});
+  await act(async()=>{press(screen,'Retry profile loading');await flush()});
+  assert.equal(screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''), 'Hi Alex');
   await act(async()=>screen.unmount());
 });
 
@@ -218,5 +254,108 @@ test('failed sign out cannot revive private state from later auth notifications'
   const retry=screen.root.findAllByType('Pressable').find(x=>x.findByType('Text').children.join('')==='Retry sign out');
   logoutError=null;await act(async()=>{retry.props.onPress();await flush()});
   assert.equal(input(screen,'Sign in').props.disabled,false);assert.equal(session,null);
+  await act(async()=>screen.unmount());
+});
+
+const onboardingFixture = () => ({ id:'aaaaaaaa-1111-4111-8111-111111111111',revision:0,state:'collecting',confirmedRevision:null,
+  context:{items:[{id:'i1',topic:'Goal',value:'Coordination',origin:'user_report',review:'unreviewed',source:'m1',quote:'Coordination',supersedes:null,recordedAt:'2026-10-02T12:00:00Z'}],skipped:[],readiness:'needs_clarification',limitations:['Current activity unknown']},
+  turns:[],profileChanged:false,generationEnabled:false,opening:'What would you like to improve?',disclosure:'Provisional retention details.',disclosureVersion:'onboarding-adults-v1'});
+async function mountOnboarding(props={}) {
+  let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(OnboardingScreen,{userId:'alice',accessToken:async()=> 'alice-token',onClose(){},...props}));await flush()});
+  await act(async()=>{press(screen,'Continue to onboarding');await flush()});return screen;
+}
+test('greeting opens onboarding disclosure; review and exact-version confirmation work without AI',async()=>{
+  resetAuth(alice);let saved=onboardingFixture();let calls=0;
+  globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
+    if(url.endsWith('/commands')){const c=JSON.parse(options.body);assert.equal(c.kind,'confirm');assert.equal(c.reviewedRevision,0);saved={...saved,revision:1,state:'confirmed',confirmedRevision:0};calls++}
+    return{status:200,json:async()=>saved};
+  };
+  const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});assert.ok(text(screen).includes('provider retention'));assert.ok(text(screen).includes('Live AI requires owner activation'));
+  await act(async()=>{press(screen,'Continue to onboarding');await flush()});
+  await act(async()=>{press(screen,'Review understanding')});assert.ok(text(screen).includes('Athlete report'));assert.ok(text(screen).includes('Current activity unknown'));
+  await act(async()=>{press(screen,'Confirm this understanding');await flush()});assert.equal(calls,1);assert.ok(text(screen).includes('Understanding saved'));
+  await act(async()=>screen.unmount());
+});
+test('lost response retains an encrypted operation; reopen replays the same ID rather than sending a new message',async()=>{
+  globalThis.__fitquestSecure.clear();let saved=onboardingFixture();let sent=[];
+  globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/commands')){const command=JSON.parse(options.body);sent.push(command);throw Error('synthetic lost response')}
+    return{status:200,json:async()=>saved};
+  };
+  let screen=await mountOnboarding();await act(async()=>{input(screen,'Onboarding message').props.onChangeText('My schedule varies');await flush()});
+  await act(async()=>{press(screen,'Send message');press(screen,'Send message');await flush()});assert.equal(sent.length,1);assert.ok(text(screen).includes('Recover saved operation'));
+  assert.equal((await privateDrafts.read('alice')).pending.operationId,sent[0].operationId);assert.equal(await privateDrafts.read('bob'),null);
+  await act(async()=>screen.unmount());
+  screen=await mountOnboarding();assert.ok(text(screen).includes('Recovered your secure device draft'));
+  globalThis.fetch=async(_url,options)=>{const command=JSON.parse(options.body);sent.push(command);return{status:200,json:async()=>({...saved,revision:1,turns:[{id:'turn',sequence:1,message:command.text,reply:null,questionTopic:null,state:'failed',error:'ai_disabled'}]})}};
+  await act(async()=>{press(screen,'Recover saved operation');await flush()});assert.equal(sent[1].operationId,sent[0].operationId);assert.equal(sent.length,2);assert.equal(await privateDrafts.read('alice'),null);assert.ok(text(screen).includes('not activated'));
+  await act(async()=>screen.unmount());
+});
+test('correction and skip commands preserve entered words; secure write failure prevents dispatch',async()=>{
+  globalThis.__fitquestSecure.clear();let saved=onboardingFixture();const commands=[];
+  globalThis.fetch=async(url,options)=>{if(url.endsWith('/commands')){commands.push(JSON.parse(options.body));saved={...saved,revision:saved.revision+1}}return{status:200,json:async()=>saved}};
+  const screen=await mountOnboarding();await act(async()=>{press(screen,'Skip this topic');await flush()});assert.equal(commands[0].topic,'Goals');
+  await act(async()=>{press(screen,'Review understanding')});await act(async()=>{press(screen,'Edit i1')});
+  await act(async()=>{input(screen,'Understanding correction').props.onChangeText('Balance and coordination matter equally')});
+  await act(async()=>{press(screen,'Save correction');await flush()});assert.equal(commands[1].value,'Balance and coordination matter equally');assert.equal(commands[1].itemId,'i1');
+  await act(async()=>{press(screen,'Back to conversation')});await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Private unsent draft');await flush()});
+  globalThis.__fitquestSecureFailure=true;await act(async()=>{press(screen,'Send message');await flush()});assert.equal(commands.length,2);assert.ok(text(screen).includes('Unable to save your pending operation securely'));globalThis.__fitquestSecureFailure=false;
+  await act(async()=>screen.unmount());
+});
+test('sign out clears onboarding UI and encrypted draft; late response cannot populate the next account',async()=>{
+  resetAuth(alice);globalThis.__fitquestSecure.clear();let complete;let saved=onboardingFixture();
+  globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:options.headers.Authorization==='Bearer alice-token'?payload:null})};
+    if(url.endsWith('/commands'))return new Promise(resolve=>{complete=resolve});return{status:200,json:async()=>saved};
+  };
+  const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
+  await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Private Alice goal');await flush()});
+  await act(async()=>{press(screen,'Send message');await flush()});assert.ok(await privateDrafts.read('alice'));
+  await act(async()=>{press(screen,'Sign out');await flush()});assert.equal(await privateDrafts.read('alice'),null);assert.equal(text(screen).includes('Private Alice'),false);
+  await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
+  await act(async()=>{complete({status:200,json:async()=>({...saved,turns:[{id:'t',sequence:1,message:'Private Alice goal',reply:'Private reply',questionTopic:null,state:'completed',error:null}]})});await flush()});
+  assert.equal(text(screen).includes('Private Alice'),false);assert.equal(text(screen).includes('Private reply'),false);assert.equal(input(screen,'First name').props.value,'');
+  await act(async()=>screen.unmount());
+});
+test('onboarding session rejection returns to sign in; explicit deletion removes local draft and leaves profile flow',async()=>{
+  resetAuth(alice);globalThis.fetch=async url=>url.endsWith('/profile')?{status:200,json:async()=>({profile:payload})}:{status:401,json:async()=>({})};
+  let screen=await mount();await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});assert.ok(input(screen,'Sign in'));await act(async()=>screen.unmount());
+  globalThis.__fitquestSecure.clear();let closed=0;let saved=onboardingFixture();let late;
+  globalThis.fetch=async(url,options)=>url.endsWith('/commands')?new Promise(resolve=>{late=resolve}):({status:options.method==='DELETE'?204:200,json:async()=>saved});
+  screen=await mountOnboarding({onClose(){closed++}});
+  await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Unsent goal');await flush()});
+  await act(async()=>{press(screen,'Send message');await flush();press(screen,'Delete onboarding')});
+  assert.ok(text(screen).includes('Your profile and account remain'));
+  await act(async()=>{press(screen,'Delete conversation permanently');await flush()});assert.equal(closed,1);assert.equal(await privateDrafts.read('alice'),null);
+  await act(async()=>{late({status:200,json:async()=>saved});await flush()});assert.equal(text(screen).includes('Unsent goal'),false);
+  await act(async()=>screen.unmount());
+});
+
+test('explicit context rejection preserves editable draft and permits shorter send or reviewed confirmation',async()=>{
+  globalThis.__fitquestSecure.clear();let saved=onboardingFixture();let reject=true;const sent=[];
+  globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/commands')){
+      const command=JSON.parse(options.body);sent.push(command);
+      if(reject)return{status:422,json:async()=>({code:'context_limit'})};
+      saved={...saved,revision:saved.revision+1,...(command.kind==='confirm'?{state:'confirmed',confirmedRevision:command.reviewedRevision}:{})};
+    }
+    return{status:200,json:async()=>saved};
+  };
+  const screen=await mountOnboarding();
+  await act(async()=>{input(screen,'Onboarding message').props.onChangeText('A detailed answer I may need to shorten');await flush()});
+  await act(async()=>{press(screen,'Send message');await flush()});
+  assert.ok(text(screen).includes('This change was not saved'));
+  assert.equal(input(screen,'Onboarding message').props.value,'A detailed answer I may need to shorten');
+  assert.equal(input(screen,'Onboarding message').props.editable,true);
+  assert.equal((await privateDrafts.read('alice')).pending,null);
+  assert.equal(text(screen).includes('Recover saved operation'),false);
+  reject=false;
+  await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Keep both goals.');await flush()});
+  await act(async()=>{press(screen,'Send message');await flush()});
+  assert.notEqual(sent[0].operationId,sent[1].operationId);assert.equal(sent[1].expectedRevision,0);
+  await act(async()=>{press(screen,'Review understanding')});
+  await act(async()=>{press(screen,'Confirm this understanding');await flush()});
+  assert.ok(text(screen).includes('Understanding saved'));
   await act(async()=>screen.unmount());
 });
