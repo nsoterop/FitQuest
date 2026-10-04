@@ -15,7 +15,7 @@ const coverage=enumeration(['missing_catalog_coverage','equipment_or_facility_un
 const clarification={anyOf:[{type:'null'},clarificationSchema]};
 const focus={type:'string',minLength:1,maxLength:64,pattern:'^[^\\r\\n]+$'};
 export const outlineSchema=object({days:array(object({date,sessions:array(object({focus,activityIds:array(id,12,1)}),3)}),7,7),coverage:array(coverage,5),clarification});
-const prescriptionSchema=object({id,phase:enumeration(['warmup','main','cooldown','optional']),sets:integer(1,20),
+export const prescriptionSchema=object({id,phase:enumeration(['warmup','main','cooldown','optional']),sets:integer(1,20),
   measure:enumeration(['repetitions','seconds','meters','count']),amount:integer(1,50000),
   effort:enumeration(['easy','moderate','challenging']),restSeconds:integer(0,600),
   load:enumeration(['none','self_selected','assistance','band_setting','kg']),loadKg:{anyOf:[{type:'null'},{type:'number',exclusiveMinimum:0,maximum:250}]},
@@ -56,8 +56,8 @@ export function savedDetail(detail:Detail) {
     const a=activity(id);return [id,{name:a['Exercise name'],instructions:a['Instructions'],tracking:a['Tracking measures'],loadConvention:a['Load convention'],setup:a['Setup to record'],review:a['Review status'],reference:a['Reference URL'],referenceScope:a['Reference scope']}];
   }))};
 }
-export type PlanningInput={kind:'outline'|'day';summary:TrainingSummary;profile:{age:number;heightInches:number;weightLb:number};dates:string[];
-  outline?:Outline;date?:string;previous?:unknown[]};
+export type PlanningInput={kind:'outline'|'day'|'week';summary:TrainingSummary;profile:{age:number;heightInches:number;weightLb:number};dates:string[];
+  outline?:Outline;date?:string;previous?:unknown[];savedDays?:Detail[]};
 export const planningPromptVersion='catalog-planning-v3';
 export const planningInputBytes=48000;
 // Check before publication with every earlier day filled to the detail schema's maximum.

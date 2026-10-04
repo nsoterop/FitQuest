@@ -1,3 +1,4 @@
+import { verifyWeeklyDatabase } from './weeklyDatabaseFixture.js';
 import { verifyReadinessDatabase } from './readinessDatabaseFixture.js';
 import { trainingFixture } from './planningFixture.js';
 import { verifyPlanningDatabase } from './planningDatabaseFixture.js';
@@ -396,6 +397,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   });
   await verifyPlanningDatabase(t,owner,pool,profiles);
   await verifyReadinessDatabase(t,owner,pool,profiles);
+  await verifyWeeklyDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);
     assert.equal((await request('GET',`/onboarding/${a.id}`)).statusCode,429);

@@ -478,7 +478,7 @@ function trainingServer(initial=trainingState()) {
     requests.push({url,method:options.method,body:options.body?JSON.parse(options.body):null});
     if(url.endsWith('/training/summary')){const b=JSON.parse(options.body);saved={...saved,summary:{revision:saved.summary.revision+1,timeZone:b.timeZone,document:b.document}}}
     if(url.endsWith('/training/generate')){const b=JSON.parse(options.body);const p=saved.plans[0];
-      if(b.target==='outline'){p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:[]};p.jobs=[{target:'outline',status:'completed',error:null,attemptId:'outline-attempt'}]}
+      if(b.target==='week'){p.outline??={days:p.dates.map(date=>({date,sessions:[]})),coverage:[]};p.jobs=[{target:'week',status:'completed',error:null,attemptId:'week-attempt'}];for(const date of p.dates)if(!p.days.some(d=>d.date===date))p.days.push({date,detail:{date,coverage:[],sessions:[],activities:{},catalogVersion:p.catalogVersion}})}
       else p.days.push({date:b.target,detail:{date:b.target,coverage:[],sessions:[],activities:{},catalogVersion:p.catalogVersion}});
     }
     return {status:200,json:async()=>structuredClone(saved)};
@@ -487,7 +487,7 @@ function trainingServer(initial=trainingState()) {
 }
 async function mountTraining(extra={}){let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(TrainingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},...extra}));await flush()});return screen}
 
-test('completion opens planning only after committed summary receipt and local draft cleanup, then generates outline and tomorrow only',async()=>{
+test('completion opens planning only after committed summary receipt and local draft cleanup, then requests the entire week once',async()=>{
   resetAuth(alice);globalThis.__fitquestSecure.clear();const mock=trainingServer();const trainingFetch=globalThis.fetch;
   const saved={...onboardingFixture(),generationEnabled:true};
   globalThis.fetch=async(url,options)=>{
@@ -500,25 +500,25 @@ test('completion opens planning only after committed summary receipt and local d
   await act(async()=>input(screen,'Onboarding message').props.onChangeText('Looks good'));
   await act(async()=>{press(screen,'Send');await flush()});
   assert.ok(text(screen).includes('Your training'));assert.equal(text(screen).includes('Private tennis report'),false);
-  assert.deepEqual(mock.requests.filter(r=>r.url.endsWith('/generate')).map(r=>r.body.target),['outline','2026-10-04']);
-  assert.ok(text(screen).includes('Rest — no prescribed session.'));await act(async()=>screen.unmount());
+  assert.deepEqual(mock.requests.filter(r=>r.url.endsWith('/generate')).map(r=>r.body.target),['week']);
+  assert.equal(mock.saved.plans[0].days.length,7);assert.equal(screen.root.findAllByType('Text').filter(n=>n.children.join('')==='Rest — no prescribed session.').length,7);assert.doesNotMatch(text(screen),/Generate 2026|Details not generated|Week incomplete/);await act(async()=>screen.unmount());
 });
 
-test('training reopen only reads saved records, later details are on demand, summary edits preserve prior plans',async()=>{
+test('training reopen only reads saved records, one explicit action completes a partial week and edits preserve it',async()=>{
   const initial=trainingState(),p=initial.plans[0];p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:[]};
-  const server=trainingServer(initial),screen=await mountTraining();assert.equal(server.requests.length,1);assert.equal(server.requests[0].method,'GET');
-  await act(async()=>{press(screen,'Generate 2026-10-05');await flush()});assert.equal(server.requests.filter(r=>r.method==='POST').length,1);
+  const server=trainingServer(initial),screen=await mountTraining();assert.equal(server.requests.length,1);assert.equal(server.requests[0].method,'GET');assert.match(text(screen),/Week incomplete/);assert.doesNotMatch(text(screen),/Generate 2026/);
+  await act(async()=>{press(screen,'Complete weekly plan');await flush()});assert.equal(server.requests.filter(r=>r.method==='POST').length,1);
   await act(async()=>press(screen,'Training summary'));await act(async()=>press(screen,'Edit summary'));await act(async()=>input(screen,'availability 2').props.onChangeText('One short day only.'));
   await act(async()=>{press(screen,'Save summary');await flush()});
-  assert.equal(server.saved.summary.document[1].origin,'user_report');assert.equal(server.saved.plans[0].days.length,1);
-  assert.ok(text(screen).includes('Create outline from updated summary'));assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,1);
+  assert.equal(server.saved.summary.document[1].origin,'user_report');assert.equal(server.saved.plans[0].days.length,7);
+  assert.ok(text(screen).includes('Create week from updated summary'));assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,1);
   await act(async()=>screen.unmount());const reopened=await mountTraining();assert.ok(text(reopened).includes('2026-10-05'));assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,1);await act(async()=>reopened.unmount());
 });
 
 test('failed training generation has explicit retry and summary remains; an unmounted late response cannot revive private state',async()=>{
-  const initial=trainingState();initial.plans[0].jobs=[{target:'outline',status:'failed',error:'provider_error',attemptId:'failed-attempt'}];
+  const initial=trainingState();initial.plans[0].jobs=[{target:'week',status:'failed',error:'provider_error',attemptId:'failed-attempt'}];
   const server=trainingServer(initial),screen=await mountTraining();assert.equal(server.requests.length,1);assert.ok(text(screen).includes('Synthetic')===false);
-  await act(async()=>{press(screen,'Retry outline generation');await flush()});assert.equal(server.requests.find(r=>r.url.endsWith('/generate')).body.retryAttempt,'failed-attempt');
+  await act(async()=>{press(screen,'Retry weekly plan');await flush()});assert.equal(server.requests.find(r=>r.url.endsWith('/generate')).body.retryAttempt,'failed-attempt');
   await act(async()=>screen.unmount());
   let deliver,closed=0;globalThis.fetch=async()=>new Promise(resolve=>deliver=resolve);
   const late=await mountTraining({onClose(){closed++}});await act(async()=>late.unmount());await act(async()=>{deliver({status:200,json:async()=>initial});await flush()});assert.equal(closed,0);
@@ -532,18 +532,20 @@ test('saved training reopen clears a completed conversation draft but preserves 
   trainingServer(initial);const again=await mountTraining();assert.equal((await privateDrafts.read('alice')).text,'keep this draft');await act(async()=>again.unmount());
 });
 
-test('non-rest training renders pounds, miles, load conventions and descriptive weekday outline labels',async()=>{
+test('actual exercise rows show only names and concise reps, time, miles or counts without metadata',async()=>{
   const saved=trainingState(),p=saved.plans[0];
   const labels=['Upper body','Lower body','Mobility','Easy cardio','Tennis practice'];
-  p.outline={coverage:[],days:p.dates.map((date,i)=>({date,sessions:i<5?[{focus:labels[i],activityIds:i===0?['FQ-ACT-00008','FQ-ACT-00148']:['FQ-ACT-00148']}]:[]}))};
+  p.outline={coverage:[],days:p.dates.map((date,i)=>({date,sessions:i<5?[{focus:labels[i],activityIds:i===0?['FQ-ACT-00008','FQ-ACT-00148','FQ-ACT-00112','FQ-ACT-00084']:['FQ-ACT-00148']}]:[]}))};
   const catalog=JSON.parse(readFileSync(new URL('../../backend/catalog/fitquest-v1.json',import.meta.url),'utf8'));
-  const activities=Object.fromEntries(['FQ-ACT-00008','FQ-ACT-00148'].map(id=>{const a=catalog.activities.find(a=>a['Activity ID']===id);return [id,{name:a['Exercise name'],instructions:a['Instructions'],loadConvention:a['Load convention'],setup:a['Setup to record']}]}));
+  const activities=Object.fromEntries(['FQ-ACT-00008','FQ-ACT-00148','FQ-ACT-00112','FQ-ACT-00084'].map(id=>{const a=catalog.activities.find(a=>a['Activity ID']===id);return [id,{name:a['Exercise name'],instructions:a['Instructions'],loadConvention:a['Load convention'],setup:a['Setup to record']}]}));
   const prescription={phase:'main',sets:3,measure:'repetitions',amount:8,effort:'moderate',restSeconds:60,load:'kg',loadKg:9.0718474,side:'each'};
-  p.days=[{date:p.dates[0],detail:{date:p.dates[0],catalogVersion:p.catalogVersion,coverage:[],activities,sessions:[{activities:[{...prescription,id:'FQ-ACT-00008'},{...prescription,id:'FQ-ACT-00148',sets:1,measure:'meters',amount:1609,load:'none',loadKg:null,side:'both'}]}]}}];
+  p.days=[{date:p.dates[0],detail:{date:p.dates[0],catalogVersion:p.catalogVersion,coverage:[],activities,sessions:[{activities:[{...prescription,id:'FQ-ACT-00008'},{...prescription,id:'FQ-ACT-00148',sets:1,measure:'meters',amount:1609,load:'none',loadKg:null,side:'both'},{...prescription,id:'FQ-ACT-00112',sets:2,measure:'seconds',amount:30,load:'none',loadKg:null,side:'both'},{...prescription,id:'FQ-ACT-00148',sets:1,measure:'seconds',amount:1200,load:'none',loadKg:null,side:'both'},{...prescription,id:'FQ-ACT-00084',sets:1,measure:'count',amount:12,load:'none',loadKg:null,side:'each'}]}]}}];
   const mock=trainingServer(saved),screen=await mountTraining();
   const visible=screen.root.findAllByType('Text').map(n=>n.children.join('')).join('\n');
-  assert.match(visible,/20 lb\. Load per dumbbell \(lb or kg\); record unequal loads separately/);
-  assert.match(visible,/3 × 8 repetitions per side/);assert.match(visible,/1 × 1 mile · moderate effort/);
+  const rows=screen.root.findAllByType('Text').map(n=>n.children.join('')).filter(x=>x.includes(' — ')&&!x.startsWith('Rest'));
+  assert.deepEqual(rows,[`${activities['FQ-ACT-00008'].name} — 3 × 8 per side`,`${activities['FQ-ACT-00148'].name} — 1 mile`,`${activities['FQ-ACT-00112'].name} — 2 × 30 sec`,`${activities['FQ-ACT-00148'].name} — 20 min`,`${activities['FQ-ACT-00084'].name} — 12 per side`]);
+  for(const entry of Object.values(activities)){assert.equal(visible.includes(entry.instructions),false);assert.equal(visible.includes(entry.setup),false);assert.equal(visible.includes(entry.loadConvention),false)}
+  assert.doesNotMatch(rows.join('\n'),/main|warmup|cooldown|effort|rest|Setup|review|reference|20 lb/);
   assert.doesNotMatch(visible,/1609 meters|9\.0718474 kg/);
   for(const [i,weekday] of ['Sunday','Monday','Tuesday','Wednesday','Thursday'].entries())assert.ok(visible.includes(`${weekday}, ${p.dates[i]} · ${labels[i]}`));
   assert.ok(visible.includes('Friday, 2026-10-09 · Rest'));assert.equal(mock.requests.length,1);
@@ -551,14 +553,14 @@ test('non-rest training renders pounds, miles, load conventions and descriptive 
 });
 
 test('oversized unpublished outline shows accurate recovery and retries only on an explicit press',async()=>{
-  const saved=trainingState();saved.plans[0].jobs=[{target:'outline',status:'failed',error:'outline_context_limit',attemptId:'oversized-attempt'}];
+  const saved=trainingState();saved.plans[0].jobs=[{target:'week',status:'failed',error:'planning_context_limit',attemptId:'oversized-attempt'}];
   const mock=trainingServer(saved),screen=await mountTraining();
   const visible=screen.root.findAllByType('Text').map(n=>n.children.join('')).join('\n');
-  assert.match(visible,/outline exceeds the generation limit and was not saved/);assert.doesNotMatch(visible,/Shorten your training summary/);
-  assert.equal(mock.requests.length,1);assert.ok(input(screen,'Retry outline generation'));
-  await act(async()=>{press(screen,'Retry outline generation');await flush()});
+  assert.match(visible,/request exceeds the generation limit/);assert.doesNotMatch(visible,/Shorten your training summary/);
+  assert.equal(mock.requests.length,1);assert.ok(input(screen,'Retry weekly plan'));
+  await act(async()=>{press(screen,'Retry weekly plan');await flush()});
   const requests=mock.requests.filter(r=>r.url.endsWith('/generate'));
-  assert.equal(requests[0].body.retryAttempt,'oversized-attempt');assert.deepEqual(requests.map(r=>r.body.target),['outline','2026-10-04']);
+  assert.equal(requests[0].body.retryAttempt,'oversized-attempt');assert.deepEqual(requests.map(r=>r.body.target),['week']);
   await act(async()=>screen.unmount());
 });
 
@@ -623,4 +625,26 @@ test('clarification entry accepts a completion receipt, retries lost cleanup res
   const entriesSent=requests.filter(r=>r.url.endsWith('/training/clarification'));assert.equal(entriesSent.length,2);assert.deepEqual(entriesSent[0].body,entriesSent[1].body);
   assert.equal(requests.some(r=>r.url.endsWith('/commands')||r.url.endsWith('/generate')),false);
   await act(async()=>screen.unmount());
+});
+
+
+test('replayed completion never automatically retries failed/pending work or backfills a saved partial week',async()=>{
+  for(const kind of ['failed','pending','partial']){
+    const saved=trainingState(),p=saved.plans[0];
+    if(kind==='partial')p.outline={coverage:[],days:p.dates.map(date=>({date,sessions:[]}))};
+    else p.jobs=[{target:'week',status:kind,error:kind==='failed'?'incomplete':null,attemptId:'existing-attempt'}];
+    const mock=trainingServer(saved),screen=await mountTraining({generateOnOpen:true});
+    assert.equal(mock.requests.length,1);assert.equal(mock.requests[0].method,'GET');assert.match(text(screen),/Week incomplete/);assert.doesNotMatch(text(screen),/Seven days|Generate 2026/);
+    if(kind==='pending')assert.doesNotMatch(text(screen),/Retry weekly plan|Complete weekly plan|Generate weekly plan/);
+    await act(async()=>screen.unmount());
+  }
+});
+
+test('weekly request double press sends once; a completed backfill hides obsolete daily failure notices',async()=>{
+  const saved=trainingState(),p=saved.plans[0];p.outline={coverage:[],days:p.dates.map(date=>({date,sessions:[]}))};p.jobs=[{target:p.dates[0],status:'failed',error:'provider_error',attemptId:'old-daily'}];
+  const mock=trainingServer(saved),original=globalThis.fetch;let finish;
+  globalThis.fetch=async(url,options)=>url.endsWith('/generate')?new Promise(resolve=>{finish=async()=>resolve(await original(url,options))}):original(url,options);
+  const screen=await mountTraining();await act(async()=>{press(screen,'Complete weekly plan');press(screen,'Complete weekly plan');await flush()});
+  await act(async()=>{await finish();await flush()});assert.equal(mock.requests.filter(r=>r.url.endsWith('/generate')).length,1);
+  assert.match(text(screen),/Seven days/);assert.doesNotMatch(text(screen),/Generation did not finish|Details not generated|Week incomplete/);await act(async()=>screen.unmount());
 });

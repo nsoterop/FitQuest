@@ -2,7 +2,7 @@ import type { RecoveryRequest } from './onboardingApi';
 import { privateDrafts } from './onboardingDraftStorage';
 import { useEffect,useRef,useState } from 'react';
 import { Pressable,StyleSheet,Text,TextInput,View } from 'react-native';
-import { needsClarification,TrainingError,trainingError,trainingRequest,type TrainingState,type TrainingPlan,type TrainingFact,type TrainingDay } from './trainingApi';
+import { needsClarification,weekComplete,TrainingError,trainingError,trainingRequest,type TrainingState,type TrainingPlan,type TrainingFact,type TrainingDay } from './trainingApi';
 
 const coverageText:Record<string,string>={missing_catalog_coverage:'The catalog does not cover the requested work.',equipment_or_facility_unknown:'Equipment or facility access needs clarification.',skill_partner_or_supervision_unknown:'Skill, partner or supervision requirements need clarification.',limitations_need_clarification:'Relevant limitations need clarification.',summary_needs_correction:'Update the training summary before planning.'};
 const originText:Record<string,string>={user_report:'Reported',model_inference:'AI inference',assumption:'Assumption',unknown:'Unknown'};
@@ -17,7 +17,7 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
   function update(s:TrainingState){if(alive.current)setState(s)}
   async function run(work:(request:(path:string,method:'GET'|'POST'|'PUT',body?:unknown)=>Promise<TrainingState>)=>Promise<void>) {
     if(pending.current)return;const c=new AbortController();pending.current=c;setBusy(true);setError('');
-    const timer=setTimeout(()=>c.abort(),75000);
+    const timer=setTimeout(()=>c.abort(),210000);
     try {
       const t=await token.current();if(!alive.current||c.signal.aborted)return;
       const request=async(path:string,method:'GET'|'POST'|'PUT',body?:unknown)=>{if(!alive.current||c.signal.aborted)throw Error();const next=await trainingRequest(path,method,body,t,c.signal);if(!alive.current||c.signal.aborted)throw Error();if(next.summary?.sourceConversation)await privateDrafts.clear(userId,next.summary.sourceConversation);if(!alive.current||c.signal.aborted)throw Error();update(next);return next};
@@ -34,13 +34,11 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
     if(!p){s=await request('/plans','POST',{revision:s.summary.revision});p=s.plans.find(x=>x.summaryRevision===s.summary!.revision)}
     if(!p)return;
     setSelected(p.id);
-    const generate=async(target:string)=>{
-      const job=p!.jobs.find(j=>j.target===target);
-      s=await request('/generate','POST',{summaryRevision:s.summary!.revision,planId:p!.id,target,retryAttempt:retry&&job?.status==='failed'?job.attemptId:null});
-      p=s.plans.find(x=>x.id===p!.id)!;
-    };
-    if(!p.outline)await generate('outline');
-    if(p.outline&&!needsClarification(p.outline)&&!p.outline.coverage.length&&!p.days.some(d=>d.date===p!.dates[0]))await generate(p.dates[0]!);
+    // A completion callback may be replayed after a lost response. Only a pristine
+    // plan auto-generates; saved/failed/pending work needs an explicit weekly action.
+    if(!retry&&(p.outline||p.days.length||p.jobs.length))return;
+    const job=p.jobs.find(j=>j.target==='week');
+    await request('/generate','POST',{summaryRevision:s.summary!.revision,planId:p.id,target:'week',retryAttempt:retry&&job?.status==='failed'?job.attemptId:null});
   }
   useEffect(()=>{alive.current=true;void run(async request=>{const s=await request('','GET');if(initial.current){initial.current=false;await initialPlan(request,s)}});return()=>{alive.current=false;pending.current?.abort();pending.current=null}},[userId]);
   const button=(label:string,press:()=>void,secondary=false)=><Pressable key={label} accessibilityRole="button" accessibilityLabel={label} disabled={busy} onPress={press} style={[styles.button,secondary&&styles.secondary,busy&&{opacity:.5}]}><Text style={secondary?styles.copy:styles.buttonText}>{label}</Text></Pressable>;
@@ -58,13 +56,11 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
     return <View key={day.date} style={styles.day}>
       {d.coverage.map(code=><Text key={code} style={styles.copy}>{coverageText[code]??'Catalog coverage is limited.'}</Text>)}
       {!d.sessions.length&&!d.coverage.length&&<Text style={styles.copy}>Rest — no prescribed session.</Text>}
-      {d.sessions.map((s,i)=><View key={i} style={styles.day}><Text style={styles.label}>Session {i+1}</Text>{s.activities.map((a,j)=>{
+      {d.sessions.map((s,i)=><View key={i} style={styles.day}><Text style={styles.label}>{shown?.outline?.days.find(x=>x.date===day.date)?.sessions[i]?.focus??`Session ${i+1}`}</Text>{s.activities.map((a,j)=>{
         const entry=d.activities[a.id]!;
-        return <View key={j} style={styles.exercise}><Text style={styles.label}>{a.phase} · {entry.name}</Text>
-          <Text style={styles.copy}>{a.sets} × {a.measure==='meters'?distance(a.amount):`${a.amount} ${a.measure}`}{a.side==='each'?' per side':''} · {a.effort} effort · {a.restSeconds}s rest</Text>
-          <Text style={styles.copy}>{a.load==='kg'?`${displayNumber(a.loadKg! / .45359237,1)} lb`:a.load.replace(/_/g,' ')}. {entry.loadConvention}</Text>
-          <Text style={styles.copy}>{entry.instructions}</Text><Text style={styles.small}>Setup: {entry.setup}</Text>
-        </View>;
+        const amount=a.measure==='meters'?distance(a.amount):a.measure==='seconds'?`${a.amount%60===0?a.amount/60:a.amount} ${a.amount%60===0?'min':'sec'}`:String(a.amount);
+        const prescription=`${a.sets>1||a.measure==='repetitions'?`${a.sets} × `:''}${amount}${a.side==='each'?' per side':''}`;
+        return <View key={j} style={styles.exercise}><Text style={styles.copy}>{entry.name} — {prescription}</Text></View>;
       })}</View>)}
     </View>;
   }
@@ -74,7 +70,7 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
     {busy&&<Text accessibilityLiveRegion="polite" style={styles.copy}>Loading or generating…</Text>}
     {!!error&&<Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     {button('Reload saved training',()=>void run(async request=>{await request('','GET')}),true)}
-    {state&&!state.summary&&<Text style={styles.copy}>Complete onboarding to save a training summary and create your outline.</Text>}
+    {state&&!state.summary&&<Text style={styles.copy}>Complete onboarding to save a training summary and create your week.</Text>}
     {state?.summary&&<>
       {button(showSummary?'Hide training summary':'Training summary',()=>setShowSummary(!showSummary),true)}
       {showSummary&&<View style={styles.day}><Text style={styles.small}>Concise saved context; AI inferences and unknowns have not been confirmed by you.</Text>
@@ -82,23 +78,27 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
           {editing?<TextInput accessibilityLabel={`${f.category} ${i+1}`} value={f.text} multiline maxLength={350} editable={!busy} style={styles.input} onChangeText={text=>setFacts(old=>old.map((x,j)=>j===i?{...x,text,origin:'user_report'}:x))}/>:<Text style={styles.copy}>{f.text}</Text>}
         </View>)}
         {editing?<>
-          <Text style={styles.small}>Corrections apply to future generation. Existing outlines and sessions remain saved; create a new outline explicitly after saving.</Text>
+          <Text style={styles.small}>Corrections apply to future generation. Existing outlines and sessions remain saved; create a new week explicitly after saving.</Text>
           {button('Save summary',()=>void run(async request=>{await request('/summary','PUT',{revision:state.summary!.revision,document:facts,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone});setEditing(false)}))}
           {button('Cancel summary edit',()=>setEditing(false),true)}
         </>:button('Edit summary',()=>{setFacts(structuredClone(state.summary!.document));setEditing(true)},true)}
       </View>}
-      {!current&&button('Create outline from updated summary',()=>void run(request=>initialPlan(request,state)))}
-      {current&&!current.outline&&current.jobs.some(j=>j.error==='summary_needs_correction')?clarification({coverage:['summary_needs_correction']},'outline',current):current&&!current.outline&&button(current.jobs.some(j=>j.status==='failed')?'Retry outline generation':'Generate outline and tomorrow',()=>void run(request=>initialPlan(request,state,true)))}
+      {!current&&button('Create week from updated summary',()=>void run(request=>initialPlan(request,state,true)))}
+      {current&&!current.outline&&current.jobs.some(j=>j.error==='summary_needs_correction')?clarification({coverage:['summary_needs_correction']},'outline',current):
+        current&&!weekComplete(current)&&!current.jobs.some(j=>j.status==='pending')&&
+        !(current.outline&&(needsClarification(current.outline)||current.outline.coverage.length))&&
+        !current.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)&&
+        button(current.jobs.some(j=>j.target==='week'&&j.status==='failed')?'Retry weekly plan':current.outline?'Complete weekly plan':'Generate weekly plan',()=>void run(request=>initialPlan(request,state,true)))}
     </>}
-    {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)?'Planning needs attention':`Seven days · ${shown.timeZone}`}</Text>
-      {shown.summaryRevision!==state?.summary?.revision&&<Text style={styles.small}>Saved before your summary correction. Its existing sessions remain unchanged. Create a new outline for future generation.</Text>}
+    {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)||shown.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)?'Planning needs attention':`${weekComplete(shown)?'Seven days':'Week incomplete'} · ${shown.timeZone}`}</Text>
+      {shown.summaryRevision!==state?.summary?.revision&&<Text style={styles.small}>Saved before your summary correction. Its existing sessions remain unchanged. Create a new week for future generation.</Text>}
       {shown.outline&&needsClarification(shown.outline)?clarification(shown.outline,'outline'):shown.outline?.coverage.map(code=><Text key={code} style={styles.error}>{coverageText[code]??'Catalog coverage is limited.'} A usable outline has not been created.</Text>)}
-      {shown.jobs.filter(j=>j.status!=='completed').map(j=><Text key={j.target} style={styles.copy}>{j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':trainingError(j.error??'unavailable')}</Text>)}
+      {shown.jobs.filter(j=>j.status!=='completed'&&(j.target==='week'||!shown.jobs.some(x=>x.target==='week'))).map(j=><Text key={j.target} style={styles.copy}>{j.target==='week'?'Week':j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':trainingError(j.error??'unavailable')}</Text>)}
       {shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.map(d=><View key={d.date} style={styles.day}><Text style={styles.label}>{calendarDate(d.date)} · {d.sessions.length?d.sessions.map(s=>s.focus).join(' + '):'Rest'}</Text>
-        {shown.days.some(x=>x.date===d.date)?showDay(shown.days.find(x=>x.date===d.date)!):!shown.outline!.coverage.length&&shown.summaryRevision===state?.summary?.revision&&button(`${shown.jobs.some(j=>j.target===d.date&&j.status==='failed')?'Retry':'Generate'} ${d.date}`,()=>void run(async request=>{const job=shown.jobs.find(j=>j.target===d.date);await request('/generate','POST',{planId:shown.id,summaryRevision:state!.summary!.revision,target:d.date,retryAttempt:job?.status==='failed'?job.attemptId:null})}))}
+        {shown.days.some(x=>x.date===d.date)?showDay(shown.days.find(x=>x.date===d.date)!):<Text style={styles.copy}>Details not generated.</Text>}
       </View>)}
     </View>}
-    {state&&state.plans.length>1&&<View>{state.plans.filter(p=>p.id!==shown?.id).map(p=>button(`View saved outline ${p.dates[0]} · revision ${p.summaryRevision}`,()=>setSelected(p.id),true))}</View>}
+    {state&&state.plans.length>1&&<View>{state.plans.filter(p=>p.id!==shown?.id).map(p=>button(`View saved week ${p.dates[0]} · revision ${p.summaryRevision}`,()=>setSelected(p.id),true))}</View>}
     {button('Back to greeting',onClose,true)}
   </View>;
 }

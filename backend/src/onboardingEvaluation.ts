@@ -40,7 +40,8 @@ export async function evaluateCase(pool: Pool, provider: OnboardingProvider, ite
 
 // Also supports explicitly authorized synthetic comparisons against the one active ledger.
 // Only operational attempt rows are written; no Auth/profile/conversation fixtures are created.
-export async function evaluateModelInput(pool: Pool, provider: OnboardingProvider, input: ModelInput, name: string, expectation: string, version=promptVersion, validateResult?:(value:unknown)=>unknown) {
+export async function evaluateModelInput(pool: Pool, provider: OnboardingProvider, input: ModelInput, name: string, expectation: string, version=promptVersion, validateResult?:(value:unknown)=>unknown, timeoutMs=30000) {
+  if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>180000)throw Error('Invalid bounded evaluation timeout.');
   const account = { userId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', sessionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
   const prepared = provider.prepare(input), attempt = randomUUID();
   const c = await pool.connect();
@@ -54,7 +55,7 @@ export async function evaluateModelInput(pool: Pool, provider: OnboardingProvide
   } catch (error) { await c.query('ROLLBACK'); throw error; }
   finally { c.release(); }
   const start = performance.now();
-  const result = await provider.call(prepared.body, AbortSignal.timeout(30000)).catch(() => ({ failure: 'provider_error' as const }));
+  const result = await provider.call(prepared.body, AbortSignal.timeout(timeoutMs)).catch(() => ({ failure: 'provider_error' as const }));
   const cost = 'usage' in result && result.usage ? provider.cost(result.usage) : null;
   await postgresOnboardingStore(pool).settle(account, attempt, cost);
   let failure: string | undefined = result.failure;

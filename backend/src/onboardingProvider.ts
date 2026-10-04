@@ -1,3 +1,4 @@
+import { weeklyLimits } from './weeklyPlanning.js';
 import { planningReadinessInstructions } from './planningReadiness.js';
 import { Ajv } from 'ajv';
 import { limits, proposalSchema, type ModelInput, type ModelProposal, OnboardingError } from './onboardingDomain.js';
@@ -72,7 +73,9 @@ export function serializeInput(input: ModelInput, model: string): string {
 // Only this concrete adapter is prepared. No SDK retry, tools, hosted conversation, fallback or logging.
 export function openAIProvider(config: { key: string; model: string; capMicro: number; inputRate: number; cachedRate: number; cacheWriteRate: number; outputRate: number }, fetcher: typeof fetch = fetch): OnboardingProvider {
   const maximumInputRate = Math.max(config.inputRate, config.cachedRate, config.cacheWriteRate);
-  const cost = (usage: Usage) => Math.ceil(usage.input * maximumInputRate + usage.output * config.outputRate);
+  // Luna long-context pricing applies to the whole request above 272K input
+  // tokens. Byte-based reservations also take that premium conservatively.
+  const cost = (usage: Usage) => Math.ceil(usage.input * maximumInputRate * (usage.input > 272000 ? 2 : 1) + usage.output * config.outputRate * (usage.input > 272000 ? 1.5 : 1));
   return {
     mode: 'openai', model: config.model, capMicro: config.capMicro,
     prepare(input) {
@@ -82,6 +85,10 @@ export function openAIProvider(config: { key: string; model: string; capMicro: n
     }, cost,
     async call(body, signal) {
       try {
+        const request=JSON.parse(body);
+        const weekly=request.text?.format?.name==='training_week';
+        const outputLimit=weekly?weeklyLimits.outputTokens:limits.output;
+        if(request.max_output_tokens!==outputLimit||Buffer.byteLength(body)>(weekly?weeklyLimits.inputBytes:48000))return {failure:'provider_error'};
         const response = await fetcher('https://api.openai.com/v1/responses', { method: 'POST', signal,
           headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json' }, body });
         // Bounded read; error payloads are never surfaced or logged.
@@ -89,13 +96,13 @@ export function openAIProvider(config: { key: string; model: string; capMicro: n
         const reader = response.body.getReader(); let bytes = 0; const chunks: Uint8Array[] = [];
         while (true) {
           const part = await reader.read(); if (part.done) break;
-          bytes += part.value.byteLength; if (bytes > 64000) { await reader.cancel(); return { failure: 'provider_error' }; }
+          bytes += part.value.byteLength; if (bytes > (weekly?weeklyLimits.responseBytes:64000)) { await reader.cancel(); return { failure: 'provider_error' }; }
           chunks.push(part.value);
         }
         const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         const u = data.usage;
         const numbers = [u?.input_tokens, u?.output_tokens, u?.input_tokens_details?.cached_tokens ?? 0, u?.input_tokens_details?.cache_write_tokens ?? 0];
-        const usage = numbers.every(n => Number.isSafeInteger(n) && n >= 0) && numbers[0] <= Buffer.byteLength(body) && numbers[1] <= limits.output
+        const usage = numbers.every(n => Number.isSafeInteger(n) && n >= 0) && numbers[0] <= Buffer.byteLength(body) && numbers[1] <= outputLimit
           ? { input: numbers[0], output: numbers[1], cached: numbers[2], cacheWrite: numbers[3] } : undefined;
         if (data.status !== 'completed') return { failure: 'incomplete', usage };
         const content = (Array.isArray(data.output) ? data.output : []).filter((x: { type?: string }) => x.type === 'message').flatMap((x: { content?: unknown[] }) => x.content ?? []);
