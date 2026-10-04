@@ -18,13 +18,13 @@ export function planningService(store:PlanningStore,provider?:OnboardingProvider
       const work=await claim();
       if(work&&provider) {
         const controller=new AbortController();let timer:ReturnType<typeof setTimeout>;
-        const timeout=new Promise<ProviderResult>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve({failure:'provider_error'})},work.input.kind==='week'?weeklyLimits.timeoutMs:30000)});
+        const timeout=new Promise<ProviderResult>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve({failure:'provider_error',diagnostic:{transport:'aborted'}})},work.input.kind==='week'?weeklyLimits.timeoutMs:30000)});
         // Settlement survives sign-out, a changed summary, timeout and content publication failure.
         const pending=Promise.resolve().then(()=>provider.call(work.body,controller.signal)).catch(():ProviderResult=>({failure:'provider_error'})).then(async result=>{
-          await store.settle(a,work.attempt,result.usage?provider.cost(result.usage):null);return result;
+          await store.settle(a,work.attempt,result.usage?provider.cost(result.usage):null,result.diagnostic);return result;
         });
         let result:ProviderResult;try{result=await Promise.race([timeout,pending])}finally{clearTimeout(timer!)}
-        if(controller.signal.aborted)await store.settle(a,work.attempt,null);
+        if(controller.signal.aborted)await store.settle(a,work.attempt,null,{transport:'aborted'});
         if(!await authorize())throw new OnboardingError(401,'session_ended');
         let value;let failure:string|undefined=result.failure;
         if(!failure)try{value=work.input.review?checkReview(result.proposal,work.input):work.target==='week'?checkWeek(result.proposal,work.input):work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!);if('coverage' in value&&informationCoverage(value.coverage)){value=undefined;throw new OnboardingError(422,'invalid_plan')}}catch(e){failure=e instanceof OnboardingError?e.code:'invalid_plan'}

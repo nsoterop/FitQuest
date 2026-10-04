@@ -1,7 +1,7 @@
 import { weeklyLiveFixture } from './weeklyLiveFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { eligibleActivities,trackingModes } from './activityCatalog.js';
+import { eligibleActivities,selectionColumns,trackingModes } from './activityCatalog.js';
 import { fixtureDetail,fixtureOutline,trainingFixture } from './planningFixture.js';
 import { sevenDates } from './trainingSummary.js';
 import { checkWeek,prepareWeek,weeklyLimits,type Week } from './weeklyPlanning.js';
@@ -11,12 +11,12 @@ const dates=sevenDates('UTC'),outline=fixtureOutline(dates);
 const input:PlanningInput={kind:'week',summary:trainingFixture,profile:{age:30,heightInches:68,weightLb:155},dates};
 export function weekFixture():Week {return {clarification:null,coverage:[],days:outline.days.map(d=>({date:d.date,sessions:fixtureDetail(outline,d.date).sessions.map((s,i)=>({...s,focus:d.sessions[i]!.focus}))}))}}
 const config={key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5};
-test('single weekly request contains lossless full eligible catalog, finite bounds and conservative long-context reservation',()=>{
+test('single weekly request contains lossless selection facts for every eligible catalog entry, finite bounds and conservative long-context reservation',()=>{
   const provider=openAIProvider(config),prepared=prepareWeek(provider,input),wire=JSON.parse(prepared.body),payload=JSON.parse(wire.input);
   assert.equal(wire.text.format.name,'training_week');assert.equal(wire.max_output_tokens,weeklyLimits.outputTokens);assert.equal(wire.truncation,'disabled');assert.equal(wire.store,false);
-  assert.deepEqual(payload.catalog.rows.map((row:unknown[])=>Object.fromEntries(payload.catalog.columns.map((key:string,i:number)=>[key,row[i]]))),eligibleActivities);
-  assert.equal(payload.catalog.rows.length,251);assert.equal(payload.catalog.columns.length,28);
-  const bytes=Buffer.byteLength(prepared.body);assert.ok(bytes<weeklyLimits.inputBytes);assert.equal(prepared.reserveMicro,Math.ceil(bytes*.125*2+weeklyLimits.outputTokens*.5*1.5));
+  assert.deepEqual(payload.catalog.rows.map((row:unknown[])=>Object.fromEntries(payload.catalog.columns.map((key:string,i:number)=>[key,typeof row[i]==='number'?payload.catalog.strings[row[i] as number]:row[i]]))),eligibleActivities.map(a=>Object.fromEntries(selectionColumns.map(k=>[k,a[k]]))));
+  assert.equal(payload.catalog.rows.length,251);assert.equal(payload.catalog.columns.length,19);
+  const bytes=Buffer.byteLength(prepared.body);assert.ok(bytes<weeklyLimits.inputBytes);assert.equal(prepared.reserveMicro,Math.ceil(bytes*.125+weeklyLimits.outputTokens*.5));
   assert.match(wire.instructions,/ONE response/);assert.doesNotMatch(wire.instructions,/Do not prescribe all seven days/);
   assert.throws(()=>prepareWeek(provider,{...input,previous:['x'.repeat(weeklyLimits.inputBytes)]}),{code:'planning_context_limit'});
 });
@@ -47,7 +47,7 @@ test('weekly adapter accepts output above old 2000-token limit, settles incomple
   const success=await provider.call(prepared.body,new AbortController().signal);assert.deepEqual(success.proposal,weekFixture());assert.equal(success.usage!.output,8000);assert.equal(provider.cost(success.usage!),12750);assert.equal(dispatches,1);
   response.status='incomplete';const incomplete=await provider.call(prepared.body,new AbortController().signal);assert.equal(incomplete.failure,'incomplete');assert.equal(incomplete.usage!.output,8000);
   response.usage.output_tokens=weeklyLimits.outputTokens+1;assert.equal((await provider.call(prepared.body,new AbortController().signal)).usage,undefined);
-  response={status:'completed',padding:'x'.repeat(weeklyLimits.responseBytes)};assert.deepEqual(await provider.call(prepared.body,new AbortController().signal),{failure:'provider_error'});
+  response={status:'completed',padding:'x'.repeat(weeklyLimits.responseBytes)};assert.deepEqual(await provider.call(prepared.body,new AbortController().signal),{failure:'provider_error',diagnostic:{httpStatus:200,transport:'response_limit'}});
   const bad=JSON.parse(prepared.body);bad.max_output_tokens++;const before=dispatches;assert.deepEqual(await provider.call(JSON.stringify(bad),new AbortController().signal),{failure:'provider_error'});assert.equal(dispatches,before);
 });
 

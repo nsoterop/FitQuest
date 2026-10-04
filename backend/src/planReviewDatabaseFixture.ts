@@ -7,7 +7,7 @@ import type { OnboardingProvider,ProviderResult } from './onboardingProvider.js'
 import { planningStore } from './planningStore.js';
 import { planningService } from './planning.js';
 import { buildApp } from './app.js';
-import { reviewSummary,reviewWeek,revisedWeek,reviewFeedback } from './planReviewFixture.js';
+import { fixtureScope,reviewSummary,reviewWeek,revisedWeek,reviewFeedback } from './planReviewFixture.js';
 import { checkReview } from './planReview.js';
 import { weeklyLimits } from './weeklyPlanning.js';
 
@@ -18,7 +18,7 @@ export async function verifyPlanReviewDatabase(t:TestContext,owner:Pool,pool:Poo
   let calls=0;
   const normal=async(body:string):Promise<ProviderResult>=>{
     const input=JSON.parse(JSON.parse(body).input);
-    return {proposal:input.review?{week:revisedWeek(input),changedDates:[input.dates[1]],reply:'The first day is unchanged. The second day now has two shorter sessions with introductory acceleration.',lastingPreference:null}:reviewWeek(input),usage:{input:100,output:1000,cached:0,cacheWrite:0}};
+    return {proposal:input.review?{scope:fixtureScope(input),week:revisedWeek(input),changedDates:[input.dates[1]],reply:'The first day is unchanged. The second day now has two shorter sessions with introductory acceleration.',lastingPreference:null}:reviewWeek(input),usage:{input:100,output:1000,cached:0,cacheWrite:0}};
   };
   let respond=normal;
   const provider:OnboardingProvider={mode:'test',model:'synthetic-review',capMicro:7000000,prepare:()=>{throw Error('Unexpected onboarding call')},cost:u=>Math.ceil(u.input*.125+u.output*.5),call:async body=>{calls++;return respond(body)}};
@@ -60,13 +60,46 @@ export async function verifyPlanReviewDatabase(t:TestContext,owner:Pool,pool:Poo
   });
   await t.test('clarification preserves usable content and resumes from only the unresolved request, without onboarding resurrection',async()=>{
     const {p}=await next(),r={...request(p),feedback:'Keep the first day exactly as it is, but halve its work.'},before=calls;
-    respond=async body=>{const input=JSON.parse(JSON.parse(body).input),week=reviewWeek(input);week.goalDecisions=[];week.days.forEach(d=>d.sessions=[]);week.clarification={question:'Should the first day remain unchanged or may its work change?',reason:'Keeping and halving its work conflict.'};return {proposal:{week,changedDates:[],reply:'Your previous week is unchanged because these requests conflict.',lastingPreference:null},usage:{input:100,output:100,cached:0,cacheWrite:0}}};
+    respond=async body=>{const input=JSON.parse(JSON.parse(body).input),week=reviewWeek(input);week.goalDecisions=[];week.days.forEach(d=>d.sessions=[]);week.clarification={question:'Should the first day remain unchanged or may its work change?',reason:'Keeping and halving its work conflict.'};return {proposal:{scope:null,week,changedDates:[],reply:'Your previous week is unchanged because these requests conflict.',lastingPreference:null},usage:{input:100,output:100,cached:0,cacheWrite:0}}};
     await service.review(alice,r,async()=>true);const current=(await latest()).p;assert.deepEqual(current.days,p.days);assert.equal(current.planRevision,p.planRevision+1);assert.match(current.reviewQuestion,/unchanged/);
     await service.review(alice,r,async()=>true);assert.equal(calls,before+1);await assert.rejects(store.accept(alice,version(current)),{code:'review_unavailable'});
     respond=async body=>{const input=JSON.parse(JSON.parse(body).input);assert.match(input.review.context.feedback,/halve/);return normal(body)};
     await service.review(alice,{...request(current),feedback:'Keep the first day unchanged. I mean split only the second day.'},async()=>true);
     assert.equal((await latest()).p.reviewQuestion,null);respond=normal;
     assert.equal((await owner.query('SELECT count(*)::int AS n FROM fitquest.onboarding_conversations WHERE user_id=$1',[alice.userId])).rows[0].n,0);
+  });
+  await t.test('unidentified keep clarification persists, resolves on a short answer, and accepts/reopens without duplicate dispatch',async()=>{
+    const {p}=await next(),before=calls,r={...request(p),feedback:`Keep ${p.dates[2]} unchanged. Keep the important bit unchanged; split ${p.dates[1]}.`};
+    respond=async body=>{
+      const input=JSON.parse(JSON.parse(body).input);assert.equal(input.preservation.unresolved,true);
+      const week=reviewWeek(input);week.goalDecisions=[];week.days.forEach(d=>d.sessions=[]);
+      week.clarification={question:'Which work do you want to keep unchanged?',reason:'The important bit does not identify the work to preserve.'};
+      return {proposal:{scope:null,week,changedDates:[],reply:'The saved week is unchanged while you clarify what to keep.',lastingPreference:null},usage:{input:100,output:100,cached:0,cacheWrite:0}};
+    };
+    const post=async(payload:any)=>{const result=await app.inject({method:'POST',url:'/training/review',headers:{authorization:'Bearer alice'},payload});assert.equal(result.statusCode,200,result.body)};
+    await post(r);const waiting=(await latest()).p;assert.deepEqual(waiting.days,p.days);assert.match(waiting.reviewQuestion,/keep unchanged/);
+    const waitingBudget=await budget();await post(r);assert.equal(calls,before+1);assert.deepEqual(await budget(),waitingBudget);
+    await assert.rejects(store.accept(alice,version(waiting)),{code:'review_unavailable'});
+    // An unrelated answer cannot dismiss the unresolved protection or edit work.
+    const unrelated={...request(waiting),feedback:'The weather is good.'};await post(unrelated);
+    const stillWaiting=(await latest()).p;assert.deepEqual(stillWaiting.days,p.days);assert.ok(stillWaiting.reviewQuestion);
+    await post(unrelated);assert.equal(calls,before+2);
+    respond=async body=>{
+      const input=JSON.parse(JSON.parse(body).input);assert.match(input.review.context.feedback,/important bit/);
+      assert.equal(input.preservation.unresolved,false);assert.ok(input.preservation.days.includes(p.dates[0]));
+      assert.ok(input.preservation.days.includes(p.dates[2]));
+      const result=await normal(body);(result.proposal as any).scope=[{date:p.dates[1],changeSessions:[0],evidence:`split ${p.dates[1]}`}];return result;
+    };
+    const answer={...request(stillWaiting),feedback:`${p.dates[0]}.`};
+    await post(answer);const revised=(await latest()).p;assert.equal(revised.reviewQuestion,null);assert.equal(revised.id,p.id);assert.deepEqual(revised.dates,p.dates);
+    assert.deepEqual(revised.days[0],p.days[0]);assert.deepEqual(revised.days.slice(2),p.days.slice(2));assert.equal(revised.days[1].detail.sessions.length,2);
+    assert.deepEqual(revised.days[1].detail.sessions[1].activities[1],p.days[1].detail.sessions[0].activities[1]);
+    const settled=await budget();await post(answer);assert.equal(calls,before+3);assert.deepEqual(await budget(),settled);
+    await store.accept(alice,version(revised));await store.accept(alice,version(revised));
+    const reopened=(await planningStore(pool).read(alice)).plans.find(x=>x.id===p.id)!;
+    assert.equal(reopened.reviewState,'accepted');assert.deepEqual(reopened.days,revised.days);assert.equal(calls,before+3);assert.deepEqual(await budget(),settled);
+    const context=(await owner.query('SELECT review_context FROM fitquest.training_plans WHERE user_id=$1 AND id=$2',[alice.userId,p.id])).rows[0];assert.equal(context.review_context,null);
+    respond=normal;
   });
   await t.test('invalid response and failed COMMIT leave accepted work intact; only an exact explicit retry dispatches again',async()=>{
     for(const mode of ['invalid','commit']){

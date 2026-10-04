@@ -75,7 +75,7 @@ test('provider refusal, incomplete, malformed, timeout and oversized error paylo
   }
   for(const fetcher of [async()=>{throw Error('private raw error')},async()=>new Response('private raw error',{status:429}),async()=>new Response('x'.repeat(65000))]) {
     const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:1000,inputRate:1,cachedRate:1,cacheWriteRate:1,outputRate:1},fetcher);
-    assert.deepEqual(await provider.call(provider.prepare(input).body,new AbortController().signal),{failure:'provider_error'});
+    const result=await provider.call(provider.prepare(input).body,new AbortController().signal);assert.equal(result.failure,'provider_error');assert.doesNotMatch(JSON.stringify(result),/private raw error|xxxx/);assert.ok(result.diagnostic);
   }
 });
 test('orchestrator timeout retains uncertain reservation and settles late measured usage without late content',async t=>{

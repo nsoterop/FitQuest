@@ -21,11 +21,11 @@ export const prescriptionSchema=object({id,phase:enumeration(['warmup','main','c
   effort:enumeration(['easy','moderate','challenging']),restSeconds:integer(0,600),
   load:enumeration(['none','self_selected','assistance','band_setting','kg']),loadKg:{anyOf:[{type:'null'},{type:'number',exclusiveMinimum:0,maximum:250}]},
   side:enumeration(['both','each'])});
-export const qualityPrescriptionSchema={...prescriptionSchema,properties:{...prescriptionSchema.properties,amount:{type:'number',minimum:1,maximum:50000},distanceTarget:distanceSchema},required:[...prescriptionSchema.required,'distanceTarget']};
+export const qualityPrescriptionSchema={...prescriptionSchema,properties:{...prescriptionSchema.properties,amount:{type:'number',minimum:1,maximum:50000},distanceTarget:distanceSchema,repRange:{anyOf:[{type:'null'},object({min:integer(1,100),max:integer(1,100)})]},rir:{anyOf:[{type:'null'},integer(0,5)]}},required:[...prescriptionSchema.required,'distanceTarget']};
 const compatiblePrescription={...qualityPrescriptionSchema,required:prescriptionSchema.required};
 export const detailSchema=object({date,clarification,coverage:array(coverage,5),sessions:array(object({activities:array(prescriptionSchema,15,1)}),3)});
 export type Outline={arrangementNote?:string|null;qualityVersion?:2;units?:Units;goalDecisions?:GoalDecision[];clarification?:Clarification|null;days:{date:string;sessions:{focus:string;activityIds:string[]}[]}[];coverage:string[]};
-export type Prescription={id:string;phase:'warmup'|'main'|'cooldown'|'optional';sets:number;measure:'repetitions'|'seconds'|'meters'|'count';amount:number;effort:string;restSeconds:number;load:string;loadKg:number|null;side:string;distanceTarget?:DistanceTarget|null};
+export type Prescription={id:string;phase:'warmup'|'main'|'cooldown'|'optional';sets:number;measure:'repetitions'|'seconds'|'meters'|'count';amount:number;effort:string;restSeconds:number;load:string;loadKg:number|null;side:string;distanceTarget?:DistanceTarget|null;repRange?:{min:number;max:number}|null;rir?:number|null};
 export const estimateSchema={type:'integer',minimum:1,maximum:240};
 export type Detail={clarification?:Clarification|null;date:string;coverage:string[];sessions:{estimatedMinutes?:number;activities:Prescription[];timing?:Timing;intervals?:Interval[]}[]};
 const ajv=new Ajv();const compatible=(schema:typeof outlineSchema)=>({...schema,required:schema.required.filter(k=>k!=='clarification')});

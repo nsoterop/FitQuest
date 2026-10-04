@@ -1,3 +1,4 @@
+import { safeDiagnostic,type ProviderDiagnostic } from './providerDiagnostics.js';
 import { prepareWeek,weeklyLimits,type CheckedWeek } from './weeklyPlanning.js';
 import { prepareReview,type ReviewRequest,type PlanVersion,type ReviewResult } from './planReview.js';
 import { isDeepStrictEqual } from 'node:util';
@@ -99,7 +100,7 @@ export function planningStore(pool:Pool) {
         await rate(c,a,true);
         try{prepared=prepareReview(provider,outbound)}catch(e){failure=e instanceof OnboardingError?e.code:'planning_context_limit'}
         if(prepared){
-          await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,'catalog-review-v1','catalog-review-v1')",[a.userId,attempt,provider.purpose??'app',provider.model]);
+          await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,'catalog-review-v2','catalog-review-v2')",[a.userId,attempt,provider.purpose??'app',provider.model]);
           if(!(await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed',[attempt,prepared.reserveMicro,provider.capMicro])).rows[0]?.allowed)failure='budget_exhausted';
         }
       }
@@ -188,7 +189,7 @@ export function planningStore(pool:Pool) {
           outbound=redacted;
           try{prepared=input.kind==='week'?prepareWeek(provider,redacted):preparePlanning(provider,redacted)}catch(e){failure=e instanceof OnboardingError?e.code:'planning_context_limit'}
           if(prepared) {
-            await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,$5,$6)",[a.userId,attempt,provider.purpose??'app',provider.model,input.kind==='week'?(input.draftReview?'catalog-week-v4':'catalog-week-v3'):planningPromptVersion,input.kind==='week'?(input.draftReview?'catalog-week-v4':'catalog-week-v3'):'catalog-plan-v1']);
+            await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,$5,$6)",[a.userId,attempt,provider.purpose??'app',provider.model,input.kind==='week'?(input.draftReview?'catalog-week-v5':'catalog-week-v3'):planningPromptVersion,input.kind==='week'?(input.draftReview?'catalog-week-v5':'catalog-week-v3'):'catalog-plan-v1']);
             if(!(await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed',[attempt,prepared.reserveMicro,provider.capMicro])).rows[0]?.allowed)failure='budget_exhausted';
           }
         }
@@ -199,7 +200,11 @@ export function planningStore(pool:Pool) {
         if(!failure&&prepared)return {attempt,planId:r.planId,target:r.target,revision:s.revision,profileVersion:p.version,body:prepared.body,input:outbound};
       });
     },
-    settle:(a:Account,attempt:string,cost:number|null)=>tx(a,c=>c.query('SELECT fitquest.settle_onboarding($1,$2)',[attempt,cost]),false),
+    settle:async(a:Account,attempt:string,cost:number|null,diagnostic?:ProviderDiagnostic)=>{
+      await tx(a,c=>c.query('SELECT fitquest.settle_onboarding($1,$2)',[attempt,cost]),false);
+      // Diagnostics are best-effort and independent of charge settlement.
+      if(diagnostic)try{await tx(a,c=>c.query('UPDATE fitquest.onboarding_attempts SET provider_diagnostic=$3 WHERE user_id=$1 AND id=$2',[a.userId,attempt,safeDiagnostic(diagnostic)]),false)}catch{/* Never log private error text. */}
+    },
     finish:(a:Account,w:PlanningWork,value:Outline|Detail|CheckedWeek|ReviewResult|undefined,failure?:string)=>tx(a,async c=>{
       const s=await summary(c,a),p=await profile(c,a);
       const job=(await c.query('SELECT * FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND target=$3 FOR UPDATE',[a.userId,w.planId,w.target])).rows[0];

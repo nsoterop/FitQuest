@@ -25,3 +25,13 @@ export function trackingModes(a:Activity) {
   return {repetitions:/repetition|knee drives/.test(tracking),seconds:/time|duration|hold|cycles/.test(tracking),
     meters:/distance/.test(tracking),count:/steps|passes|throws|catches|shots|serves|contacts|jumps|turns|reaches|cues|routes|attempt|swings|touches|taps|completions/.test(tracking)};
 }
+
+// Compact selection view. Full source and display metadata stay in the checked export.
+// Intern repeated strings without summarizing away constraints or equipment/skill distinctions.
+export const selectionColumns=['Activity ID','Exercise name','Training qualities','Movement','Equipment','Variation identity','Instructions','Starting position','Setup to record','Tracking measures','Load convention','Space / facility requirements','Impact level (footstrike/landing)','Technical skill required','Partner requirements','Supervision / instruction needs','Easier alternative IDs','Harder alternative IDs','Selection / alternative notes'];
+export const selectionCatalog=(()=>{
+  const counts=new Map<string,number>();
+  for(const a of eligibleActivities)for(const k of selectionColumns){const v=a[k];if(typeof v==='string'&&v.length>12)counts.set(v,(counts.get(v)??0)+1)}
+  const strings=[...counts].filter(([,count])=>count>1).map(([v])=>v),lookup=new Map(strings.map((v,i)=>[v,i]));
+  return {columns:selectionColumns,strings,rows:eligibleActivities.map(a=>selectionColumns.map(k=>typeof a[k]==='string'&&lookup.has(a[k] as string)?lookup.get(a[k] as string):a[k]))};
+})();

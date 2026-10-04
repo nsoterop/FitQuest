@@ -1,0 +1,2598 @@
+{
+  "synthetic": true,
+  "description": "Actual metered responses from invented athletes, including rejected outputs; not owner content or expert-validated training advice.",
+  "results": [
+    {
+      "stage": "onboarding",
+      "input": {
+        "context": {
+          "items": [
+            {
+              "id": "raw-m1",
+              "topic": "Athlete report",
+              "value": "I want comfortable walking endurance, general strength and acceleration technique; walking is my priority. I walk a mile three times a week, do wall push-ups twice weekly, and have learned standing acceleration technique with an instructor and practiced controlled short accelerations. I can train Monday, Wednesday and Saturday. I want short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day. Exact activity timing is flexible. I have a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down. No gym equipment or partner. No relevant limitations to report. I prefer miles and pounds.",
+              "quote": "I want comfortable walking endurance, general strength and acceleration technique; walking is my priority. I walk a mile three times a week, do wall push-ups twice weekly, and have learned standing acceleration technique with an instructor and practiced controlled short accelerations. I can train Monday, Wednesday and Saturday. I want short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day. Exact activity timing is flexible. I have a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down. No gym equipment or partner. No relevant limitations to report. I prefer miles and pounds.",
+              "source": "m1",
+              "origin": "user_report",
+              "review": "unreviewed",
+              "supersedes": null,
+              "recordedAt": "2026-10-04T00:00:00Z"
+            }
+          ],
+          "skipped": [],
+          "readiness": "needs_clarification",
+          "limitations": [
+            "This understanding is based on reports, not independent verification or medical clearance."
+          ]
+        },
+        "sources": {
+          "m1": "I want comfortable walking endurance, general strength and acceleration technique; walking is my priority. I walk a mile three times a week, do wall push-ups twice weekly, and have learned standing acceleration technique with an instructor and practiced controlled short accelerations. I can train Monday, Wednesday and Saturday. I want short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day. Exact activity timing is flexible. I have a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down. No gym equipment or partner. No relevant limitations to report. I prefer miles and pounds."
+        },
+        "recent": [
+          {
+            "role": "user",
+            "source": "m1",
+            "text": "I want comfortable walking endurance, general strength and acceleration technique; walking is my priority. I walk a mile three times a week, do wall push-ups twice weekly, and have learned standing acceleration technique with an instructor and practiced controlled short accelerations. I can train Monday, Wednesday and Saturday. I want short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day. Exact activity timing is flexible. I have a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down. No gym equipment or partner. No relevant limitations to report. I prefer miles and pounds."
+          }
+        ],
+        "knownProfileFields": [
+          "first name",
+          "last name",
+          "height",
+          "age",
+          "weight",
+          "gender"
+        ]
+      },
+      "raw": {
+        "trainingSummary": [
+          {
+            "category": "goals",
+            "text": "I want comfortable walking endurance; walking is my priority.",
+            "origin": "user_report",
+            "goals": [
+              "comfortable walking endurance"
+            ]
+          },
+          {
+            "category": "goals",
+            "text": "I want general strength.",
+            "origin": "user_report",
+            "goals": [
+              "general strength"
+            ]
+          },
+          {
+            "category": "goals",
+            "text": "I want acceleration technique.",
+            "origin": "user_report",
+            "goals": [
+              "acceleration technique"
+            ]
+          },
+          {
+            "category": "availability",
+            "text": "I can train Monday, Wednesday and Saturday. Maximum 25 minutes per session and 40 minutes total per day.",
+            "origin": "user_report",
+            "goals": null
+          },
+          {
+            "category": "availability",
+            "text": "I want short sessions spread between morning and evening, not one combined workout. Exact activity timing is flexible.",
+            "origin": "user_report",
+            "goals": null
+          },
+          {
+            "category": "experience",
+            "text": "I walk a mile three times a week, do wall push-ups twice weekly, and have learned standing acceleration technique with an instructor and practiced controlled short accelerations.",
+            "origin": "user_report",
+            "goals": null
+          },
+          {
+            "category": "equipment",
+            "text": "I have a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down. No gym equipment or partner.",
+            "origin": "user_report",
+            "goals": null
+          },
+          {
+            "category": "limitations",
+            "text": "No relevant limitations to report.",
+            "origin": "user_report",
+            "goals": null
+          }
+        ],
+        "reply": "Here’s my understanding: your priorities are comfortable walking endurance first, plus general strength and acceleration technique. You currently walk a mile three times weekly, do wall push-ups twice weekly, and have some instructor-guided standing acceleration technique and controlled-short-acceleration practice. You can train Monday, Wednesday and Saturday, with sessions up to 25 minutes each and 40 minutes total per day; you prefer short sessions spread between morning and evening, and exact timing is flexible. You have a safe walking route, clear floor, firm wall, flat markers, suitable shoes and a secure flat acceleration lane, but no gym equipment or partner. You report no relevant limitations. Let me know if you’d correct or add anything.",
+        "additions": [],
+        "nextQuestion": {
+          "topic": "Onboarding recap",
+          "text": "Please correct anything I’ve misunderstood, or agree with this recap.",
+          "decision": "The goals, activity baseline, availability and preferences, equipment, and reported limitations are sufficiently described to assess planning."
+        },
+        "readiness": "ready",
+        "limitations": [
+          "This understanding is based on reports, not independent verification or medical clearance."
+        ],
+        "planningCheck": {
+          "status": "ready",
+          "question": null,
+          "reason": null
+        }
+      },
+      "usage": {
+        "input": 2613,
+        "output": 686,
+        "cached": 0,
+        "cacheWrite": 2610
+      },
+      "accountedMicro": 670,
+      "reservedMicro": 2913,
+      "failure": "invalid_model_output"
+    },
+    {
+      "stage": "onboarding-repair",
+      "input": {
+        "context": {
+          "items": [
+            {
+              "id": "raw-m1",
+              "topic": "Athlete report",
+              "value": "I want comfortable walking endurance, general strength and acceleration technique; walking is my priority. I walk a mile three times a week, do wall push-ups twice weekly, and have learned standing acceleration technique with an instructor and practiced controlled short accelerations. I can train Monday, Wednesday and Saturday. I want short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day. Exact activity timing is flexible. I have a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down. No gym equipment or partner. No relevant limitations to report. I prefer miles and pounds.",
+              "quote": "I want comfortable walking endurance, general strength and acceleration technique; walking is my priority. I walk a mile three times a week, do wall push-ups twice weekly, and have learned standing acceleration technique with an instructor and practiced controlled short accelerations. I can train Monday, Wednesday and Saturday. I want short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day. Exact activity timing is flexible. I have a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down. No gym equipment or partner. No relevant limitations to report. I prefer miles and pounds.",
+              "source": "m1",
+              "origin": "user_report",
+              "review": "unreviewed",
+              "supersedes": null,
+              "recordedAt": "2026-10-04T00:00:00Z"
+            }
+          ],
+          "skipped": [],
+          "readiness": "needs_clarification",
+          "limitations": [
+            "This understanding is based on reports, not independent verification or medical clearance."
+          ]
+        },
+        "sources": {
+          "m1": "I want comfortable walking endurance, general strength and acceleration technique; walking is my priority. I walk a mile three times a week, do wall push-ups twice weekly, and have learned standing acceleration technique with an instructor and practiced controlled short accelerations. I can train Monday, Wednesday and Saturday. I want short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day. Exact activity timing is flexible. I have a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down. No gym equipment or partner. No relevant limitations to report. I prefer miles and pounds."
+        },
+        "recent": [
+          {
+            "role": "user",
+            "source": "m1",
+            "text": "I want comfortable walking endurance, general strength and acceleration technique; walking is my priority. I walk a mile three times a week, do wall push-ups twice weekly, and have learned standing acceleration technique with an instructor and practiced controlled short accelerations. I can train Monday, Wednesday and Saturday. I want short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day. Exact activity timing is flexible. I have a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down. No gym equipment or partner. No relevant limitations to report. I prefer miles and pounds."
+          }
+        ],
+        "knownProfileFields": [
+          "first name",
+          "last name",
+          "height",
+          "age",
+          "weight",
+          "gender"
+        ]
+      },
+      "raw": {
+        "trainingSummary": [
+          {
+            "category": "goals",
+            "text": "Walking endurance is the priority, alongside general strength and acceleration technique.",
+            "origin": "model_inference",
+            "goals": [
+              "comfortable walking endurance",
+              "general strength",
+              "acceleration technique"
+            ]
+          },
+          {
+            "category": "availability",
+            "text": "Can train Monday, Wednesday and Saturday; session timing is flexible. Prefers short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "experience",
+            "text": "Walks a mile three times weekly, does wall push-ups twice weekly, and has learned standing acceleration technique with an instructor and practiced controlled short accelerations.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "equipment",
+            "text": "Has a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down; no gym equipment or partner.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "limitations",
+            "text": "No relevant limitations to report. Prefers miles and pounds.",
+            "origin": "model_inference",
+            "goals": null
+          }
+        ],
+        "reply": "Here’s my understanding: your priority is comfortable walking endurance, with general strength and acceleration technique also among your goals. You currently walk a mile three times a week, do wall push-ups twice weekly, and have practiced controlled short accelerations after learning technique with an instructor. You can train Monday, Wednesday and Saturday, with flexible timing; you prefer short sessions spread between morning and evening, capped at 25 minutes each and 40 minutes total per day. You have a safe walking route, clear floor, wall, markers, suitable shoes and a secure flat acceleration lane, but no gym equipment or partner. You reported no relevant limitations and prefer miles and pounds. Please correct anything I’ve misunderstood or agree if this is right.",
+        "additions": [],
+        "nextQuestion": {
+          "topic": "Onboarding recap",
+          "text": "Please correct anything I’ve misunderstood or agree if this is right.",
+          "decision": "This recap reflects the goals, activity, schedule, equipment and limitations reported."
+        },
+        "readiness": "ready",
+        "limitations": [
+          "This understanding is based on reports, not independent verification or medical clearance."
+        ],
+        "planningCheck": {
+          "status": "ready",
+          "question": null,
+          "reason": null
+        }
+      },
+      "usage": {
+        "input": 2585,
+        "output": 650,
+        "cached": 0,
+        "cacheWrite": 2582
+      },
+      "accountedMicro": 649,
+      "reservedMicro": 2896,
+      "rendered": "Here’s my understanding: your priority is comfortable walking endurance, with general strength and acceleration technique also among your goals. You currently walk a mile three times a week, do wall push-ups twice weekly, and have practiced controlled short accelerations after learning technique with an instructor. You can train Monday, Wednesday and Saturday, with flexible timing; you prefer short sessions spread between morning and evening, capped at 25 minutes each and 40 minutes total per day. You have a safe walking route, clear floor, wall, markers, suitable shoes and a secure flat acceleration lane, but no gym equipment or partner. You reported no relevant limitations and prefer miles and pounds. Please correct anything I’ve misunderstood or agree if this is right.\n\nPlease correct anything I’ve misunderstood or agree if this is right.\n\nGoals: Walking endurance is the priority, alongside general strength and acceleration technique.\n\nSchedule understood as: Can train Monday, Wednesday and Saturday; session timing is flexible. Prefers short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day.\n\nDoes that capture what matters? Reply “Looks good” to finish onboarding, keep a concise editable training summary for planning and delete this conversation, or tell me what to change or add."
+    },
+    {
+      "stage": "distributed",
+      "input": {
+        "kind": "week",
+        "draftReview": true,
+        "qualityVersion": 2,
+        "preferredUnits": "imperial",
+        "dates": [
+          "2026-10-05",
+          "2026-10-06",
+          "2026-10-07",
+          "2026-10-08",
+          "2026-10-09",
+          "2026-10-10",
+          "2026-10-11"
+        ],
+        "profile": {
+          "age": 34,
+          "heightInches": 69,
+          "weightLb": 162
+        },
+        "summary": [
+          {
+            "category": "goals",
+            "text": "Walking endurance is the priority, alongside general strength and acceleration technique.",
+            "origin": "model_inference",
+            "goals": [
+              "comfortable walking endurance",
+              "general strength",
+              "acceleration technique"
+            ]
+          },
+          {
+            "category": "availability",
+            "text": "Can train Monday, Wednesday and Saturday; session timing is flexible. Prefers short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "experience",
+            "text": "Walks a mile three times weekly, does wall push-ups twice weekly, and has learned standing acceleration technique with an instructor and practiced controlled short accelerations.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "equipment",
+            "text": "Has a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down; no gym equipment or partner.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "limitations",
+            "text": "No relevant limitations to report. Prefers miles and pounds.",
+            "origin": "model_inference",
+            "goals": null
+          }
+        ]
+      },
+      "raw": {
+        "clarification": null,
+        "coverage": [],
+        "days": [
+          {
+            "date": "2026-10-05",
+            "sessions": [
+              {
+                "focus": "Comfortable walking",
+                "timing": "morning",
+                "intervals": [],
+                "activities": [
+                  {
+                    "id": "FQ-ACT-00148",
+                    "phase": "main",
+                    "sets": 1,
+                    "measure": "meters",
+                    "amount": 1287.4752,
+                    "effort": "easy",
+                    "restSeconds": 0,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": {
+                      "value": 0.8,
+                      "unit": "mi"
+                    },
+                    "repRange": null,
+                    "rir": null
+                  }
+                ],
+                "estimatedMinutes": 18
+              },
+              {
+                "focus": "Full-body strength",
+                "timing": "evening",
+                "intervals": [],
+                "activities": [
+                  {
+                    "id": "FQ-ACT-00063",
+                    "phase": "main",
+                    "sets": 2,
+                    "measure": "repetitions",
+                    "amount": 8,
+                    "effort": "moderate",
+                    "restSeconds": 45,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": null,
+                    "repRange": {
+                      "min": 8,
+                      "max": 10
+                    },
+                    "rir": 3
+                  },
+                  {
+                    "id": "FQ-ACT-00003",
+                    "phase": "main",
+                    "sets": 2,
+                    "measure": "repetitions",
+                    "amount": 8,
+                    "effort": "moderate",
+                    "restSeconds": 45,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": null,
+                    "repRange": {
+                      "min": 8,
+                      "max": 10
+                    },
+                    "rir": 3
+                  },
+                  {
+                    "id": "FQ-ACT-00077",
+                    "phase": "main",
+                    "sets": 2,
+                    "measure": "repetitions",
+                    "amount": 10,
+                    "effort": "moderate",
+                    "restSeconds": 45,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": null,
+                    "repRange": {
+                      "min": 10,
+                      "max": 12
+                    },
+                    "rir": 3
+                  },
+                  {
+                    "id": "FQ-ACT-00091",
+                    "phase": "main",
+                    "sets": 2,
+                    "measure": "repetitions",
+                    "amount": 10,
+                    "effort": "moderate",
+                    "restSeconds": 30,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": null,
+                    "repRange": {
+                      "min": 10,
+                      "max": 12
+                    },
+                    "rir": 3
+                  }
+                ],
+                "estimatedMinutes": 16
+              }
+            ]
+          },
+          {
+            "date": "2026-10-06",
+            "sessions": []
+          },
+          {
+            "date": "2026-10-07",
+            "sessions": [
+              {
+                "focus": "Comfortable walking",
+                "timing": "morning",
+                "intervals": [],
+                "activities": [
+                  {
+                    "id": "FQ-ACT-00148",
+                    "phase": "main",
+                    "sets": 1,
+                    "measure": "meters",
+                    "amount": 1448.4096,
+                    "effort": "easy",
+                    "restSeconds": 0,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": {
+                      "value": 0.9,
+                      "unit": "mi"
+                    },
+                    "repRange": null,
+                    "rir": null
+                  }
+                ],
+                "estimatedMinutes": 20
+              },
+              {
+                "focus": "Full-body strength",
+                "timing": "evening",
+                "intervals": [],
+                "activities": [
+                  {
+                    "id": "FQ-ACT-00063",
+                    "phase": "main",
+                    "sets": 2,
+                    "measure": "repetitions",
+                    "amount": 8,
+                    "effort": "moderate",
+                    "restSeconds": 45,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": null,
+                    "repRange": {
+                      "min": 8,
+                      "max": 10
+                    },
+                    "rir": 3
+                  },
+                  {
+                    "id": "FQ-ACT-00003",
+                    "phase": "main",
+                    "sets": 2,
+                    "measure": "repetitions",
+                    "amount": 8,
+                    "effort": "moderate",
+                    "restSeconds": 45,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": null,
+                    "repRange": {
+                      "min": 8,
+                      "max": 10
+                    },
+                    "rir": 3
+                  },
+                  {
+                    "id": "FQ-ACT-00077",
+                    "phase": "main",
+                    "sets": 2,
+                    "measure": "repetitions",
+                    "amount": 10,
+                    "effort": "moderate",
+                    "restSeconds": 45,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": null,
+                    "repRange": {
+                      "min": 10,
+                      "max": 12
+                    },
+                    "rir": 3
+                  },
+                  {
+                    "id": "FQ-ACT-00091",
+                    "phase": "main",
+                    "sets": 2,
+                    "measure": "repetitions",
+                    "amount": 10,
+                    "effort": "moderate",
+                    "restSeconds": 30,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": null,
+                    "repRange": {
+                      "min": 10,
+                      "max": 12
+                    },
+                    "rir": 3
+                  }
+                ],
+                "estimatedMinutes": 16
+              }
+            ]
+          },
+          {
+            "date": "2026-10-08",
+            "sessions": []
+          },
+          {
+            "date": "2026-10-09",
+            "sessions": []
+          },
+          {
+            "date": "2026-10-10",
+            "sessions": [
+              {
+                "focus": "Easy walking",
+                "timing": "morning",
+                "intervals": [],
+                "activities": [
+                  {
+                    "id": "FQ-ACT-00148",
+                    "phase": "main",
+                    "sets": 1,
+                    "measure": "meters",
+                    "amount": 1287.4752,
+                    "effort": "easy",
+                    "restSeconds": 0,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": {
+                      "value": 0.8,
+                      "unit": "mi"
+                    },
+                    "repRange": null,
+                    "rir": null
+                  }
+                ],
+                "estimatedMinutes": 18
+              },
+              {
+                "focus": "Acceleration technique",
+                "timing": "evening",
+                "intervals": [],
+                "activities": [
+                  {
+                    "id": "FQ-ACT-00169",
+                    "phase": "warmup",
+                    "sets": 2,
+                    "measure": "meters",
+                    "amount": 18.288,
+                    "effort": "easy",
+                    "restSeconds": 30,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": {
+                      "value": 20,
+                      "unit": "yd"
+                    },
+                    "repRange": null,
+                    "rir": null
+                  },
+                  {
+                    "id": "FQ-ACT-00145",
+                    "phase": "main",
+                    "sets": 4,
+                    "measure": "meters",
+                    "amount": 18.288,
+                    "effort": "moderate",
+                    "restSeconds": 90,
+                    "load": "none",
+                    "loadKg": null,
+                    "side": "both",
+                    "distanceTarget": {
+                      "value": 20,
+                      "unit": "yd"
+                    },
+                    "repRange": null,
+                    "rir": null
+                  }
+                ],
+                "estimatedMinutes": 14
+              }
+            ]
+          },
+          {
+            "date": "2026-10-11",
+            "sessions": []
+          }
+        ],
+        "units": "imperial",
+        "goalDecisions": [
+          {
+            "sourceIndex": 0,
+            "goalIndex": 0,
+            "goal": "comfortable walking endurance",
+            "status": "addressed",
+            "reason": "Three easy, continuous outdoor walks provide regular time on feet and modestly varied distances consistent with the stated current walking experience.",
+            "evidence": [
+              {
+                "date": "2026-10-05",
+                "sessionIndex": 0,
+                "activityIndex": 0
+              },
+              {
+                "date": "2026-10-07",
+                "sessionIndex": 0,
+                "activityIndex": 0
+              },
+              {
+                "date": "2026-10-10",
+                "sessionIndex": 0,
+                "activityIndex": 0
+              }
+            ]
+          },
+          {
+            "sourceIndex": 0,
+            "goalIndex": 1,
+            "goal": "general strength",
+            "status": "addressed",
+            "reason": "Two manageable sessions cover squat, push, hip extension and calf patterns using bodyweight and the available wall support.",
+            "evidence": [
+              {
+                "date": "2026-10-05",
+                "sessionIndex": 1,
+                "activityIndex": 0
+              },
+              {
+                "date": "2026-10-07",
+                "sessionIndex": 1,
+                "activityIndex": 0
+              }
+            ]
+          },
+          {
+            "sourceIndex": 0,
+            "goalIndex": 2,
+            "goal": "acceleration technique",
+            "status": "introductory",
+            "reason": "Brief A-march preparation followed by controlled standing-start accelerations uses the reported prior instruction and secure lane without prescribing maximal sprinting.",
+            "evidence": [
+              {
+                "date": "2026-10-10",
+                "sessionIndex": 1,
+                "activityIndex": 1
+              }
+            ]
+          }
+        ],
+        "arrangementNote": null
+      },
+      "usage": {
+        "input": 31980,
+        "output": 2001,
+        "cached": 0,
+        "cacheWrite": 31977
+      },
+      "accountedMicro": 4998,
+      "reservedMicro": 42267
+    },
+    {
+      "stage": "review",
+      "input": {
+        "kind": "week",
+        "draftReview": true,
+        "qualityVersion": 2,
+        "preferredUnits": "imperial",
+        "dates": [
+          "2026-10-05",
+          "2026-10-06",
+          "2026-10-07",
+          "2026-10-08",
+          "2026-10-09",
+          "2026-10-10",
+          "2026-10-11"
+        ],
+        "profile": {
+          "age": 34,
+          "heightInches": 69,
+          "weightLb": 162
+        },
+        "summary": [
+          {
+            "category": "goals",
+            "text": "Walking endurance is the priority, alongside general strength and acceleration technique.",
+            "origin": "model_inference",
+            "goals": [
+              "comfortable walking endurance",
+              "general strength",
+              "acceleration technique"
+            ]
+          },
+          {
+            "category": "availability",
+            "text": "Can train Monday, Wednesday and Saturday; session timing is flexible. Prefers short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "experience",
+            "text": "Walks a mile three times weekly, does wall push-ups twice weekly, and has learned standing acceleration technique with an instructor and practiced controlled short accelerations.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "equipment",
+            "text": "Has a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down; no gym equipment or partner.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "limitations",
+            "text": "No relevant limitations to report. Prefers miles and pounds.",
+            "origin": "model_inference",
+            "goals": null
+          }
+        ],
+        "review": {
+          "feedback": "Keep Monday morning and Saturday exactly as they are. Keep Wednesday morning manageable by shortening the walk. In both strength sessions, replace hands-elevated push-ups with suitable work using only the clear floor; I do not have a raised support. Keep all other strength exercises unchanged. This is for this week only.",
+          "context": null,
+          "outline": {
+            "clarification": null,
+            "coverage": [],
+            "days": [
+              {
+                "date": "2026-10-05",
+                "sessions": [
+                  {
+                    "focus": "Comfortable walking",
+                    "activityIds": [
+                      "FQ-ACT-00148"
+                    ]
+                  },
+                  {
+                    "focus": "Full-body strength",
+                    "activityIds": [
+                      "FQ-ACT-00063",
+                      "FQ-ACT-00003",
+                      "FQ-ACT-00077",
+                      "FQ-ACT-00091"
+                    ]
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-06",
+                "sessions": []
+              },
+              {
+                "date": "2026-10-07",
+                "sessions": [
+                  {
+                    "focus": "Comfortable walking",
+                    "activityIds": [
+                      "FQ-ACT-00148"
+                    ]
+                  },
+                  {
+                    "focus": "Full-body strength",
+                    "activityIds": [
+                      "FQ-ACT-00063",
+                      "FQ-ACT-00003",
+                      "FQ-ACT-00077",
+                      "FQ-ACT-00091"
+                    ]
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-08",
+                "sessions": []
+              },
+              {
+                "date": "2026-10-09",
+                "sessions": []
+              },
+              {
+                "date": "2026-10-10",
+                "sessions": [
+                  {
+                    "focus": "Easy walking",
+                    "activityIds": [
+                      "FQ-ACT-00148"
+                    ]
+                  },
+                  {
+                    "focus": "Acceleration technique",
+                    "activityIds": [
+                      "FQ-ACT-00169",
+                      "FQ-ACT-00145"
+                    ]
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-11",
+                "sessions": []
+              }
+            ],
+            "arrangementNote": null,
+            "qualityVersion": 2,
+            "units": "imperial",
+            "goalDecisions": [
+              {
+                "sourceIndex": 0,
+                "goalIndex": 0,
+                "goal": "comfortable walking endurance",
+                "status": "addressed",
+                "reason": "Three easy, continuous outdoor walks provide regular time on feet and modestly varied distances consistent with the stated current walking experience.",
+                "evidence": [
+                  {
+                    "date": "2026-10-05",
+                    "sessionIndex": 0,
+                    "activityIndex": 0
+                  },
+                  {
+                    "date": "2026-10-07",
+                    "sessionIndex": 0,
+                    "activityIndex": 0
+                  },
+                  {
+                    "date": "2026-10-10",
+                    "sessionIndex": 0,
+                    "activityIndex": 0
+                  }
+                ]
+              },
+              {
+                "sourceIndex": 0,
+                "goalIndex": 1,
+                "goal": "general strength",
+                "status": "addressed",
+                "reason": "Two manageable sessions cover squat, push, hip extension and calf patterns using bodyweight and the available wall support.",
+                "evidence": [
+                  {
+                    "date": "2026-10-05",
+                    "sessionIndex": 1,
+                    "activityIndex": 0
+                  },
+                  {
+                    "date": "2026-10-07",
+                    "sessionIndex": 1,
+                    "activityIndex": 0
+                  }
+                ]
+              },
+              {
+                "sourceIndex": 0,
+                "goalIndex": 2,
+                "goal": "acceleration technique",
+                "status": "introductory",
+                "reason": "Brief A-march preparation followed by controlled standing-start accelerations uses the reported prior instruction and secure lane without prescribing maximal sprinting.",
+                "evidence": [
+                  {
+                    "date": "2026-10-10",
+                    "sessionIndex": 1,
+                    "activityIndex": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "days": [
+            {
+              "date": "2026-10-05",
+              "coverage": [],
+              "clarification": null,
+              "sessions": [
+                {
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1287.4752,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.8,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 18
+                },
+                {
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00063",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00003",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00077",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00091",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                }
+              ]
+            },
+            {
+              "date": "2026-10-06",
+              "coverage": [],
+              "clarification": null,
+              "sessions": []
+            },
+            {
+              "date": "2026-10-07",
+              "coverage": [],
+              "clarification": null,
+              "sessions": [
+                {
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1448.4096,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.9,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 20
+                },
+                {
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00063",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00003",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00077",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00091",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                }
+              ]
+            },
+            {
+              "date": "2026-10-08",
+              "coverage": [],
+              "clarification": null,
+              "sessions": []
+            },
+            {
+              "date": "2026-10-09",
+              "coverage": [],
+              "clarification": null,
+              "sessions": []
+            },
+            {
+              "date": "2026-10-10",
+              "coverage": [],
+              "clarification": null,
+              "sessions": [
+                {
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1287.4752,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.8,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 18
+                },
+                {
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00169",
+                      "phase": "warmup",
+                      "sets": 2,
+                      "measure": "meters",
+                      "amount": 18.288,
+                      "effort": "easy",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 20,
+                        "unit": "yd"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    },
+                    {
+                      "id": "FQ-ACT-00145",
+                      "phase": "main",
+                      "sets": 4,
+                      "measure": "meters",
+                      "amount": 18.288,
+                      "effort": "moderate",
+                      "restSeconds": 90,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 20,
+                        "unit": "yd"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 14
+                }
+              ]
+            },
+            {
+              "date": "2026-10-11",
+              "coverage": [],
+              "clarification": null,
+              "sessions": []
+            }
+          ]
+        }
+      },
+      "raw": {
+        "scope": [
+          {
+            "date": "2026-10-05",
+            "changeDay": false,
+            "changeSessions": [],
+            "evidence": null
+          },
+          {
+            "date": "2026-10-06",
+            "changeDay": false,
+            "changeSessions": [],
+            "evidence": null
+          },
+          {
+            "date": "2026-10-07",
+            "changeDay": true,
+            "changeSessions": [
+              0,
+              1
+            ],
+            "evidence": "Keep Wednesday morning manageable by shortening the walk. In both strength sessions, replace hands-elevated push-ups with suitable work using only the clear floor; I do not have a raised support."
+          },
+          {
+            "date": "2026-10-08",
+            "changeDay": false,
+            "changeSessions": [],
+            "evidence": null
+          },
+          {
+            "date": "2026-10-09",
+            "changeDay": false,
+            "changeSessions": [],
+            "evidence": null
+          },
+          {
+            "date": "2026-10-10",
+            "changeDay": false,
+            "changeSessions": [],
+            "evidence": null
+          },
+          {
+            "date": "2026-10-11",
+            "changeDay": false,
+            "changeSessions": [],
+            "evidence": null
+          }
+        ],
+        "week": {
+          "clarification": null,
+          "coverage": [],
+          "days": [
+            {
+              "date": "2026-10-05",
+              "sessions": [
+                {
+                  "focus": "Comfortable walking",
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1287.4752,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.8,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 18
+                },
+                {
+                  "focus": "Full-body strength",
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00063",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00002",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00077",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00091",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                }
+              ]
+            },
+            {
+              "date": "2026-10-06",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-07",
+              "sessions": [
+                {
+                  "focus": "Comfortable walking",
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1126.5408,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.7,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                },
+                {
+                  "focus": "Full-body strength",
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00063",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00002",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00077",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00091",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                }
+              ]
+            },
+            {
+              "date": "2026-10-08",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-09",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-10",
+              "sessions": [
+                {
+                  "focus": "Easy walking",
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1287.4752,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.8,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 18
+                },
+                {
+                  "focus": "Acceleration technique",
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00169",
+                      "phase": "warmup",
+                      "sets": 2,
+                      "measure": "meters",
+                      "amount": 18.288,
+                      "effort": "easy",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 20,
+                        "unit": "yd"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    },
+                    {
+                      "id": "FQ-ACT-00145",
+                      "phase": "main",
+                      "sets": 4,
+                      "measure": "meters",
+                      "amount": 18.288,
+                      "effort": "moderate",
+                      "restSeconds": 90,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 20,
+                        "unit": "yd"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 14
+                }
+              ]
+            },
+            {
+              "date": "2026-10-11",
+              "sessions": []
+            }
+          ],
+          "units": "imperial",
+          "goalDecisions": [
+            {
+              "sourceIndex": 0,
+              "goalIndex": 0,
+              "goal": "comfortable walking endurance",
+              "status": "addressed",
+              "reason": "The scheduled easy walks provide regular, continuous time on feet; Wednesday is shortened as requested.",
+              "evidence": [
+                {
+                  "date": "2026-10-05",
+                  "sessionIndex": 0,
+                  "activityIndex": 0
+                },
+                {
+                  "date": "2026-10-07",
+                  "sessionIndex": 0,
+                  "activityIndex": 0
+                },
+                {
+                  "date": "2026-10-10",
+                  "sessionIndex": 0,
+                  "activityIndex": 0
+                }
+              ]
+            },
+            {
+              "sourceIndex": 0,
+              "goalIndex": 1,
+              "goal": "general strength",
+              "status": "addressed",
+              "reason": "Two strength sessions retain squat, hip-extension and calf work, and use a floor-based kneeling push-up instead of requiring a raised support.",
+              "evidence": [
+                {
+                  "date": "2026-10-05",
+                  "sessionIndex": 1,
+                  "activityIndex": 1
+                },
+                {
+                  "date": "2026-10-07",
+                  "sessionIndex": 1,
+                  "activityIndex": 1
+                }
+              ]
+            },
+            {
+              "sourceIndex": 0,
+              "goalIndex": 2,
+              "goal": "acceleration technique",
+              "status": "introductory",
+              "reason": "A-march preparation and controlled standing-start accelerations support technique practice on the reported secure lane without prescribing maximal sprinting.",
+              "evidence": [
+                {
+                  "date": "2026-10-10",
+                  "sessionIndex": 1,
+                  "activityIndex": 1
+                }
+              ]
+            }
+          ],
+          "arrangementNote": null
+        },
+        "changedDates": [
+          "2026-10-05",
+          "2026-10-07"
+        ],
+        "reply": "Shortened Wednesday morning’s walk to 0.7 mi and replaced the hands-elevated push-ups in both strength sessions with kneeling floor push-ups. Monday morning and Saturday are unchanged.",
+        "lastingPreference": null
+      },
+      "usage": {
+        "input": 34649,
+        "output": 1981,
+        "cached": 0,
+        "cacheWrite": 34646
+      },
+      "accountedMicro": 5322,
+      "reservedMicro": 43766,
+      "failure": "invalid_model_output"
+    },
+    {
+      "stage": "review-repair",
+      "input": {
+        "kind": "week",
+        "draftReview": true,
+        "qualityVersion": 2,
+        "preferredUnits": "imperial",
+        "dates": [
+          "2026-10-05",
+          "2026-10-06",
+          "2026-10-07",
+          "2026-10-08",
+          "2026-10-09",
+          "2026-10-10",
+          "2026-10-11"
+        ],
+        "profile": {
+          "age": 34,
+          "heightInches": 69,
+          "weightLb": 162
+        },
+        "summary": [
+          {
+            "category": "goals",
+            "text": "Walking endurance is the priority, alongside general strength and acceleration technique.",
+            "origin": "model_inference",
+            "goals": [
+              "comfortable walking endurance",
+              "general strength",
+              "acceleration technique"
+            ]
+          },
+          {
+            "category": "availability",
+            "text": "Can train Monday, Wednesday and Saturday; session timing is flexible. Prefers short sessions spread between morning and evening, not one combined workout. Maximum 25 minutes per session and 40 minutes total per day.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "experience",
+            "text": "Walks a mile three times weekly, does wall push-ups twice weekly, and has learned standing acceleration technique with an instructor and practiced controlled short accelerations.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "equipment",
+            "text": "Has a safe level walking route, clear floor, firm wall, flat markers, suitable shoes, and a secure flat acceleration lane with ample space to slow down; no gym equipment or partner.",
+            "origin": "model_inference",
+            "goals": null
+          },
+          {
+            "category": "limitations",
+            "text": "No relevant limitations to report. Prefers miles and pounds.",
+            "origin": "model_inference",
+            "goals": null
+          }
+        ],
+        "review": {
+          "feedback": "Keep Monday morning and Saturday exactly as they are. Keep Wednesday morning manageable by shortening the walk. In both strength sessions, replace hands-elevated push-ups with suitable work using only the clear floor; I do not have a raised support. Keep all other strength exercises unchanged. This is for this week only.",
+          "context": null,
+          "outline": {
+            "clarification": null,
+            "coverage": [],
+            "days": [
+              {
+                "date": "2026-10-05",
+                "sessions": [
+                  {
+                    "focus": "Comfortable walking",
+                    "activityIds": [
+                      "FQ-ACT-00148"
+                    ]
+                  },
+                  {
+                    "focus": "Full-body strength",
+                    "activityIds": [
+                      "FQ-ACT-00063",
+                      "FQ-ACT-00003",
+                      "FQ-ACT-00077",
+                      "FQ-ACT-00091"
+                    ]
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-06",
+                "sessions": []
+              },
+              {
+                "date": "2026-10-07",
+                "sessions": [
+                  {
+                    "focus": "Comfortable walking",
+                    "activityIds": [
+                      "FQ-ACT-00148"
+                    ]
+                  },
+                  {
+                    "focus": "Full-body strength",
+                    "activityIds": [
+                      "FQ-ACT-00063",
+                      "FQ-ACT-00003",
+                      "FQ-ACT-00077",
+                      "FQ-ACT-00091"
+                    ]
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-08",
+                "sessions": []
+              },
+              {
+                "date": "2026-10-09",
+                "sessions": []
+              },
+              {
+                "date": "2026-10-10",
+                "sessions": [
+                  {
+                    "focus": "Easy walking",
+                    "activityIds": [
+                      "FQ-ACT-00148"
+                    ]
+                  },
+                  {
+                    "focus": "Acceleration technique",
+                    "activityIds": [
+                      "FQ-ACT-00169",
+                      "FQ-ACT-00145"
+                    ]
+                  }
+                ]
+              },
+              {
+                "date": "2026-10-11",
+                "sessions": []
+              }
+            ],
+            "arrangementNote": null,
+            "qualityVersion": 2,
+            "units": "imperial",
+            "goalDecisions": [
+              {
+                "sourceIndex": 0,
+                "goalIndex": 0,
+                "goal": "comfortable walking endurance",
+                "status": "addressed",
+                "reason": "Three easy, continuous outdoor walks provide regular time on feet and modestly varied distances consistent with the stated current walking experience.",
+                "evidence": [
+                  {
+                    "date": "2026-10-05",
+                    "sessionIndex": 0,
+                    "activityIndex": 0
+                  },
+                  {
+                    "date": "2026-10-07",
+                    "sessionIndex": 0,
+                    "activityIndex": 0
+                  },
+                  {
+                    "date": "2026-10-10",
+                    "sessionIndex": 0,
+                    "activityIndex": 0
+                  }
+                ]
+              },
+              {
+                "sourceIndex": 0,
+                "goalIndex": 1,
+                "goal": "general strength",
+                "status": "addressed",
+                "reason": "Two manageable sessions cover squat, push, hip extension and calf patterns using bodyweight and the available wall support.",
+                "evidence": [
+                  {
+                    "date": "2026-10-05",
+                    "sessionIndex": 1,
+                    "activityIndex": 0
+                  },
+                  {
+                    "date": "2026-10-07",
+                    "sessionIndex": 1,
+                    "activityIndex": 0
+                  }
+                ]
+              },
+              {
+                "sourceIndex": 0,
+                "goalIndex": 2,
+                "goal": "acceleration technique",
+                "status": "introductory",
+                "reason": "Brief A-march preparation followed by controlled standing-start accelerations uses the reported prior instruction and secure lane without prescribing maximal sprinting.",
+                "evidence": [
+                  {
+                    "date": "2026-10-10",
+                    "sessionIndex": 1,
+                    "activityIndex": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "days": [
+            {
+              "date": "2026-10-05",
+              "coverage": [],
+              "clarification": null,
+              "sessions": [
+                {
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1287.4752,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.8,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 18
+                },
+                {
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00063",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00003",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00077",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00091",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                }
+              ]
+            },
+            {
+              "date": "2026-10-06",
+              "coverage": [],
+              "clarification": null,
+              "sessions": []
+            },
+            {
+              "date": "2026-10-07",
+              "coverage": [],
+              "clarification": null,
+              "sessions": [
+                {
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1448.4096,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.9,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 20
+                },
+                {
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00063",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00003",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00077",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00091",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                }
+              ]
+            },
+            {
+              "date": "2026-10-08",
+              "coverage": [],
+              "clarification": null,
+              "sessions": []
+            },
+            {
+              "date": "2026-10-09",
+              "coverage": [],
+              "clarification": null,
+              "sessions": []
+            },
+            {
+              "date": "2026-10-10",
+              "coverage": [],
+              "clarification": null,
+              "sessions": [
+                {
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1287.4752,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.8,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 18
+                },
+                {
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00169",
+                      "phase": "warmup",
+                      "sets": 2,
+                      "measure": "meters",
+                      "amount": 18.288,
+                      "effort": "easy",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 20,
+                        "unit": "yd"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    },
+                    {
+                      "id": "FQ-ACT-00145",
+                      "phase": "main",
+                      "sets": 4,
+                      "measure": "meters",
+                      "amount": 18.288,
+                      "effort": "moderate",
+                      "restSeconds": 90,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 20,
+                        "unit": "yd"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 14
+                }
+              ]
+            },
+            {
+              "date": "2026-10-11",
+              "coverage": [],
+              "clarification": null,
+              "sessions": []
+            }
+          ]
+        }
+      },
+      "raw": {
+        "scope": [
+          {
+            "date": "2026-10-05",
+            "changeSessions": [
+              1
+            ],
+            "evidence": "In both strength sessions, replace hands-elevated push-ups with suitable work using only the clear floor"
+          },
+          {
+            "date": "2026-10-07",
+            "changeSessions": [
+              0,
+              1
+            ],
+            "evidence": "Keep Wednesday morning manageable by shortening the walk. In both strength sessions, replace hands-elevated push-ups with suitable work using only the clear floor"
+          }
+        ],
+        "week": {
+          "clarification": null,
+          "coverage": [],
+          "days": [
+            {
+              "date": "2026-10-05",
+              "sessions": [
+                {
+                  "focus": "Comfortable walking",
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1287.4752,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.8,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 18
+                },
+                {
+                  "focus": "Full-body strength",
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00063",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00002",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00077",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00091",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                }
+              ]
+            },
+            {
+              "date": "2026-10-06",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-07",
+              "sessions": [
+                {
+                  "focus": "Comfortable walking",
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1126.5408,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.7,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                },
+                {
+                  "focus": "Full-body strength",
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00063",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00002",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 8,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 8,
+                        "max": 10
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00077",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 45,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    },
+                    {
+                      "id": "FQ-ACT-00091",
+                      "phase": "main",
+                      "sets": 2,
+                      "measure": "repetitions",
+                      "amount": 10,
+                      "effort": "moderate",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": null,
+                      "repRange": {
+                        "min": 10,
+                        "max": 12
+                      },
+                      "rir": 3
+                    }
+                  ],
+                  "estimatedMinutes": 16
+                }
+              ]
+            },
+            {
+              "date": "2026-10-08",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-09",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-10",
+              "sessions": [
+                {
+                  "focus": "Easy walking",
+                  "timing": "morning",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00148",
+                      "phase": "main",
+                      "sets": 1,
+                      "measure": "meters",
+                      "amount": 1287.4752,
+                      "effort": "easy",
+                      "restSeconds": 0,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 0.8,
+                        "unit": "mi"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 18
+                },
+                {
+                  "focus": "Acceleration technique",
+                  "timing": "evening",
+                  "intervals": [],
+                  "activities": [
+                    {
+                      "id": "FQ-ACT-00169",
+                      "phase": "warmup",
+                      "sets": 2,
+                      "measure": "meters",
+                      "amount": 18.288,
+                      "effort": "easy",
+                      "restSeconds": 30,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 20,
+                        "unit": "yd"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    },
+                    {
+                      "id": "FQ-ACT-00145",
+                      "phase": "main",
+                      "sets": 4,
+                      "measure": "meters",
+                      "amount": 18.288,
+                      "effort": "moderate",
+                      "restSeconds": 90,
+                      "load": "none",
+                      "loadKg": null,
+                      "side": "both",
+                      "distanceTarget": {
+                        "value": 20,
+                        "unit": "yd"
+                      },
+                      "repRange": null,
+                      "rir": null
+                    }
+                  ],
+                  "estimatedMinutes": 14
+                }
+              ]
+            },
+            {
+              "date": "2026-10-11",
+              "sessions": []
+            }
+          ],
+          "units": "imperial",
+          "goalDecisions": [
+            {
+              "sourceIndex": 0,
+              "goalIndex": 0,
+              "goal": "comfortable walking endurance",
+              "status": "addressed",
+              "reason": "The three easy continuous walks provide regular walking volume; Wednesday's distance is shortened as requested.",
+              "evidence": [
+                {
+                  "date": "2026-10-05",
+                  "sessionIndex": 0,
+                  "activityIndex": 0
+                },
+                {
+                  "date": "2026-10-07",
+                  "sessionIndex": 0,
+                  "activityIndex": 0
+                },
+                {
+                  "date": "2026-10-10",
+                  "sessionIndex": 0,
+                  "activityIndex": 0
+                }
+              ]
+            },
+            {
+              "sourceIndex": 0,
+              "goalIndex": 1,
+              "goal": "general strength",
+              "status": "addressed",
+              "reason": "The two sessions retain squat, hip-extension and calf work and use a floor-based kneeling push-up variation for pressing.",
+              "evidence": [
+                {
+                  "date": "2026-10-05",
+                  "sessionIndex": 1,
+                  "activityIndex": 1
+                },
+                {
+                  "date": "2026-10-07",
+                  "sessionIndex": 1,
+                  "activityIndex": 1
+                }
+              ]
+            },
+            {
+              "sourceIndex": 0,
+              "goalIndex": 2,
+              "goal": "acceleration technique",
+              "status": "introductory",
+              "reason": "A-march preparation and controlled standing-start accelerations preserve technique practice in the secure lane.",
+              "evidence": [
+                {
+                  "date": "2026-10-10",
+                  "sessionIndex": 1,
+                  "activityIndex": 1
+                }
+              ]
+            }
+          ],
+          "arrangementNote": null
+        },
+        "changedDates": [
+          "2026-10-05",
+          "2026-10-07"
+        ],
+        "reply": "Shortened Wednesday morning’s walk and replaced the hands-elevated push-ups in both strength sessions with floor-based kneeling push-ups. Monday morning and Saturday remain unchanged.",
+        "lastingPreference": null
+      },
+      "usage": {
+        "input": 34656,
+        "output": 1813,
+        "cached": 0,
+        "cacheWrite": 34653
+      },
+      "accountedMicro": 5239,
+      "reservedMicro": 43773
+    }
+  ]
+}

@@ -33,16 +33,16 @@ export function onboardingService(store:OnboardingStore,provider?:OnboardingProv
       const work=claimed.work;
       const controller=new AbortController();
       let timeout:ReturnType<typeof setTimeout>;
-      const timedOut=new Promise<ProviderResult>(resolve=>{timeout=setTimeout(()=>{controller.abort();resolve({failure:'provider_error'})},30000)});
+      const timedOut=new Promise<ProviderResult>(resolve=>{timeout=setTimeout(()=>{controller.abort();resolve({failure:'provider_error',diagnostic:{transport:'aborted'}})},30000)});
       // Settlement is attached to the provider result itself, even when a deadline wins the race.
       const request=Promise.resolve().then(()=>provider.call(work.body,controller.signal)).catch(():ProviderResult=>({failure:'provider_error'})).then(async result=>{
-        await store.settle(account,work.attempt,result.usage?provider.cost(result.usage):null);
+        await store.settle(account,work.attempt,result.usage?provider.cost(result.usage):null,result.diagnostic);
         return result;
       });
       let result:ProviderResult;
       try { result=await Promise.race([request,timedOut]); }
       finally {clearTimeout(timeout!)}
-      if(controller.signal.aborted) await store.settle(account,work.attempt,null);
+      if(controller.signal.aborted) await store.settle(account,work.attempt,null,{transport:'aborted'});
       if(!await authorize()) throw new OnboardingError(401,'session_ended');
       let context; let reply; let questionTopic; let failure=result.failure;
       if(!failure) {

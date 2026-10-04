@@ -7,6 +7,8 @@ export function validSessionMeaning(s:Session):boolean {
   if(s.timing!==undefined&&s.timing!==null&&!['morning','midday','evening','flexible'].includes(s.timing))return false;
   if(s.intervals!==undefined&&(!Array.isArray(s.intervals)||s.intervals.length>7))return false;
   for(const a of s.activities){
+    if(a.repRange!=null&&(a.measure!=='repetitions'||!Number.isInteger(a.repRange.min)||!Number.isInteger(a.repRange.max)||a.repRange.min<1||a.repRange.max>100||a.repRange.min>=a.repRange.max||a.amount!==a.repRange.min))return false;
+    if(a.rir!=null&&(a.measure!=='repetitions'||a.phase==='cooldown'||!Number.isInteger(a.rir)||a.rir<0||a.rir>5))return false;
     if(a.distanceTarget!=null){const t=a.distanceTarget;if(!Number.isFinite(t.value)||t.value<=0||!Object.hasOwn(factors,t.unit)||a.measure!=='meters'||Math.abs(a.amount-t.value*factors[t.unit])>1e-6)return false}
   }
   const used=new Set<number>();
@@ -20,6 +22,7 @@ export function validSessionMeaning(s:Session):boolean {
 }
 export function quantity(a:Prescription){
   let amount:string;
+  if(a.repRange)return `${a.repRange.min}–${a.repRange.max}${a.side==='each'?' per side':''}`;
   if(a.measure==='meters'){
     const t=a.distanceTarget;
     // A legacy meter quantity has no selected display target. Preserve it exactly.
@@ -36,7 +39,7 @@ export function sessionRows(s:Session,names:TrainingDay['detail']['activities'])
       const recovery=s.activities[pair.recoveryIndex]!;
       rows.push({phase:a.phase,text:`${a.sets} rounds: ${names[a.id]!.name} — ${quantity(a)} (${a.effort}) → ${names[recovery.id]!.name} — ${quantity(recovery)} easy recovery (${recovery.sets} recoveries${pair.recoveries==='between'?'; none after last round':'; after every round'})`});
       i=pair.recoveryIndex;
-    }else rows.push({phase:a.phase,text:`${names[a.id]!.name} — ${a.sets>1||a.measure==='repetitions'?`${a.sets} × `:''}${quantity(a)}${['easy','moderate','challenging'].includes(a.effort)?` (${a.effort})`:''}${a.sets>1&&a.restSeconds>0?`; ${a.restSeconds} sec rest between sets`:''}`});
+    }else rows.push({phase:a.phase,text:`${names[a.id]!.name} — ${a.sets>1||a.measure==='repetitions'?`${a.sets} × `:''}${quantity(a)}${a.rir!=null?` · ${a.rir} RIR`:['easy','moderate','challenging'].includes(a.effort)?` (${a.effort})`:''}${a.sets>1&&a.restSeconds>0?`; ${a.restSeconds} sec rest between sets`:''}`});
   }
   return rows;
 }

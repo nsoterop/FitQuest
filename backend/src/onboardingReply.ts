@@ -18,6 +18,7 @@ const closingInvitations = [
   'Please review this recap and let me know if you agree or want to correct anything.',
   'Please review this updated recap and let me know if it captures what matters or if you’d like to correct anything.',
   'Please correct anything that doesn’t fit, or let me know if this recap looks right.',
+  'Please correct anything I’ve misunderstood or agree if this is right.',
 ];
 function recapFacts(text: string) {
   let result = text.trim();

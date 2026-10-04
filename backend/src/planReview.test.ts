@@ -1,21 +1,20 @@
 import type { PlanningInput } from './planningDomain.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkReview,prepareReview,protectedDates } from './planReview.js';
-import { reviewScope } from './planReviewScope.js';
-import { reviewInput,reviewWeek,revisedWeek,reviewFeedback } from './planReviewFixture.js';
+import { checkReview,prepareReview } from './planReview.js';
+import { fixtureScope,reviewInput,reviewWeek,revisedWeek,reviewFeedback } from './planReviewFixture.js';
 import { checkWeek } from './weeklyPlanning.js';
+import { reviewProtections } from './reviewProtection.js';
 import { checkDurations,explicitTimeLimits,minimumMinutes } from './planningDuration.js';
 import { openAIProvider,serializeInput } from './onboardingProvider.js';
 const base=checkWeek(reviewWeek(),reviewInput);
 const input:PlanningInput&{review:NonNullable<PlanningInput['review']>}={...reviewInput,review:{feedback:reviewFeedback,context:null,outline:base.outline,days:base.details}};
-const output=()=>({week:revisedWeek(),changedDates:[input.dates[1]!],reply:'Monday is unchanged. Tuesday now has two shorter sessions, with introductory speed work replacing some walking.',lastingPreference:null});
+const output=()=>({scope:fixtureScope(input) as ReturnType<typeof fixtureScope>|null,week:revisedWeek(),changedDates:[input.dates[1]!],reply:'Monday is unchanged. Tuesday now has two shorter sessions, with introductory speed work replacing some walking.',lastingPreference:null});
 test('review uses the same seven dates, changes actual Tuesday work, keeps Monday and all unaffected work, and accounts for every goal',()=>{
   const checked=checkReview(output(),input);assert.ok(checked.week);
   assert.deepEqual(checked.week.details[0],base.details[0]);assert.deepEqual(checked.week.details.slice(2),base.details.slice(2));
   assert.equal(checked.week.details[1]!.sessions.length,2);assert.equal(checked.week.details[1]!.sessions[1]!.activities[0]!.id,'FQ-ACT-00145');
   assert.equal(checked.week.outline.goalDecisions!.length,3);assert.deepEqual(checked.week.details.map(d=>d.date),input.dates);
-  assert.deepEqual(protectedDates(reviewFeedback,input.dates),[input.dates[0]]);
 });
 test('review rejects rewritten kept work, unlisted changed dates, missing goals and dates moved to another week',()=>{
   const kept=output();kept.week.days[0]!.sessions[0]!.activities[0]!.amount=500;kept.changedDates.unshift(input.dates[0]!);
@@ -26,59 +25,31 @@ test('review rejects rewritten kept work, unlisted changed dates, missing goals 
   const labels=output();labels.week=reviewWeek();labels.week.days[1]!.sessions[0]!.focus='Two shorter sessions';assert.throws(()=>checkReview(labels,input),{code:'invalid_plan'});
   const unrelated=output();unrelated.week.days[2]!.sessions=structuredClone(unrelated.week.days[0]!.sessions);unrelated.changedDates.push(input.dates[2]!);assert.throws(()=>checkReview(unrelated,input),{code:'saved_day_changed'});
 });
-test('independent keep/change instructions have the same scope with commas, semicolons and conjunctions',()=>{
-  const expected=reviewScope(input.review,input.dates);
-  for(const separator of [';',',',', and',' and']){
-    const feedback=reviewFeedback.replace(';',separator),review={...input.review,feedback};
-    assert.deepEqual(reviewScope(review,input.dates),expected,feedback);
-    assert.ok(checkReview(output(),{...input,review}).week,feedback);
-    const forbidden=output();forbidden.week.days[0]!.sessions[0]!.activities[0]!.amount=300;forbidden.changedDates.unshift(input.dates[0]!);
-    assert.throws(()=>checkReview(forbidden,{...input,review}),{code:'saved_day_changed'},feedback);
+test('serialized revision schema omits unsupported keywords but local uniqueness and date checks remain strict',()=>{
+  const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5});
+  const wire=JSON.parse(prepareReview(provider,input).body);
+  assert.doesNotMatch(JSON.stringify(wire.text.format.schema),/uniqueItems/);
+  assert.ok(wire.text.format.schema.required.includes('scope'));
+  for(const mutate of [(raw:ReturnType<typeof output>)=>raw.changedDates.push(raw.changedDates[0]!),(raw:ReturnType<typeof output>)=>raw.scope![0]!.changeSessions.push(0),(raw:ReturnType<typeof output>)=>{raw.scope!.push(structuredClone(raw.scope![0]!))},(raw:ReturnType<typeof output>)=>raw.changedDates.push('2026-12-01')]){
+    const raw=output();mutate(raw);assert.throws(()=>checkReview(raw,input),{code:'invalid_plan'});
   }
 });
-test('commas and conjunctions inside day lists preserve all keep and change targets',()=>{
-  const feedback='Keep Monday, Wednesday and Friday exactly as they are, split Tuesday, Thursday and Saturday into shorter sessions.';
-  const review={...input.review,feedback},scope=reviewScope(review,input.dates);
-  assert.deepEqual(scope.protectedDays,[input.dates[0],input.dates[2],input.dates[4]]);
-  assert.deepEqual(scope.changes?.map(s=>s.date),[input.dates[1],input.dates[3],input.dates[5]]);
-  assert.ok(checkReview(output(),{...input,review}).week);
-  const forbidden=output();forbidden.week.days[2]!.sessions=structuredClone(forbidden.week.days[0]!.sessions);forbidden.changedDates.push(input.dates[2]!);
-  assert.throws(()=>checkReview(forbidden,{...input,review}),{code:'saved_day_changed'});
-});
-test('a kept named day does not restrict a request to change the rest of the week',()=>{
-  for(const feedback of ['Keep Monday exactly as it is; split the rest of the week into shorter sessions and give speed work a place.','Keep Monday exactly as it is; the rest of the week would suit me better with smaller sessions and some speed work.']){
-    const checked=checkReview(output(),{...input,review:{...input.review,feedback}});
-    assert.deepEqual(checked.week!.details[0],base.details[0]);assert.equal(checked.week!.details[1]!.sessions.length,2);
+test('source-grounded interpretations handle punctuation and clear keep-as-change language without lexical overrides',()=>{
+  for(const feedback of ['Keep Monday exactly as it is, split Tuesday into shorter sessions.','Keep Monday exactly as it is; split Tuesday into shorter sessions.','Keep Monday exactly as it is and split Tuesday into shorter sessions.','Keep Tuesday manageable by splitting its work; Monday stays unchanged.',"Do not leave Tuesday unchanged: split it. Keep Monday unchanged."]){
+    const request={...input,review:{...input.review,feedback}},raw=output();raw.scope=fixtureScope(request);
+    assert.ok(checkReview(raw,request).week);
+    raw.week.days[0]!.sessions[0]!.activities[0]!.amount=300;raw.changedDates.unshift(input.dates[0]!);
+    assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'});
   }
+  const raw=output();raw.scope![0]!.evidence='Invented permission';assert.throws(()=>checkReview(raw,input),{code:'invalid_feedback'});
 });
-test('clarification mentions cannot revoke a keep, but explicit later consent can change that work',()=>{
-  const context={feedback:reviewFeedback,question:'Which sessions should be split?'};
-  const followup={...input,review:{...input.review,context,feedback:'Tuesday only; Monday is still good.'}};
-  assert.ok(checkReview(output(),followup).week);
-  const unauthorized=output();unauthorized.week.days[0]!.sessions[0]!.activities[0]!.amount=300;unauthorized.changedDates.unshift(input.dates[0]!);
-  assert.throws(()=>checkReview(unauthorized,followup),{code:'saved_day_changed'});
-  const consent={...followup,review:{...followup.review,feedback:'Actually shorten Monday too; split Tuesday as requested.'}};
-  const changed=checkReview(unauthorized,consent);
-  assert.equal(changed.week!.details[0]!.sessions[0]!.activities[0]!.amount,300);
-  const continued={...consent,review:{...consent.review,context:{feedback:reviewFeedback+'\n'+consent.review.feedback,question:'Would the shorter walk fit?'},feedback:'Yes, that shorter walk fits.'}};
-  assert.ok(checkReview(unauthorized,continued).week);
-  const noConsent={...followup,review:{...followup.review,feedback:"Don't shorten Monday; split Tuesday only."}};
-  assert.throws(()=>checkReview(unauthorized,noConsent),{code:'saved_day_changed'});
-});
-test('session-level keeps permit changes to another session on the same day and preserve kept prescriptions/focus',()=>{
+test('session scope keeps unchanged work exactly and clarification context supports only its bounded interpretation',()=>{
   const savedWeek=revisedWeek(),saved=checkWeek(savedWeek,input);
-  const sessionInput={...input,review:{feedback:'Keep Tuesday morning exactly as it is and shorten Tuesday evening.',context:null,outline:saved.outline,days:saved.details}};
-  const response={...output(),week:structuredClone(savedWeek)};
-  response.week.days[1]!.sessions[1]!.activities[0]!.sets=2;
-  for(const separator of [' and ', ', ', ', and ', '; ']){
-    const feedback=sessionInput.review.feedback.replace(' and ',separator);
-    assert.ok(checkReview(response,{...sessionInput,review:{...sessionInput.review,feedback}}).week);
-  }
-  const forbidden=structuredClone(response);forbidden.week.days[1]!.sessions[0]!.activities[0]!.amount=200;
-  assert.throws(()=>checkReview(forbidden,sessionInput),{code:'saved_day_changed'});
-  const previousWholeDay={...sessionInput,review:{...sessionInput.review,context:{feedback:'Keep Tuesday exactly as it is.',question:'Which session may change?'},feedback:'Shorten Tuesday evening only.'}};
-  assert.ok(checkReview(response,previousWholeDay).week);
-  assert.throws(()=>checkReview(forbidden,previousWholeDay),{code:'saved_day_changed'});
+  const request={...input,review:{feedback:'Shorten Tuesday evening only.',context:{feedback:'Keep Monday and Tuesday morning exactly as they are.',question:'Which work may change?'},outline:saved.outline,days:saved.details}};
+  const raw={...output(),scope:fixtureScope(request),week:structuredClone(savedWeek)};
+  raw.scope[0]!.changeSessions=[1];raw.week.days[1]!.sessions[1]!.activities[0]!.sets=2;
+  assert.ok(checkReview(raw,request).week);
+  raw.week.days[1]!.sessions[0]!.activities[0]!.amount=200;assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'});
 });
 test('maximum review retains the full catalog and 315 saved prescriptions inside the existing request limit',()=>{
   const maximum=structuredClone(input),day=maximum.review.days[1]!,session=day.sessions[0]!;
@@ -91,7 +62,7 @@ test('maximum review retains the full catalog and 315 saved prescriptions inside
 });
 test('ambiguous/conflicting feedback produces one question with no replacement prescriptions',()=>{
   for(const feedback of ['Make it more suitable.','Keep Monday exactly as it is, but halve all its work.']){
-    const raw=output();raw.changedDates=[];raw.week.goalDecisions=[];raw.week.days.forEach(d=>d.sessions=[]);raw.week.clarification={question:'Should Monday stay unchanged, or may its workload change?',reason:'Those instructions require different prescriptions.'};
+    const raw=output();raw.scope=null;raw.changedDates=[];raw.week.goalDecisions=[];raw.week.days.forEach(d=>d.sessions=[]);raw.week.clarification={question:'Should Monday stay unchanged, or may its workload change?',reason:'Those instructions require different prescriptions.'};
     const result=checkReview(raw,{...input,review:{...input.review,feedback}});assert.equal(result.week,null);assert.equal(result.question,raw.week.clarification.question);
   }
 });
@@ -148,4 +119,120 @@ test('one-off feedback is separate from explicitly grounded future preferences a
   const prepared=prepareReview(provider,input),body=JSON.parse(prepared.body),payload=JSON.parse(body.input);
   assert.deepEqual(payload.dates,input.dates);assert.equal(body.text.format.name,'training_week');assert.match(body.instructions,/previous usable plan will remain intact/);assert.match(body.instructions,/yes, but/);assert.equal(payload.review.days.length,7);
   assert.ok(Buffer.byteLength(prepared.body)<=450000);assert.ok(prepared.reserveMicro>0);
+});
+
+test('model scope cannot convert an explicit whole-day keep into edit permission',()=>{
+ for(const separator of [';',',',', and',' and']){
+  const request={...input,review:{...input.review,feedback:reviewFeedback.replace(';',separator)}},raw=output();raw.scope=fixtureScope(request);
+  raw.week.days[0]!.sessions[0]!.activities[0]!.amount=300;raw.changedDates.unshift(input.dates[0]!);
+  raw.scope!.unshift({date:input.dates[0]!,changeSessions:[0],evidence:'Keep Monday exactly as it is'});
+  assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'});
+ }
+});
+test('actual replace-X keep-the-rest feedback rejects altered, removed, reordered or duplicated unrelated exercises inside an editable session',async()=>{
+ const {coachingRecords}=await import('./coachingLiveFixture.js');const record=coachingRecords.find(r=>r.stage==='review-repair')!;
+ assert.ok(checkReview(structuredClone(record.raw),record.input).week);
+ for(const mutate of [(s:any)=>s.activities[0].sets=1,(s:any)=>s.activities.splice(0,1),(s:any)=>[s.activities[0],s.activities[2]]=[s.activities[2],s.activities[0]],(s:any)=>s.activities.push(structuredClone(s.activities[0]))]){
+  const raw=structuredClone(record.raw);mutate(raw.week.days[0].sessions[1]);assert.throws(()=>checkReview(raw,record.input),{code:'saved_day_changed'});
+ }
+ // Even a fabricated broader scope with a real keep quote cannot release the rows.
+ const raw=structuredClone(record.raw);raw.scope[0].evidence='Keep all other strength exercises unchanged';raw.week.days[0].sessions[1].activities[0].sets=1;
+ assert.throws(()=>checkReview(raw,record.input),{code:'saved_day_changed'});
+});
+test('latest keeps defeat older edit evidence; clear later overrides release only the named work',()=>{
+ const original=reviewWeek(),changed=structuredClone(original);changed.days[0]!.sessions[0]!.activities[0]!.amount=300;
+ const latestKeep={...input,review:{...input.review,context:{feedback:'Shorten Monday.',question:'How much shorter?'},feedback:'Keep Monday exactly as it is.'}};
+ const raw={...output(),week:changed,changedDates:[input.dates[0]!],scope:[{date:input.dates[0]!,changeSessions:[0],evidence:'Shorten Monday.'}]};
+ assert.throws(()=>checkReview(raw,latestKeep),{code:'saved_day_changed'});
+ const override={...input,review:{...input.review,context:{feedback:'Keep Monday exactly as it is.',question:'What should change?'},feedback:'Actually shorten Monday.'}};
+ raw.scope[0]!.evidence='Actually shorten Monday.';assert.ok(checkReview(raw,override).week);
+ const conflict={...input,review:{...input.review,feedback:'Keep Monday exactly as it is; halve Monday.'}};
+ raw.scope[0]!.evidence='halve Monday';assert.throws(()=>checkReview(raw,conflict),{code:'saved_day_changed'});
+ const corrected={...conflict,review:{...conflict.review,feedback:'Keep Monday exactly as it is; actually halve Monday.'}};
+ raw.scope[0]!.evidence='actually halve Monday';assert.ok(checkReview(raw,corrected).week);
+});
+test('explicit session override of an older day keep still protects the other session from wrong model scope',()=>{
+ const week=revisedWeek(),saved=checkWeek(week,input),request={...input,review:{feedback:'Shorten Tuesday evening only.',context:{feedback:'Keep Tuesday exactly as it is.',question:'Which session can change?'},outline:saved.outline,days:saved.details}};
+ const raw={...output(),week:structuredClone(week),scope:[{date:input.dates[1]!,changeSessions:[0,1],evidence:'Shorten Tuesday evening only.'}]};
+ raw.week.days[1]!.sessions[1]!.activities[0]!.sets=2;assert.ok(checkReview(raw,request).week);
+ raw.week.days[1]!.sessions[0]!.activities[0]!.amount=200;assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'});
+});
+test('unresolved explicit keep cannot be overridden by model interpretation; clarification still preserves the plan',()=>{
+ const request={...input,review:{...input.review,feedback:'Keep the important bit unchanged; split Tuesday.'}},raw=output();raw.scope=fixtureScope(request);
+ assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'});
+ raw.scope=null;raw.changedDates=[];raw.week.goalDecisions=[];raw.week.days.forEach(d=>d.sessions=[]);raw.week.clarification={question:'Which work do you want to keep unchanged?',reason:'The important bit does not identify the work to preserve.'};
+ assert.equal(checkReview(raw,request).week,null);
+});
+test('a concrete clarification answer resolves one unidentified keep while all established keeps survive',()=>{
+ const context={feedback:'Keep the important bit unchanged; split Tuesday.',question:'Which work do you want to keep unchanged?'};
+ const request={...input,review:{...input.review,context,feedback:'Keep Monday exactly as it is; split Tuesday into shorter sessions.'}};
+ assert.equal(reviewProtections(request.review,request.dates).unresolved,false);
+ const raw=output();raw.scope=fixtureScope(request);assert.ok(checkReview(raw,request).week);
+ const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5});
+ assert.equal(JSON.parse(JSON.parse(prepareReview(provider,request).body).input).preservation.unresolved,false);
+ // A resolved answer must also remain resolved when retained in another turn.
+ const continued={...request,review:{...request.review,context:{...context,feedback:context.feedback+'\n'+request.review.feedback},feedback:'Split Tuesday into shorter sessions.'}};
+ raw.scope=fixtureScope(continued);assert.ok(checkReview(raw,continued).week);
+ // Resolving the unknown exercise target retains the independently kept day.
+ request.review.context.feedback='Keep Monday unchanged. '+context.feedback;
+ request.review.feedback='Keep FQ-ACT-00003 unchanged; split Tuesday into shorter sessions.';
+ raw.scope=fixtureScope(request);assert.ok(checkReview(raw,request).week);
+ raw.week.days[1]!.sessions[1]!.activities[1]!.amount=4;
+ assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'});
+ const malicious=output();malicious.scope=fixtureScope(request);malicious.scope.unshift({date:input.dates[0]!,changeSessions:[0],evidence:'Keep Monday unchanged'});
+ malicious.week.days[0]!.sessions[0]!.activities[0]!.amount=300;malicious.changedDates.unshift(input.dates[0]!);
+ assert.throws(()=>checkReview(malicious,request),{code:'saved_day_changed'});
+});
+test('unrelated answers and still-ambiguous protections fail closed; a named edit resolves a pending keep-the-rest target',()=>{
+ for(const feedback of ['The weather is good.','Split Tuesday into shorter sessions.','Monday looks good.','Keep the important bit unchanged; split Tuesday.']){
+  const request={...input,review:{...input.review,context:{feedback:'Keep the important bit unchanged; split Tuesday.',question:'Which work should stay unchanged?'},feedback}},raw=output();
+  raw.scope=[{date:input.dates[1]!,changeSessions:[0],evidence:'split Tuesday'}];
+  assert.equal(reviewProtections(request.review,request.dates).unresolved,true);
+  assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'});
+ }
+ const multiple={...input.review,context:{feedback:'Keep the important bit unchanged; keep my favourite work unchanged; split Tuesday.',question:'Which work should stay unchanged?'},feedback:'Keep Monday unchanged; split Tuesday.'};
+ assert.equal(reviewProtections(multiple,input.dates).unresolved,true);
+ const remainder={...input.review,context:{feedback:'Replace the awkward exercise; keep all other exercises unchanged.',question:'Which exercise should change?'},feedback:'Replace FQ-ACT-00003.'};
+ const locks=reviewProtections(remainder,input.dates);assert.equal(locks.unresolved,false);assert.equal(locks.activities.length,2);assert.ok(locks.activities.every(r=>r.id==='FQ-ACT-00148'));
+ assert.equal(reviewProtections({...remainder,feedback:'Keep Monday unchanged.'},input.dates).unresolved,true);
+});
+test('short preservation answers resolve saved targets without granting edit authority',()=>{
+ const context={feedback:'Keep Wednesday unchanged. Keep the important bit unchanged; split Tuesday.',question:'Which work do you want to keep unchanged?'};
+ for(const feedback of ['Monday.','The Monday walk.','I mean Monday.','Monday morning.','Hands-elevated push-up.']){
+  const request={...input,review:{...input.review,context,feedback}},raw=output();
+  raw.scope=[{date:input.dates[1]!,changeSessions:[0],evidence:'split Tuesday'}];
+  const locks=reviewProtections(request.review,input.dates);assert.equal(locks.unresolved,false,feedback);assert.ok(locks.days.includes(input.dates[2]!));
+  assert.ok(checkReview(raw,request).week,feedback);
+  const exercise=feedback==='Hands-elevated push-up.';
+  if(exercise){assert.equal(locks.activities[0]!.id,'FQ-ACT-00003');raw.week.days[1]!.sessions[1]!.activities[1]!.amount=4}
+  else{
+   raw.week.days[0]!.sessions[0]!.activities[0]!.amount=300;raw.changedDates.unshift(input.dates[0]!);
+   raw.scope.unshift({date:input.dates[0]!,changeSessions:[0],evidence:feedback});
+  }
+  assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'},feedback);
+  const continued={...request,review:{...request.review,context:{feedback:context.feedback+'\n'+feedback,question:'How should Tuesday change?'},feedback:'Split Tuesday into shorter sessions.'}};
+  assert.equal(reviewProtections(continued.review,input.dates).unresolved,false,feedback);
+ }
+ const request={...input,review:{...input.review,context,feedback:'Monday.'}};
+ const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5});
+ const locks=JSON.parse(JSON.parse(prepareReview(provider,request).body).input).preservation;
+ assert.equal(locks.unresolved,false);assert.ok(locks.days.includes(input.dates[0]!));
+});
+test('short answer recovery requires a preservation question and one unambiguous saved target',()=>{
+ const context={feedback:'Keep the important bit unchanged; split Tuesday.',question:'Which work do you want to keep unchanged?'};
+ for(const feedback of ['Monday looks good.','Not Monday.','Monday or Tuesday.','The weather is good.','Walking.','Wednesday walk.','I mean the important bit.']){
+  const request={...input,review:{...input.review,context,feedback}},raw=output();raw.scope=[{date:input.dates[1]!,changeSessions:[0],evidence:'split Tuesday'}];
+  assert.equal(reviewProtections(request.review,input.dates).unresolved,true,feedback);
+  assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'},feedback);
+ }
+ assert.equal(reviewProtections({...input.review,context:{...context,question:'Which day should change?'},feedback:'Monday.'},input.dates).unresolved,true);
+ assert.equal(reviewProtections({...input.review,context:{...context,feedback:'Keep the important bit unchanged; keep my favourite work unchanged; split Tuesday.'},feedback:'Monday.'},input.dates).unresolved,true);
+});
+test('a short named-session answer protects that saved session while the requested other session can change',()=>{
+ const week=revisedWeek(),saved=checkWeek(week,input);
+ const request={...input,review:{outline:saved.outline,days:saved.details,context:{feedback:'Keep Monday unchanged. Keep the important bit unchanged; shorten Tuesday evening.',question:'Which session do you want to keep unchanged?'},feedback:'Tuesday morning.'}};
+ const locks=reviewProtections(request.review,input.dates);assert.equal(locks.unresolved,false);assert.ok(locks.sessions.some(s=>s.date===input.dates[1]&&s.session===0));assert.ok(!locks.days.includes(input.dates[1]!));
+ const raw={...output(),week:structuredClone(week),scope:[{date:input.dates[1]!,changeSessions:[0,1],evidence:'shorten Tuesday evening'}]};
+ raw.week.days[1]!.sessions[1]!.activities[0]!.sets=2;assert.ok(checkReview(raw,request).week);
+ raw.week.days[1]!.sessions[0]!.activities[0]!.amount=200;assert.throws(()=>checkReview(raw,request),{code:'saved_day_changed'});
 });

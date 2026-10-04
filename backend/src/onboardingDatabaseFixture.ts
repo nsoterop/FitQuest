@@ -1,3 +1,4 @@
+import { verifyCoachingDatabase } from './coachingDatabaseFixture.js';
 import { trainingFixture,fixtureOutline,fixtureDetail } from './planningFixture.js';
 import { verifyPlanReviewDatabase } from './planReviewDatabaseFixture.js';
 import { verifyWeeklyDatabase } from './weeklyDatabaseFixture.js';
@@ -43,6 +44,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     assert.deepEqual((await owner.query('SELECT review_state,review_revision FROM fitquest.training_plans WHERE user_id=$1',[user])).rows,[{review_state:'legacy',review_revision:0}]);
     await owner.query('DELETE FROM fitquest.training_plans WHERE user_id=$1',[user]);await owner.query('DELETE FROM auth.users WHERE id=$1',[user]);
   });
+  await owner.query(await readFile(new URL('../supabase/migrations/20261004203442_provider_diagnostics.sql',import.meta.url),'utf8'));
   // Synthetic fixture only. Real evaluation/production accounting is never initialized here.
   await owner.query('UPDATE fitquest.ai_budget SET app_enabled=true');
   const alice={userId:'11111111-1111-4111-8111-111111111111',sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};
@@ -64,6 +66,18 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   const create=async(token='alice')=>(await request('POST','/onboarding',{disclosureVersion:'onboarding-planning-v2'},token)).json();
   const command=(id:string,revision:number,fields:object,operationId=randomUUID())=>request('POST',`/onboarding/${id}/commands`,{operationId,expectedRevision:revision,...fields});
   const fresh=async()=>{const old=await create();await request('DELETE',`/onboarding/${old.id}`);return create()};
+  await t.test('safe diagnostics survive content deletion and late settlement without cross-account writes or private payloads',async()=>{
+    const old=await store.create(alice);await store.remove(alice,old.id);const a=await store.create(alice),claim=await store.claim(alice,a.id,{kind:'message',text:'Synthetic diagnostic check',operationId:randomUUID(),expectedRevision:a.revision},provider);assert.ok(claim.work);
+    await store.settle(alice,claim.work.attempt,null,{httpStatus:400,code:'invalid_json_schema',requestId:'req_fixture',message:'must never persist'} as any);
+    await store.remove(alice,a.id);
+    const read=async()=>(await owner.query('SELECT state,provider_diagnostic FROM fitquest.onboarding_attempts WHERE id=$1',[claim.work!.attempt])).rows[0];
+    assert.deepEqual(await read(),{state:'uncertain',provider_diagnostic:{httpStatus:400,code:'invalid_json_schema',requestId:'req_fixture'}});
+    await store.settle(bob,claim.work.attempt,1,{httpStatus:500});assert.equal((await read()).provider_diagnostic.httpStatus,400);
+    await owner.query("CREATE FUNCTION fitquest.fail_diagnostic() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.provider_diagnostic->>'requestId'='req_fail' THEN RAISE EXCEPTION 'synthetic metadata failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_diagnostic BEFORE UPDATE ON fitquest.onboarding_attempts FOR EACH ROW EXECUTE FUNCTION fitquest.fail_diagnostic()");
+    try{await store.settle(alice,claim.work.attempt,5,{requestId:'req_fail'})}finally{await owner.query('DROP TRIGGER fail_diagnostic ON fitquest.onboarding_attempts; DROP FUNCTION fitquest.fail_diagnostic()')}
+    assert.equal((await read()).state,'settled');assert.equal((await read()).provider_diagnostic.requestId,'req_fixture');
+    const grants=(await owner.query("SELECT has_column_privilege('fitquest_app','fitquest.onboarding_attempts','provider_diagnostic','UPDATE') AS diagnostic,has_column_privilege('fitquest_app','fitquest.onboarding_attempts','actual_micro','UPDATE') AS cost")).rows[0];assert.deepEqual(grants,{diagnostic:true,cost:false});
+  });
   await t.test('detailed multi-turn requests use compact original sources and retain edits, skips, inference and exact review',async()=>{
     let sent=0;const bodies:string[]=[];
     const adapter=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:1000000,inputRate:0.1,cachedRate:0.01,cacheWriteRate:0.125,outputRate:0.5},async(_url,init)=>{
@@ -420,7 +434,9 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await verifyReadinessDatabase(t,owner,pool,profiles);
   await verifyWeeklyDatabase(t,owner,pool,profiles);
   await verifyPlanReviewDatabase(t,owner,pool,profiles);
+  await verifyCoachingDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
+    await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);
     assert.equal((await request('GET',`/onboarding/${a.id}`)).statusCode,429);
     await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0 WHERE user_id=$1',[alice.userId]);

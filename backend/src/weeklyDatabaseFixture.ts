@@ -46,7 +46,7 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
     assert.ok('summarySaved' in done&&done.summarySaved);assert.equal(calls,0);
     const r=await request(),response=await app.inject({method:'POST',url:'/training/generate',headers:{authorization:'Bearer alice'},payload:r});assert.equal(response.statusCode,200);assert.equal(response.headers['cache-control'],'no-store');assert.equal(calls,1);
     const versions=(await owner.query('SELECT a.prompt_version,a.schema_version FROM fitquest.onboarding_attempts a JOIN fitquest.training_generations g ON g.user_id=a.user_id AND g.attempt_id=a.id WHERE g.user_id=$1 AND g.plan_id=$2 AND g.target=$3',[alice.userId,r.planId,'week'])).rows[0];
-    assert.deepEqual(versions,{prompt_version:'catalog-week-v4',schema_version:'catalog-week-v4'});
+    assert.deepEqual(versions,{prompt_version:'catalog-week-v5',schema_version:'catalog-week-v5'});
     const {p}=await latest();assert.equal(p.days.length,7);assert.equal(p.days[0].detail.sessions.length,2);assert.equal(p.days.filter((d:any)=>!d.detail.sessions.length).length,4);
     assert.equal(p.outline.qualityVersion,2);assert.equal(p.outline.units,'imperial');assert.equal(p.outline.goalDecisions.length,2);
     for(const day of p.days)assert.deepEqual(day.detail.sessions,fixtureDetail(fixtureOutline(p.dates),day.date).sessions.map(s=>({...s,estimatedMinutes:25,timing:'flexible',intervals:[],activities:s.activities.map(a=>({...a,distanceTarget:null}))})));

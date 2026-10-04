@@ -1,3 +1,4 @@
+import { safeDiagnostic,type ProviderDiagnostic } from './providerDiagnostics.js';
 import { retainTrainingSummary, recoveryPlanId, checkTimeZone } from './trainingSummary.js';
 import { informationCoverage } from './planningReadiness.js';
 import { checkedSummary, assertRecoveryCurrent } from './trainingSummary.js';
@@ -270,9 +271,11 @@ export function postgresOnboardingStore(pool: Pool) {
         return {conversation:await snapshot(c,account,id),work};
       });
     },
-    async settle(account:Account,attempt:string,cost:number|null) {
+    async settle(account:Account,attempt:string,cost:number|null,diagnostic?:ProviderDiagnostic) {
       // Separate from content commit; also works after sign-out/deletion/stale rejection.
       await transaction(account,c=>c.query('SELECT fitquest.settle_onboarding($1,$2)',[attempt,cost]),false);
+      // Diagnostic storage must never roll back measured or uncertain accounting.
+      if(diagnostic)try{await transaction(account,c=>c.query('UPDATE fitquest.onboarding_attempts SET provider_diagnostic=$3 WHERE user_id=$1 AND id=$2',[account.userId,attempt,safeDiagnostic(diagnostic)]),false)}catch{/* Accounting is already committed; never log a raw database/provider error. */}
     },
     async finish(account:Account,id:string,work:NonNullable<Claim['work']>,context:Context|undefined,reply:string|undefined,failure:string|undefined,questionTopic?:string) {
       return transaction(account,async c=>{

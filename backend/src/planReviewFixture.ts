@@ -22,3 +22,8 @@ export function revisedWeek(input:PlanningInput=reviewInput):Week {
   return week;
 }
 export const reviewFeedback='Keep Monday exactly as it is; split Tuesday into shorter sessions and give speed work a place.';
+
+// Explicit simulated model interpretation for invented fixture feedback, not a language parser.
+export function fixtureScope(input:PlanningInput,changed=[1]) {
+  return input.dates.flatMap((date,i)=>changed.includes(i)?[{date,changeSessions:(input.review?.days[i]?.sessions??[{}]).map((_,j)=>j),evidence:(input.review?.feedback??reviewFeedback).slice(0,350)}]:[]);
+}

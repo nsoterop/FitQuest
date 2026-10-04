@@ -840,3 +840,17 @@ test('standalone and active-recovery speed rows preserve the prescribed effort r
   const legacy={...base};delete legacy.effort;
   assert.doesNotMatch(sessionRows({activities:[legacy]},names)[0].text,/moderate|challenging|undefined/);
 });
+
+test('actual synthetic revised week renders compact overview then exact rep ranges, RIR and distances on acceptance',async()=>{
+  const record=JSON.parse(readFileSync(new URL('../../backend/fixtures/coaching-v1.json',import.meta.url),'utf8')).results.find(r=>r.stage==='review-repair');
+  const catalog=JSON.parse(readFileSync(new URL('../../backend/catalog/fitquest-v1.json',import.meta.url),'utf8'));
+  const saved=reviewUiState(),p=saved.plans[0],w=record.raw.week; saved.summary.document=record.input.summary;saved.summary.preferences=[];
+  p.dates=w.days.map(d=>d.date);p.planRevision=2;p.catalogVersion=catalog.version;p.reviewNote=record.raw.reply;
+  p.outline={qualityVersion:2,units:w.units,goalDecisions:w.goalDecisions,arrangementNote:w.arrangementNote,clarification:null,coverage:[],days:w.days.map(d=>({date:d.date,sessions:d.sessions.map(s=>({focus:s.focus,activityIds:[...new Set(s.activities.map(a=>a.id))]}))}))};
+  p.days=w.days.map(d=>({date:d.date,detail:{date:d.date,coverage:[],clarification:null,catalogVersion:catalog.version,sessions:d.sessions.map(({focus,...s})=>s),activities:Object.fromEntries(d.sessions.flatMap(s=>s.activities).map(a=>{const source=catalog.activities.find(x=>x['Activity ID']===a.id);return[a.id,{name:source['Exercise name'],instructions:source.Instructions}]}))}}));
+  const requests=[];globalThis.fetch=async(url,options)=>{requests.push(url);if(url.endsWith('/accept'))p.reviewState='accepted';return{status:200,json:async()=>structuredClone(saved)}};
+  let screen=await mountTraining();assert.match(text(screen),/Draft plan/);assert.match(text(screen),/Morning/);assert.match(text(screen),/Evening/);assert.doesNotMatch(text(screen),/2 × 8–10/);
+  await act(async()=>{press(screen,'Use this plan');await flush()});let visible=text(screen);
+  assert.match(visible,/Kneeling push-up — 2 × 8–10 · 3 RIR/);assert.match(visible,/Outdoor walking — 0.7 miles \(easy\)/);assert.match(visible,/Standing-start acceleration — 4 × 20 yd \(moderate\)/);assert.doesNotMatch(visible,/Hands-elevated push-up —|Place your hands|Support yourself/);
+  await act(async()=>screen.unmount());screen=await mountTraining();assert.match(text(screen),/Accepted plan/);assert.equal(requests.filter(url=>url.endsWith('/review')||url.endsWith('/generate')).length,0);await act(async()=>screen.unmount());
+});
