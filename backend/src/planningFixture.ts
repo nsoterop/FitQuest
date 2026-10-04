@@ -2,7 +2,7 @@
 import type { TrainingSummary } from './trainingSummary.js';
 import type { Outline,Detail,Prescription } from './planningDomain.js';
 export const trainingFixture:TrainingSummary=[
-  {category:'goals',text:'General strength and comfortable walking; walking comes first.',origin:'user_report'},
+  {category:'goals',goals:['Comfortable walking','General strength'],text:'General strength and comfortable walking; walking comes first.',origin:'user_report'},
   {category:'availability',text:'Three flexible 25-minute days weekly; tomorrow is available.',origin:'user_report'},
   {category:'equipment',text:'Clear floor, stable wall and safe level walking path. No gym or partner.',origin:'user_report'},
   {category:'experience',text:'Walks 20 minutes twice a week; beginner at strength exercises.',origin:'user_report'},

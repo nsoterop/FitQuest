@@ -603,7 +603,7 @@ test('saved training reopen clears a completed conversation draft but preserves 
   trainingServer(initial);const again=await mountTraining();assert.equal((await privateDrafts.read('alice')).text,'keep this draft');await act(async()=>again.unmount());
 });
 
-test('actual exercise rows show only names and concise reps, time, miles or counts without metadata',async()=>{
+test('legacy exercise rows retain exact quantities and rest without inferring intervals',async()=>{
   const saved=trainingState(),p=saved.plans[0];
   const labels=['Upper body','Lower body','Mobility','Easy cardio','Tennis practice'];
   p.outline={coverage:[],days:p.dates.map((date,i)=>({date,sessions:i<5?[{focus:labels[i],activityIds:i===0?['FQ-ACT-00008','FQ-ACT-00148','FQ-ACT-00112','FQ-ACT-00084']:['FQ-ACT-00148']}]:[]}))};
@@ -614,9 +614,9 @@ test('actual exercise rows show only names and concise reps, time, miles or coun
   const mock=trainingServer(saved),screen=await mountTraining();
   const visible=screen.root.findAllByType('Text').map(n=>n.children.join('')).join('\n');
   const rows=screen.root.findAllByType('Text').map(n=>n.children.join('')).filter(x=>x.includes(' — ')&&!x.startsWith('Rest'));
-  assert.deepEqual(rows,[`${activities['FQ-ACT-00008'].name} — 3 × 8 per side`,`${activities['FQ-ACT-00148'].name} — 1 mile`,`${activities['FQ-ACT-00112'].name} — 2 × 30 sec`,`${activities['FQ-ACT-00148'].name} — 20 min`,`${activities['FQ-ACT-00084'].name} — 12 per side`]);
+  assert.deepEqual(rows,[`${activities['FQ-ACT-00008'].name} — 3 × 8 per side (moderate); 60 sec rest between sets`,`${activities['FQ-ACT-00148'].name} — 1609 m (moderate)`,`${activities['FQ-ACT-00112'].name} — 2 × 30 sec (moderate); 60 sec rest between sets`,`${activities['FQ-ACT-00148'].name} — 20 min (moderate)`,`${activities['FQ-ACT-00084'].name} — 12 counts per side (moderate)`]);
   for(const entry of Object.values(activities)){assert.equal(visible.includes(entry.instructions),false);assert.equal(visible.includes(entry.setup),false);assert.equal(visible.includes(entry.loadConvention),false)}
-  assert.doesNotMatch(rows.join('\n'),/main|warmup|cooldown|effort|rest|Setup|review|reference|20 lb/);
+  assert.doesNotMatch(rows.join('\n'),/main|warmup|cooldown|effort|Setup|review|reference|20 lb/);
   assert.doesNotMatch(visible,/1609 meters|9\.0718474 kg/);
   for(const [i,weekday] of ['Sunday','Monday','Tuesday','Wednesday','Thursday'].entries())assert.ok(visible.includes(`${weekday}, ${p.dates[i]} · ${labels[i]}`));
   assert.ok(visible.includes('Friday, 2026-10-09 · Rest'));assert.equal(mock.requests.length,1);
@@ -718,4 +718,65 @@ test('weekly request double press sends once; a completed backfill hides obsolet
   const screen=await mountTraining();await act(async()=>{press(screen,'Complete weekly plan');press(screen,'Complete weekly plan');await flush()});
   await act(async()=>{await finish();await flush()});assert.equal(mock.requests.filter(r=>r.url.endsWith('/generate')).length,1);
   assert.match(text(screen),/Seven days/);assert.doesNotMatch(text(screen),/Generation did not finish|Details not generated|Week incomplete/);await act(async()=>screen.unmount());
+});
+
+test('rendered distributed sessions retain phases, exact distances, optional work and paired recovery counts',async()=>{
+  const saved=trainingState(),p=saved.plans[0];
+  const names={'FQ-ACT-00148':'Outdoor walking','FQ-ACT-00145':'Standing-start acceleration','FQ-ACT-00112':'Standing arm circles'};
+  const activities=Object.fromEntries(Object.entries(names).map(([id,name])=>[id,{name,instructions:'Synthetic instructions hidden'}]));
+  const base={id:'FQ-ACT-00148',phase:'main',sets:1,measure:'seconds',amount:60,effort:'easy',restSeconds:0,load:'none',loadKg:null,side:'both',distanceTarget:null};
+  const session={timing:'morning',intervals:[{workIndex:1,recoveryIndex:2,recoveries:'between'}],activities:[{...base,phase:'warmup',amount:300},{...base,id:'FQ-ACT-00145',sets:4,measure:'meters',amount:20,effort:'moderate',distanceTarget:{unit:'m',value:20}},{...base,sets:3},{...base,phase:'cooldown',amount:180},{...base,phase:'optional',amount:3000,measure:'meters',distanceTarget:{unit:'km',value:3}}]};
+  p.outline={qualityVersion:2,units:'imperial',goalDecisions:[{sourceIndex:0,goal:'Acceleration',status:'introductory',reason:'Controlled technique practice using an established skill.',evidence:[{date:p.dates[0],sessionIndex:0,activityIndex:1}]}],coverage:[],days:p.dates.map((date,i)=>({date,sessions:i===0?[{focus:'Acceleration technique',activityIds:Object.keys(names)},{focus:'Mobility',activityIds:['FQ-ACT-00112']}]:[]}))};
+  p.days=[{date:p.dates[0],detail:{date:p.dates[0],catalogVersion:p.catalogVersion,coverage:[],activities,sessions:[session,{timing:'evening',intervals:[],activities:[{...base,id:'FQ-ACT-00112',amount:30}]}]}}];
+  trainingServer(saved);const screen=await mountTraining();
+  const visible=screen.root.findAllByType('Text').map(n=>n.children.join('')).join('\n');
+  assert.match(visible,/Acceleration technique · Morning/);assert.match(visible,/Mobility · Evening/);
+  assert.match(visible,/Warm-up\nOutdoor walking — 5 min \(easy\)\nMain\n4 rounds: Standing-start acceleration — 20 m \(moderate\) → Outdoor walking — 1 min easy recovery \(3 recoveries; none after last round\)\nCool-down\nOutdoor walking — 3 min \(easy\)\nOptional\nOutdoor walking — 3 km/);
+  assert.doesNotMatch(visible,/2 miles|0\.01|Synthetic instructions/);
+  assert.equal((visible.match(/4 rounds:/g)??[]).length,1);
+  console.log('Synthetic rendered plan:\n'+visible.slice(0,3000));
+  await act(async()=>screen.unmount());
+  const {sessionRows,quantity,validSessionMeaning}=await import('./trainingPresentation.ts');
+  assert.equal(quantity({...base,measure:'meters',amount:3218.688,distanceTarget:{unit:'mi',value:2}}),'2 miles');
+  assert.equal(quantity({...base,measure:'meters',amount:3000}),'3000 m');
+  assert.equal(quantity({...base,amount:30,side:'each'}),'30 sec per side');
+  assert.equal(quantity({...base,measure:'meters',amount:18.288,distanceTarget:{unit:'yd',value:20}}),'20 yd');
+  const after=structuredClone(session);after.intervals[0].recoveries='after_each';after.activities[2].sets=4;
+  assert.ok(validSessionMeaning(after));assert.match(sessionRows(after,activities)[1].text,/4 recoveries; after every round/);
+  after.activities[2].sets=3;assert.equal(validSessionMeaning(after),false);
+  const legacy=structuredClone(session);delete legacy.intervals;delete legacy.timing;
+  assert.equal(sessionRows(legacy,activities).length,5);assert.doesNotMatch(sessionRows(legacy,activities).map(x=>x.text).join('\n'),/rounds:|→|recoveries/);
+});
+
+test('recorded synthetic live week renders all seven days, exact miles and goal exceptions without dispatch on reopen',async()=>{
+  const fixture=JSON.parse(readFileSync(new URL('../../backend/src/planningQualityLiveFixture.json',import.meta.url),'utf8'));
+  const catalog=JSON.parse(readFileSync(new URL('../../backend/catalog/fitquest-v1.json',import.meta.url),'utf8'));
+  const saved=trainingState(),p=saved.plans[0],w=fixture.week;p.dates=fixture.planningInput.dates;
+  saved.summary.document=fixture.planningInput.summary;
+  p.outline={qualityVersion:2,units:w.units,goalDecisions:w.goalDecisions,coverage:[],days:w.days.map(d=>({date:d.date,sessions:d.sessions.map(s=>({focus:s.focus,activityIds:[...new Set(s.activities.map(a=>a.id))]}))}))};
+  p.days=w.days.map(d=>({date:d.date,detail:{date:d.date,clarification:null,coverage:[],catalogVersion:p.catalogVersion,sessions:d.sessions.map(({focus,...s})=>s),activities:Object.fromEntries(d.sessions.flatMap(s=>s.activities).map(a=>{const c=catalog.activities.find(c=>c['Activity ID']===a.id);return [a.id,{name:c['Exercise name'],instructions:c['Instructions']}]}))}}));
+  const server=trainingServer(saved),screen=await mountTraining();
+  const visible=screen.root.findAllByType('Text').map(n=>n.children.join('')).join('\n');
+  assert.match(visible,/Seven days/);assert.equal((visible.match(/Outdoor walking — 1 mile/g)??[]).length,3);assert.equal((visible.match(/Rest — no prescribed session/g)??[]).length,4);
+  assert.equal((visible.match(/· Morning/g)??[]).length,3);assert.equal((visible.match(/Shoulder mobility · Evening/g)??[]).length,3);
+  assert.match(visible,/Learning acceleration technique:.*run-out/);assert.doesNotMatch(visible,/Details not generated|0\.99|1\.01|Standing-start acceleration —/);
+  assert.equal(server.requests.length,1);console.log('Recorded synthetic live rendering:\n'+visible);
+  await act(async()=>screen.unmount());
+});
+
+test('standalone and active-recovery speed rows preserve the prescribed effort rather than the session label',async()=>{
+  const {sessionRows}=await import('./trainingPresentation.ts');
+  const names={'FQ-ACT-00145':{name:'Standing-start acceleration'},'FQ-ACT-00148':{name:'Outdoor walking'}};
+  const base={id:'FQ-ACT-00145',phase:'main',sets:4,measure:'meters',amount:20,effort:'moderate',restSeconds:120,load:'none',loadKg:null,side:'both',distanceTarget:{unit:'m',value:20}};
+  for(const effort of ['moderate','challenging']){
+    const work={...base,effort};
+    const plain=sessionRows({activities:[work]},names)[0].text;
+    assert.equal(plain,`Standing-start acceleration — 4 × 20 m (${effort}); 120 sec rest between sets`);
+    const paired=sessionRows({intervals:[{workIndex:0,recoveryIndex:1,recoveries:'between'}],activities:[{...work,restSeconds:0},{...base,id:'FQ-ACT-00148',sets:3,measure:'seconds',amount:60,effort:'easy',restSeconds:0,distanceTarget:null}]},names)[0].text;
+    assert.ok(paired.includes(`20 m (${effort}) →`));assert.ok(paired.includes('1 min easy recovery (3 recoveries; none after last round)'));
+    console.log('Corrected standalone speed row: '+plain);
+  }
+  assert.match(sessionRows({activities:[{...base,measure:'count',amount:6,distanceTarget:null}]},names)[0].text,/6 counts \(moderate\)/);
+  const legacy={...base};delete legacy.effort;
+  assert.doesNotMatch(sessionRows({activities:[legacy]},names)[0].text,/moderate|challenging|undefined/);
 });

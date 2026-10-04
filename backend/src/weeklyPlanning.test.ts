@@ -55,7 +55,7 @@ test('maximum seven-day/multi-session response and six saved maximum days fit ex
   const base=weekFixture().days[0]!.sessions[0]!.activities[0]!;
   const maximum:Week={clarification:null,coverage:[],days:dates.map(date=>({date,sessions:Array.from({length:3},()=>({focus:'Mobility practice',activities:Array.from({length:15},()=>({...base,sets:20,amount:7200,effort:'challenging',restSeconds:600}))}))}))};
   const checked=checkWeek(maximum,input);assert.equal(checked.details.flatMap(d=>d.sessions.flatMap(s=>s.activities)).length,315);
-  const provider=openAIProvider(config),prepared=prepareWeek(provider,{...input,summary:Array.from({length:12},(_,i)=>({...trainingFixture[i%5]!,text:'x'.repeat(350)})),outline:checked.outline,savedDays:checked.details.slice(0,6)});
+  const provider=openAIProvider(config),prepared=prepareWeek(provider,{...input,summary:Array.from({length:12},(_,i)=>({...trainingFixture[i%5]!,text:'x'.repeat(350),...(i%5===0?{goals:[`Goal ${i}`]}:{})})),outline:checked.outline,savedDays:checked.details.slice(0,6)});
   const payload=JSON.parse(JSON.parse(prepared.body).input);assert.equal(payload.savedDays.length,6);assert.equal(payload.savedDays.flatMap((d:any)=>d.sessions.flatMap((s:any)=>s.activities)).length,270);
   assert.ok(Buffer.byteLength(prepared.body)<weeklyLimits.inputBytes);assert.ok(Buffer.byteLength(JSON.stringify({output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(maximum)}]}]}))<weeklyLimits.responseBytes);
 });

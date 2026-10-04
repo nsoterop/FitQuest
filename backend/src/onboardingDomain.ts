@@ -1,5 +1,5 @@
 import { OnboardingError } from './onboardingError.js';
-import { checkedSummary, summarySchema, type TrainingSummary } from './trainingSummary.js';
+import { checkedSummary, summarySchema, modelSummarySchema, type TrainingSummary } from './trainingSummary.js';
 import { planningCheckSchema, type PlanningCheck } from './planningReadiness.js';
 import { createHash } from 'node:crypto';
 
@@ -60,6 +60,8 @@ export const proposalSchema = {
     planningCheck: planningCheckSchema,
   },
 } as const;
+
+export const modelProposalSchema={...proposalSchema,properties:{...proposalSchema.properties,trainingSummary:{anyOf:[{type:'null'},modelSummarySchema]}}};
 
 export type ModelInput = { context: Context; sources: Record<string, string>; recent: { role: 'user' | 'assistant'; text: string; source?: string }[]; knownProfileFields: string[] };
 export function applyProposal(context: Context, proposal: ModelProposal, sources: Record<string, string>, now: string): Context {

@@ -128,3 +128,61 @@ test('recorded Luna grouped conversation preserves pacing, irregular activity, c
   }
   assert.equal(replies,5);
 });
+
+test('summary and existing recap preserve distribution, per-session/day caps and examples across correction',()=>{
+  const facts={goals:'Walking endurance and mobility.',experience:'Walks twice weekly.',equipment:'Safe path and clear floor.',limitations:'No relevant restrictions reported.'};
+  for(const availability of [
+    'Available morning and evening on three days; prefers one session daily, at most 30 minutes per day.',
+    'Prefers separate morning and evening sessions on two days; at most 20 minutes per session and 35 minutes total per day. Morning walking is an example, not a requirement.',
+    'Flexible session distribution and weekdays; up to 25 minutes total on two days.'
+  ]){
+    const current={...facts,availability},result=turn(emptyContext(),{m1:Object.values(current).join(' ')},response(current,null));
+    assert.equal(result.displayed.nextQuestion!.topic,recapTopic);assert.ok(result.rendered.includes(availability));
+    assert.equal(result.context.trainingSummary!.find(f=>f.category==='availability')!.text,availability);
+  }
+  const ambiguous={...facts,availability:'Can fit morning and evening; prefers short sessions, 30 minutes, scope of limit unknown.'};
+  const question='Is 30 minutes your limit per session or for the whole day?';
+  const missing=turn(emptyContext(),{m1:Object.values(ambiguous).join(' ')},response(ambiguous,question,'Availability'));
+  assert.equal(missing.displayed.nextQuestion!.text,question);assert.doesNotMatch(missing.rendered,/Looks good/);
+  const correction='30 minutes is the whole-day limit. I prefer one session, even when two slots are available.';
+  const final=turn(missing.context,{m1:Object.values(ambiguous).join(' '),m2:correction},response({...facts,availability:correction},null));
+  assert.ok(final.rendered.includes(correction));assert.equal(final.displayed.nextQuestion!.topic,recapTopic);
+});
+
+test('recorded v9 scheduling replies preserve preferences and caps; actual recap rendering supplies omitted scheduling facts once',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const fixtures=JSON.parse(readFileSync(new URL('../src/planningQualityLiveFixture.json',import.meta.url),'utf8'));
+  for(const f of fixtures.onboarding){
+    const proposal=validateProposal(f.raw),context=applyProposal(f.input.context,proposal,f.input.sources,'');
+    const display=consistentReply(context,proposal),rendered=renderOnboardingReply(display);
+    assert.equal((rendered.match(/\?/g)??[]).length,1);
+    const availability=context.trainingSummary!.filter(x=>x.category==='availability').map(x=>x.text).join(' ');
+    if(f.case==='ambiguous-duration'){
+      assert.notEqual(display.nextQuestion?.topic,recapTopic);assert.match(display.nextQuestion!.text,/each session.*total.*day/);assert.match(availability,/per session or per day/);
+    }else{
+      assert.equal(display.nextQuestion!.topic,recapTopic);assert.match(rendered,/Looks good/);
+      for(const fact of context.trainingSummary!.filter(x=>x.category==='availability'||x.category==='goals'))assert.ok(rendered.toLowerCase().includes(fact.text.toLowerCase()));
+      if(f.case==='distributed-volunteered'){for(const goal of ['walking endurance','upper-body strength','shoulder mobility','acceleration technique'])assert.ok(rendered.toLowerCase().includes(goal));console.log('Corrected recorded recap:\n'+rendered);assert.match(availability,/separate morning.*evening/);assert.match(availability,/25 minutes per session and 35 minutes total per day/)}
+      if(f.case==='single-correction'){assert.match(availability,/prefers one session per day/);assert.match(availability,/30-minute.*total training time per day/)}
+      if(f.case==='flexible'){assert.match(availability,/no fixed weekdays or preference for single versus split/);assert.match(availability,/25 minutes total per day/)}
+    }
+  }
+});
+
+test('explicit natural-language goal set survives intake, recap and planning input without planner-defined identities',async()=>{
+  const {expectedGoals,checkedSummary}=await import('./trainingSummary.js');
+  const {prepareWeek}=await import('./weeklyPlanning.js');const {openAIProvider}=await import('./onboardingProvider.js');
+  const facts={goals:'Join friends on long canal walks first; also feel comfortable carrying a picnic.',availability:'One flexible 25-minute session on two days.',experience:'Walks regularly.',equipment:'Canal path and light household bag.',limitations:'No limitations reported.'};
+  const proposal=response(facts,null),goals=['Join friends on long canal walks','Feel comfortable carrying a picnic'];
+  proposal.trainingSummary!.forEach(f=>{f.goals=f.category==='goals'?goals:null});
+  validateProposal(proposal,true);
+  const omitted=structuredClone(proposal);delete omitted.trainingSummary![0]!.goals;assert.throws(()=>validateProposal(omitted,true),{code:'invalid_model_output'});
+  const result=turn(emptyContext(),{m1:Object.values(facts).join(' ')},proposal);
+  assert.deepEqual(expectedGoals(result.context.trainingSummary!),goals.map((goal,goalIndex)=>({sourceIndex:0,goalIndex,goal})));
+  for(const goal of goals)assert.ok(result.rendered.toLowerCase().includes(goal.toLowerCase()));
+  const body=JSON.parse(prepareWeek(openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5}),{kind:'week',qualityVersion:2,summary:result.context.trainingSummary!,profile:{age:32,heightInches:68,weightLb:155},dates:[]}).body);
+  assert.deepEqual(JSON.parse(body.input).expectedGoals,expectedGoals(result.context.trainingSummary!));
+  const bad=structuredClone(result.context.trainingSummary!);bad[0]!.goals=[goals[0]!,goals[0]!.toLowerCase()];assert.throws(()=>checkedSummary(bad),{code:'invalid_summary'});
+  const repeated=renderOnboardingReply({...proposal,reply:`${facts.goals} ${facts.availability}`});
+  assert.equal(repeated.split(facts.goals).length-1,1);assert.equal(repeated.split(facts.availability).length-1,1);
+});

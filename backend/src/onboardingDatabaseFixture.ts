@@ -32,7 +32,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await profiles.save(alice,profile);await profiles.save(bob,{...profile,firstName:'Jordan'});
   const store=postgresOnboardingStore(pool);
   let calls=0; let allowed=true;
-  const proposal:ModelProposal={planningCheck:{status:'ready',question:null,reason:null},trainingSummary:trainingFixture.map(f=>({...f,origin:'model_inference'})),reply:'Thanks for explaining your goals.',additions:[],nextQuestion:{topic:'Current activity',text:'What does your current activity look like?',decision:'Avoid assuming a starting point.'},readiness:'ready_with_limits',limitations:['Starting activity remains unknown.']};
+  const proposal:ModelProposal={planningCheck:{status:'ready',question:null,reason:null},trainingSummary:trainingFixture.map(f=>({...f,goals:f.goals??null,origin:'model_inference'})),reply:'Thanks for explaining your goals.',additions:[],nextQuestion:{topic:'Current activity',text:'What does your current activity look like?',decision:'Avoid assuming a starting point.'},readiness:'ready_with_limits',limitations:['Starting activity remains unknown.']};
   let respond:()=>Promise<ProviderResult>=async()=>({proposal,usage:{input:100,output:20,cached:0,cacheWrite:0}});
   const provider:OnboardingProvider={mode:'test',model:'synthetic-contract',capMicro:1000000,
     prepare(input){assert.equal(JSON.stringify(input).includes('Example'),false);assert.equal(JSON.stringify(input).includes(alice.userId),false);assert.equal(input.context.items.some(x=>x.origin==='profile'),false);return {body:JSON.stringify(input),reserveMicro:100}},
@@ -92,7 +92,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await t.test('genuine request/storage bound rolls back unsaved text; shortening and editing remain usable; stale confirmation is rejected',async()=>{
     let dispatches=0;
     const boundedProvider:OnboardingProvider={...provider,prepare(input){return{body:serializeInput(input,'synthetic'),reserveMicro:100}},
-      call:async()=>{dispatches++;return{proposal:{...proposal,reply:'A'.repeat(2300),additions:[],nextQuestion:null},usage:{input:100,output:20,cached:0,cacheWrite:0}}}};
+      call:async()=>{dispatches++;return{proposal:{...proposal,reply:'A'.repeat(1000),additions:[],nextQuestion:null},usage:{input:100,output:20,cached:0,cacheWrite:0}}}};
     const service=onboardingService(store,boundedProvider,'test');let a=await fresh();
     const send=(text:string)=>service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'message',text},async()=>true);
     // Three detailed answers fit; further full-length input eventually reaches a genuine bound.

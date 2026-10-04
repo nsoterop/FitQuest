@@ -1,0 +1,762 @@
+{
+  "onboarding": [
+    {
+      "case": "distributed-volunteered",
+      "input": {
+        "context": {
+          "items": [
+            {
+              "id": "raw-m1",
+              "topic": "Athlete report",
+              "value": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I prefer separate morning movement and evening mobility on three flexible days. My limit is 25 minutes per session and 35 minutes total per day. Morning walking is an example, not a required routine.",
+              "origin": "user_report",
+              "review": "unreviewed",
+              "source": "m1",
+              "quote": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I prefer separate morning movement and evening mobility on three flexible days. My limit is 25 minutes per session and 35 minutes total per day. Morning walking is an example, not a required routine.",
+              "supersedes": null,
+              "recordedAt": "2026-10-04T00:00:00Z"
+            }
+          ],
+          "skipped": [],
+          "readiness": "needs_clarification",
+          "limitations": [
+            "This understanding is based on reports, not independent verification or medical clearance."
+          ]
+        },
+        "sources": {
+          "m1": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I prefer separate morning movement and evening mobility on three flexible days. My limit is 25 minutes per session and 35 minutes total per day. Morning walking is an example, not a required routine."
+        },
+        "recent": [
+          {
+            "role": "user",
+            "text": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I prefer separate morning movement and evening mobility on three flexible days. My limit is 25 minutes per session and 35 minutes total per day. Morning walking is an example, not a required routine.",
+            "source": "m1"
+          }
+        ],
+        "knownProfileFields": [
+          "first name",
+          "last name",
+          "height",
+          "age",
+          "weight",
+          "gender"
+        ]
+      },
+      "raw": {
+        "trainingSummary": [
+          {
+            "category": "goals",
+            "text": "Priorities: walking endurance first, then upper-body strength, shoulder mobility, and learning acceleration technique.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "availability",
+            "text": "Can train on three flexible days; prefers separate morning movement and evening mobility sessions.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "availability",
+            "text": "Limit is 25 minutes per session and 35 minutes total per day.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "experience",
+            "text": "Currently walks one mile three days weekly, sometimes alternating brisk and easy walking, and practices wall push-ups twice weekly; has no sprint technique instruction.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "equipment",
+            "text": "Has a safe flat walking route, stable wall, firm raised support, clear floor, and suitable shoes; prefers miles and pounds.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "limitations",
+            "text": "No relevant limitations reported. No sprint lane with run-out is available, which may constrain acceleration practice.",
+            "origin": "model_inference"
+          }
+        ],
+        "reply": "I understand your priorities, current activity, flexible schedule and session limits. You have walking and basic support equipment available, but no sprint lane with run-out, so acceleration practice may be limited.",
+        "additions": [],
+        "nextQuestion": {
+          "topic": "Onboarding recap",
+          "text": "Does this recap look right, or would you like to correct anything?",
+          "decision": "A correction can update the summary before moving forward."
+        },
+        "readiness": "ready_with_limits",
+        "limitations": [
+          "No sprint lane with run-out is available; acceleration practice may be limited.",
+          "This understanding is based on reports, not independent verification or medical clearance."
+        ],
+        "planningCheck": {
+          "status": "ready",
+          "question": null,
+          "reason": null
+        }
+      }
+    },
+    {
+      "case": "ambiguous-duration",
+      "input": {
+        "context": {
+          "items": [
+            {
+              "id": "raw-m1",
+              "topic": "Athlete report",
+              "value": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I am available morning and evening on three flexible days and want to spread sessions out. My limit is 30 minutes, but I have not decided if that means per session or per day.",
+              "origin": "user_report",
+              "review": "unreviewed",
+              "source": "m1",
+              "quote": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I am available morning and evening on three flexible days and want to spread sessions out. My limit is 30 minutes, but I have not decided if that means per session or per day.",
+              "supersedes": null,
+              "recordedAt": "2026-10-04T00:00:00Z"
+            }
+          ],
+          "skipped": [],
+          "readiness": "needs_clarification",
+          "limitations": [
+            "This understanding is based on reports, not independent verification or medical clearance."
+          ]
+        },
+        "sources": {
+          "m1": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I am available morning and evening on three flexible days and want to spread sessions out. My limit is 30 minutes, but I have not decided if that means per session or per day."
+        },
+        "recent": [
+          {
+            "role": "user",
+            "text": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I am available morning and evening on three flexible days and want to spread sessions out. My limit is 30 minutes, but I have not decided if that means per session or per day.",
+            "source": "m1"
+          }
+        ],
+        "knownProfileFields": [
+          "first name",
+          "last name",
+          "height",
+          "age",
+          "weight",
+          "gender"
+        ]
+      },
+      "raw": {
+        "trainingSummary": [
+          {
+            "category": "goals",
+            "text": "Priorities: walking endurance first, then upper-body strength, shoulder mobility, and learning acceleration technique.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "availability",
+            "text": "Available mornings and evenings on three flexible days; prefers spreading sessions out. The 30-minute limit may apply per session or per day.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "experience",
+            "text": "Walks one mile three times weekly, sometimes alternating brisk and easy walking; practices wall push-ups twice weekly. No sprint technique instruction yet.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "equipment",
+            "text": "Has a safe flat walking route, stable wall, firm raised support, clear floor, and suitable shoes; no sprint lane with run-out. Prefers miles and pounds.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "limitations",
+            "text": "Reports no relevant limitations; the lack of a sprint lane with run-out may limit how acceleration practice can be handled.",
+            "origin": "model_inference"
+          }
+        ],
+        "reply": "Thanks\u2014that gives me a useful picture of your priorities and setup. One scheduling detail is still unclear.",
+        "additions": [],
+        "nextQuestion": {
+          "topic": "Activity and availability",
+          "text": "Does your 30-minute limit apply to each session or to the total time you can train in a day?",
+          "decision": "This changes how training can be distributed across your available morning and evening sessions."
+        },
+        "readiness": "needs_clarification",
+        "limitations": [
+          "No sprint lane with run-out is available.",
+          "The scope of the 30-minute limit is unclear.",
+          "This understanding is based on reports, not independent verification or medical clearance."
+        ],
+        "planningCheck": {
+          "status": "question",
+          "question": "Does your 30-minute limit apply to each session or to the total time you can train in a day?",
+          "reason": "This changes how training can be distributed across your available morning and evening sessions."
+        }
+      }
+    },
+    {
+      "case": "single-correction",
+      "input": {
+        "context": {
+          "items": [
+            {
+              "id": "raw-m1",
+              "topic": "Athlete report",
+              "value": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I am available morning and evening on three flexible days and want to spread sessions out. My limit is 30 minutes, but I have not decided if that means per session or per day.",
+              "origin": "user_report",
+              "review": "unreviewed",
+              "source": "m1",
+              "quote": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I am available morning and evening on three flexible days and want to spread sessions out. My limit is 30 minutes, but I have not decided if that means per session or per day.",
+              "supersedes": null,
+              "recordedAt": "2026-10-04T00:00:00Z"
+            },
+            {
+              "id": "raw-m2",
+              "topic": "Athlete report",
+              "value": "Thirty minutes is the total-day limit. Actually I prefer a single session per day even though morning and evening are both available.",
+              "origin": "user_report",
+              "review": "unreviewed",
+              "source": "m2",
+              "quote": "Thirty minutes is the total-day limit. Actually I prefer a single session per day even though morning and evening are both available.",
+              "supersedes": null,
+              "recordedAt": "2026-10-04T00:00:00Z"
+            }
+          ],
+          "skipped": [],
+          "readiness": "needs_clarification",
+          "limitations": [
+            "This understanding is based on reports, not independent verification or medical clearance.",
+            "No sprint lane with run-out is available.",
+            "The scope of the 30-minute limit is unclear."
+          ],
+          "trainingSummary": [
+            {
+              "category": "goals",
+              "text": "Priorities: walking endurance first, then upper-body strength, shoulder mobility, and learning acceleration technique.",
+              "origin": "model_inference"
+            },
+            {
+              "category": "availability",
+              "text": "Available mornings and evenings on three flexible days; prefers spreading sessions out. The 30-minute limit may apply per session or per day.",
+              "origin": "model_inference"
+            },
+            {
+              "category": "experience",
+              "text": "Walks one mile three times weekly, sometimes alternating brisk and easy walking; practices wall push-ups twice weekly. No sprint technique instruction yet.",
+              "origin": "model_inference"
+            },
+            {
+              "category": "equipment",
+              "text": "Has a safe flat walking route, stable wall, firm raised support, clear floor, and suitable shoes; no sprint lane with run-out. Prefers miles and pounds.",
+              "origin": "model_inference"
+            },
+            {
+              "category": "limitations",
+              "text": "Reports no relevant limitations; the lack of a sprint lane with run-out may limit how acceleration practice can be handled.",
+              "origin": "model_inference"
+            }
+          ],
+          "planningCheck": {
+            "status": "question",
+            "question": "Does your 30-minute limit apply to each session or to the total time you can train in a day?",
+            "reason": "This changes how training can be distributed across your available morning and evening sessions."
+          }
+        },
+        "sources": {
+          "m1": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I am available morning and evening on three flexible days and want to spread sessions out. My limit is 30 minutes, but I have not decided if that means per session or per day.",
+          "m2": "Thirty minutes is the total-day limit. Actually I prefer a single session per day even though morning and evening are both available."
+        },
+        "recent": [
+          {
+            "role": "user",
+            "text": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I am available morning and evening on three flexible days and want to spread sessions out. My limit is 30 minutes, but I have not decided if that means per session or per day.",
+            "source": "m1"
+          },
+          {
+            "role": "assistant",
+            "text": "This changes how training can be distributed across your available morning and evening sessions.\n\nDoes your 30-minute limit apply to each session or to the total time you can train in a day?"
+          },
+          {
+            "role": "user",
+            "text": "Thirty minutes is the total-day limit. Actually I prefer a single session per day even though morning and evening are both available.",
+            "source": "m2"
+          }
+        ],
+        "knownProfileFields": [
+          "first name",
+          "last name",
+          "height",
+          "age",
+          "weight",
+          "gender"
+        ]
+      },
+      "raw": {
+        "trainingSummary": [
+          {
+            "category": "goals",
+            "text": "Priorities are walking endurance first, then upper-body strength, shoulder mobility, and learning acceleration technique.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "availability",
+            "text": "Available morning and evening on three flexible days; prefers one session per day. The 30-minute limit applies to total training time per day.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "experience",
+            "text": "Walks one mile three times weekly, sometimes alternating brisk and easy walking; practices wall push-ups twice weekly. Has no sprint technique instruction.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "equipment",
+            "text": "Has a safe flat walking route, stable wall, firm raised support, clear floor, and suitable shoes; no sprint lane with run-out. Prefers miles and pounds.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "limitations",
+            "text": "Reports no relevant limitations; no sprint lane with run-out is available.",
+            "origin": "model_inference"
+          }
+        ],
+        "reply": "Got it: your 30-minute limit is for the whole day, and you prefer one session per day. Your priorities are walking endurance first, then upper-body strength, shoulder mobility, and learning acceleration technique. You walk one mile three times a week and practice wall push-ups twice weekly. You have three flexible training days, with mornings and evenings available, and prefer one session per day. You have a safe walking route and basic supports, but no sprint lane with run-out. You report no relevant limitations.",
+        "additions": [],
+        "nextQuestion": {
+          "topic": "Onboarding recap",
+          "text": "Does this recap look right, or would you like to correct anything?",
+          "decision": "Your goals, current activity, schedule, equipment, and reported limitations are captured, with the sprint-lane constraint retained."
+        },
+        "readiness": "ready_with_limits",
+        "limitations": [
+          "No sprint lane with run-out is available.",
+          "No sprint technique instruction yet."
+        ],
+        "planningCheck": {
+          "status": "ready",
+          "question": null,
+          "reason": null
+        }
+      }
+    },
+    {
+      "case": "flexible",
+      "input": {
+        "context": {
+          "items": [
+            {
+              "id": "raw-m1",
+              "topic": "Athlete report",
+              "value": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I can manage two flexible days up to 25 minutes total each. I have no preference for single or split sessions, and no fixed weekdays.",
+              "origin": "user_report",
+              "review": "unreviewed",
+              "source": "m1",
+              "quote": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I can manage two flexible days up to 25 minutes total each. I have no preference for single or split sessions, and no fixed weekdays.",
+              "supersedes": null,
+              "recordedAt": "2026-10-04T00:00:00Z"
+            }
+          ],
+          "skipped": [],
+          "readiness": "needs_clarification",
+          "limitations": [
+            "This understanding is based on reports, not independent verification or medical clearance."
+          ]
+        },
+        "sources": {
+          "m1": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I can manage two flexible days up to 25 minutes total each. I have no preference for single or split sessions, and no fixed weekdays."
+        },
+        "recent": [
+          {
+            "role": "user",
+            "text": "I want walking endurance, upper-body strength, shoulder mobility, and to learn acceleration technique; walking comes first. I currently walk one mile three days weekly, sometimes alternating brisk and easy walking, and practice wall push-ups twice weekly. I have no sprint technique instruction. I have a safe flat walking route, stable wall, firm raised support, clear floor and suitable shoes, but no sprint lane with run-out. No relevant limitations to report. I prefer miles and pounds. I can manage two flexible days up to 25 minutes total each. I have no preference for single or split sessions, and no fixed weekdays.",
+            "source": "m1"
+          }
+        ],
+        "knownProfileFields": [
+          "first name",
+          "last name",
+          "height",
+          "age",
+          "weight",
+          "gender"
+        ]
+      },
+      "raw": {
+        "trainingSummary": [
+          {
+            "category": "goals",
+            "text": "Prioritizes walking endurance.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "goals",
+            "text": "Also wants upper-body strength and shoulder mobility.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "goals",
+            "text": "Wants to learn acceleration technique.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "availability",
+            "text": "Can train on two flexible days, up to 25 minutes total per day; no fixed weekdays or preference for single versus split sessions.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "experience",
+            "text": "Currently walks one mile three times weekly, sometimes alternating brisk and easy paces, and practices wall push-ups twice weekly; has no sprint-technique instruction.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "equipment",
+            "text": "Has a safe flat walking route, stable wall, firm raised support, clear floor, and suitable shoes.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "limitations",
+            "text": "No sprint lane with run-out is available.",
+            "origin": "model_inference"
+          },
+          {
+            "category": "limitations",
+            "text": "Reports no relevant limitations; prefers miles and pounds.",
+            "origin": "model_inference"
+          }
+        ],
+        "reply": "You\u2019re prioritizing walking endurance, with upper-body strength, shoulder mobility, and learning acceleration technique as additional goals. You currently walk a mile three times a week and practice wall push-ups twice a week, with no sprint-technique instruction. Two flexible days of up to 25 minutes total each fit your week; you have no fixed weekdays or preference for single versus split sessions. You have a flat walking route, wall, raised support, clear floor, and suitable shoes, but no sprint lane with run-out. You report no relevant limitations and prefer miles and pounds.",
+        "additions": [],
+        "nextQuestion": {
+          "topic": "Onboarding recap",
+          "text": "Does this recap reflect your goals and practical constraints, or would you like to correct anything?",
+          "decision": "Your reported goals, activity, schedule, available equipment, and limitations are captured."
+        },
+        "readiness": "ready_with_limits",
+        "limitations": [
+          "No sprint lane with run-out is available; this is retained as a practical constraint.",
+          "This understanding is based on reports, not independent verification or medical clearance."
+        ],
+        "planningCheck": {
+          "status": "ready",
+          "question": null,
+          "reason": null
+        }
+      }
+    }
+  ],
+  "planningInput": {
+    "kind": "week",
+    "qualityVersion": 2,
+    "preferredUnits": "imperial",
+    "summary": [
+      {
+        "category": "goals",
+        "text": "Priorities: walking endurance first, then upper-body strength, shoulder mobility, and learning acceleration technique.",
+        "origin": "model_inference"
+      },
+      {
+        "category": "availability",
+        "text": "Can train on three flexible days; prefers separate morning movement and evening mobility sessions.",
+        "origin": "model_inference"
+      },
+      {
+        "category": "availability",
+        "text": "Limit is 25 minutes per session and 35 minutes total per day.",
+        "origin": "model_inference"
+      },
+      {
+        "category": "experience",
+        "text": "Currently walks one mile three days weekly, sometimes alternating brisk and easy walking, and practices wall push-ups twice weekly; has no sprint technique instruction.",
+        "origin": "model_inference"
+      },
+      {
+        "category": "equipment",
+        "text": "Has a safe flat walking route, stable wall, firm raised support, clear floor, and suitable shoes; prefers miles and pounds.",
+        "origin": "model_inference"
+      },
+      {
+        "category": "limitations",
+        "text": "No relevant limitations reported. No sprint lane with run-out is available, which may constrain acceleration practice.",
+        "origin": "model_inference"
+      }
+    ],
+    "profile": {
+      "age": 34,
+      "heightInches": 69,
+      "weightLb": 162
+    },
+    "dates": [
+      "2026-10-04",
+      "2026-10-05",
+      "2026-10-06",
+      "2026-10-07",
+      "2026-10-08",
+      "2026-10-09",
+      "2026-10-10"
+    ],
+    "savedDays": []
+  },
+  "week": {
+    "clarification": null,
+    "coverage": [],
+    "days": [
+      {
+        "date": "2026-10-04",
+        "sessions": [
+          {
+            "focus": "Steady outdoor walk",
+            "timing": "morning",
+            "intervals": [],
+            "activities": [
+              {
+                "id": "FQ-ACT-00148",
+                "phase": "main",
+                "sets": 1,
+                "measure": "meters",
+                "amount": 1609.344,
+                "effort": "moderate",
+                "restSeconds": 0,
+                "load": "none",
+                "loadKg": null,
+                "side": "both",
+                "distanceTarget": {
+                  "value": 1,
+                  "unit": "mi"
+                }
+              }
+            ]
+          },
+          {
+            "focus": "Shoulder mobility",
+            "timing": "evening",
+            "intervals": [],
+            "activities": [
+              {
+                "id": "FQ-ACT-00113",
+                "phase": "main",
+                "sets": 2,
+                "measure": "repetitions",
+                "amount": 8,
+                "effort": "easy",
+                "restSeconds": 15,
+                "load": "none",
+                "loadKg": null,
+                "side": "both",
+                "distanceTarget": null
+              },
+              {
+                "id": "FQ-ACT-00118",
+                "phase": "main",
+                "sets": 1,
+                "measure": "repetitions",
+                "amount": 6,
+                "effort": "easy",
+                "restSeconds": 15,
+                "load": "none",
+                "loadKg": null,
+                "side": "each",
+                "distanceTarget": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "date": "2026-10-05",
+        "sessions": []
+      },
+      {
+        "date": "2026-10-06",
+        "sessions": [
+          {
+            "focus": "Steady outdoor walk",
+            "timing": "morning",
+            "intervals": [],
+            "activities": [
+              {
+                "id": "FQ-ACT-00148",
+                "phase": "main",
+                "sets": 1,
+                "measure": "meters",
+                "amount": 1609.344,
+                "effort": "moderate",
+                "restSeconds": 0,
+                "load": "none",
+                "loadKg": null,
+                "side": "both",
+                "distanceTarget": {
+                  "value": 1,
+                  "unit": "mi"
+                }
+              }
+            ]
+          },
+          {
+            "focus": "Introductory upper-body strength",
+            "timing": "evening",
+            "intervals": [],
+            "activities": [
+              {
+                "id": "FQ-ACT-00003",
+                "phase": "main",
+                "sets": 3,
+                "measure": "repetitions",
+                "amount": 8,
+                "effort": "moderate",
+                "restSeconds": 60,
+                "load": "none",
+                "loadKg": null,
+                "side": "both",
+                "distanceTarget": null
+              }
+            ]
+          },
+          {
+            "focus": "Shoulder mobility",
+            "timing": "evening",
+            "intervals": [],
+            "activities": [
+              {
+                "id": "FQ-ACT-00113",
+                "phase": "main",
+                "sets": 2,
+                "measure": "repetitions",
+                "amount": 8,
+                "effort": "easy",
+                "restSeconds": 15,
+                "load": "none",
+                "loadKg": null,
+                "side": "both",
+                "distanceTarget": null
+              },
+              {
+                "id": "FQ-ACT-00118",
+                "phase": "main",
+                "sets": 1,
+                "measure": "repetitions",
+                "amount": 6,
+                "effort": "easy",
+                "restSeconds": 15,
+                "load": "none",
+                "loadKg": null,
+                "side": "each",
+                "distanceTarget": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "date": "2026-10-07",
+        "sessions": []
+      },
+      {
+        "date": "2026-10-08",
+        "sessions": [
+          {
+            "focus": "Steady outdoor walk",
+            "timing": "morning",
+            "intervals": [],
+            "activities": [
+              {
+                "id": "FQ-ACT-00148",
+                "phase": "main",
+                "sets": 1,
+                "measure": "meters",
+                "amount": 1609.344,
+                "effort": "moderate",
+                "restSeconds": 0,
+                "load": "none",
+                "loadKg": null,
+                "side": "both",
+                "distanceTarget": {
+                  "value": 1,
+                  "unit": "mi"
+                }
+              }
+            ]
+          },
+          {
+            "focus": "Shoulder mobility",
+            "timing": "evening",
+            "intervals": [],
+            "activities": [
+              {
+                "id": "FQ-ACT-00113",
+                "phase": "main",
+                "sets": 2,
+                "measure": "repetitions",
+                "amount": 8,
+                "effort": "easy",
+                "restSeconds": 15,
+                "load": "none",
+                "loadKg": null,
+                "side": "both",
+                "distanceTarget": null
+              },
+              {
+                "id": "FQ-ACT-00118",
+                "phase": "main",
+                "sets": 1,
+                "measure": "repetitions",
+                "amount": 6,
+                "effort": "easy",
+                "restSeconds": 15,
+                "load": "none",
+                "loadKg": null,
+                "side": "each",
+                "distanceTarget": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "date": "2026-10-09",
+        "sessions": []
+      },
+      {
+        "date": "2026-10-10",
+        "sessions": []
+      }
+    ],
+    "units": "imperial",
+    "goalDecisions": [
+      {
+        "sourceIndex": 0,
+        "goal": "Walking endurance",
+        "status": "addressed",
+        "reason": "Three one-mile outdoor walks match the reported current walking volume and provide regular endurance practice.",
+        "evidence": [
+          {
+            "date": "2026-10-04",
+            "sessionIndex": 0,
+            "activityIndex": 0
+          }
+        ]
+      },
+      {
+        "sourceIndex": 0,
+        "goal": "Upper-body strength",
+        "status": "introductory",
+        "reason": "Hands-elevated push-ups provide a conservative, equipment-matched starting point for pressing strength; available equipment does not include a pulling exercise setup.",
+        "evidence": [
+          {
+            "date": "2026-10-06",
+            "sessionIndex": 1,
+            "activityIndex": 0
+          }
+        ]
+      },
+      {
+        "sourceIndex": 0,
+        "goal": "Shoulder mobility",
+        "status": "addressed",
+        "reason": "Controlled wall slides and open-book rotations provide repeated, gentle shoulder and upper-trunk mobility practice.",
+        "evidence": [
+          {
+            "date": "2026-10-04",
+            "sessionIndex": 1,
+            "activityIndex": 0
+          }
+        ]
+      },
+      {
+        "sourceIndex": 0,
+        "goal": "Learning acceleration technique",
+        "status": "deferred",
+        "reason": "The reported space lacks a sprint lane with run-out, while the catalog's standing-start acceleration activity requires room to decelerate safely. Revisit introductory acceleration drills when a clear lane with adequate run-out is available.",
+        "evidence": []
+      }
+    ]
+  }
+}

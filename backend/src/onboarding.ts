@@ -47,13 +47,13 @@ export function onboardingService(store:OnboardingStore,provider?:OnboardingProv
       let context; let reply; let questionTopic; let failure=result.failure;
       if(!failure) {
         try {
-          const proposal=validateProposal(result.proposal);
+          const proposal=validateProposal(result.proposal,provider.mode==='openai');
           context=applyProposal(claimed.conversation.context,proposal,work.sources,new Date().toISOString());
           const display=consistentReply(context,proposal);
           reply=renderOnboardingReply(display);
           questionTopic=display.nextQuestion?.topic;
           if(reply.length>3000) throw new OnboardingError(422,'invalid_model_output');
-        }catch{failure='incomplete'}
+        }catch{context=undefined;reply=undefined;questionTopic=undefined;failure='incomplete'}
       }
       return presentOperation(await store.finish(account,id,work,context,reply,failure,questionTopic));
     },

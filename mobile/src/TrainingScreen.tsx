@@ -1,3 +1,4 @@
+import { sessionRows } from './trainingPresentation';
 import type { RecoveryRequest } from './onboardingApi';
 import { privateDrafts } from './onboardingDraftStorage';
 import { useEffect,useRef,useState } from 'react';
@@ -6,9 +7,6 @@ import { needsClarification,weekComplete,TrainingError,trainingError,trainingReq
 
 const coverageText:Record<string,string>={missing_catalog_coverage:'The catalog does not cover the requested work.',equipment_or_facility_unknown:'Equipment or facility access needs clarification.',skill_partner_or_supervision_unknown:'Skill, partner or supervision requirements need clarification.',limitations_need_clarification:'Relevant limitations need clarification.',summary_needs_correction:'Update the training summary before planning.'};
 const originText:Record<string,string>={user_report:'Reported',model_inference:'AI inference',assumption:'Assumption',unknown:'Unknown'};
-// Canonical storage stays metric. Round for display without losing small distances.
-const displayNumber=(value:number,digits:number)=>String(Number(value.toFixed(digits)));
-const distance=(meters:number)=>{const miles=meters/1609.344;return `${displayNumber(miles,miles<.01?4:2)} ${Math.abs(miles-1)<.005?'mile':'miles'}`};
 const calendarDate=(date:string)=>`${new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`))}, ${date}`;
 export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClarify,generateOnOpen=false}:{userId:string;accessToken:()=>Promise<string>;onClose:()=>void;onSessionEnded?:()=>void;onClarify?:(request:RecoveryRequest)=>void;generateOnOpen?:boolean}) {
   const [state,setState]=useState<TrainingState|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false),[facts,setFacts]=useState<TrainingFact[]>([]),[showSummary,setShowSummary]=useState(false),[selected,setSelected]=useState('');
@@ -56,12 +54,14 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
     return <View key={day.date} style={styles.day}>
       {d.coverage.map(code=><Text key={code} style={styles.copy}>{coverageText[code]??'Catalog coverage is limited.'}</Text>)}
       {!d.sessions.length&&!d.coverage.length&&<Text style={styles.copy}>Rest — no prescribed session.</Text>}
-      {d.sessions.map((s,i)=><View key={i} style={styles.day}><Text style={styles.label}>{shown?.outline?.days.find(x=>x.date===day.date)?.sessions[i]?.focus??`Session ${i+1}`}</Text>{s.activities.map((a,j)=>{
-        const entry=d.activities[a.id]!;
-        const amount=a.measure==='meters'?distance(a.amount):a.measure==='seconds'?`${a.amount%60===0?a.amount/60:a.amount} ${a.amount%60===0?'min':'sec'}`:String(a.amount);
-        const prescription=`${a.sets>1||a.measure==='repetitions'?`${a.sets} × `:''}${amount}${a.side==='each'?' per side':''}`;
-        return <View key={j} style={styles.exercise}><Text style={styles.copy}>{entry.name} — {prescription}</Text></View>;
-      })}</View>)}
+      {d.sessions.map((s,i)=><View key={i} style={styles.day}>
+        <Text style={styles.label}>{shown?.outline?.days.find(x=>x.date===day.date)?.sessions[i]?.focus??`Session ${i+1}`}{s.timing?` · ${s.timing[0]!.toUpperCase()}${s.timing.slice(1)}`:''}</Text>
+        {sessionRows(s,d.activities).map((row,j,rows)=><View key={j} style={styles.exercise}>
+          {(j===0||rows[j-1]?.phase!==row.phase)&&row.phase!=='main'&&<Text style={styles.small}>{({warmup:'Warm-up',cooldown:'Cool-down',optional:'Optional'} as Record<string,string>)[row.phase]??row.phase}</Text>}
+          {j>0&&rows[j-1]?.phase!==row.phase&&row.phase==='main'&&<Text style={styles.small}>Main</Text>}
+          <Text style={styles.copy}>{row.text}</Text>
+        </View>)}
+      </View>)}
     </View>;
   }
   return <View style={styles.screen}>
@@ -75,7 +75,7 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
       {button(showSummary?'Hide training summary':'Training summary',()=>setShowSummary(!showSummary),true)}
       {showSummary&&<View style={styles.day}><Text style={styles.small}>Concise saved context; AI inferences and unknowns have not been confirmed by you.</Text>
         {(editing?facts:state.summary.document).map((f,i)=><View key={i} style={styles.exercise}><Text style={styles.label}>{f.category} · {originText[f.origin]}</Text>
-          {editing?<TextInput accessibilityLabel={`${f.category} ${i+1}`} value={f.text} multiline maxLength={350} editable={!busy} style={styles.input} onChangeText={text=>setFacts(old=>old.map((x,j)=>j===i?{...x,text,origin:'user_report'}:x))}/>:<Text style={styles.copy}>{f.text}</Text>}
+          {editing?<TextInput accessibilityLabel={`${f.category} ${i+1}`} value={f.text} multiline maxLength={350} editable={!busy} style={styles.input} onChangeText={text=>setFacts(old=>old.map((x,j)=>j===i?{...x,text,origin:'user_report',...(x.category==='goals'?{goals:undefined}:{})}:x))}/>:<Text style={styles.copy}>{f.text}</Text>}
         </View>)}
         {editing?<>
           <Text style={styles.small}>Corrections apply to future generation. Existing outlines and sessions remain saved; create a new week explicitly after saving.</Text>
@@ -93,6 +93,7 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
     {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)||shown.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)?'Planning needs attention':`${weekComplete(shown)?'Seven days':'Week incomplete'} · ${shown.timeZone}`}</Text>
       {shown.summaryRevision!==state?.summary?.revision&&<Text style={styles.small}>Saved before your summary correction. Its existing sessions remain unchanged. Create a new week for future generation.</Text>}
       {shown.outline&&needsClarification(shown.outline)?clarification(shown.outline,'outline'):shown.outline?.coverage.map(code=><Text key={code} style={styles.error}>{coverageText[code]??'Catalog coverage is limited.'} A usable outline has not been created.</Text>)}
+      {shown.outline?.goalDecisions?.filter(g=>g.status!=='addressed').map((g,i)=><Text key={`goal-${i}`} style={styles.small}>{g.goal}: {g.reason}</Text>)}
       {shown.jobs.filter(j=>j.status!=='completed'&&(j.target==='week'||!shown.jobs.some(x=>x.target==='week'))).map(j=><Text key={j.target} style={styles.copy}>{j.target==='week'?'Week':j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':trainingError(j.error??'unavailable')}</Text>)}
       {shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.map(d=><View key={d.date} style={styles.day}><Text style={styles.label}>{calendarDate(d.date)} · {d.sessions.length?d.sessions.map(s=>s.focus).join(' + '):'Rest'}</Text>
         {shown.days.some(x=>x.date===d.date)?showDay(shown.days.find(x=>x.date===d.date)!):<Text style={styles.copy}>Details not generated.</Text>}

@@ -90,6 +90,20 @@ test('orchestrator timeout retains uncertain reservation and settles late measur
   assert.deepEqual(settlements,[null]);assert.equal(commits,0);
   finish({proposal,usage:{input:1,output:1,cached:0,cacheWrite:0}});await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(settlements,[null,5]);assert.equal(commits,0);
 });
+test('expanded scheduling recap exceeding the existing reply bound settles usage but cannot publish partial validated content',async()=>{
+  const conversation={id:'synthetic',revision:1,state:'collecting' as const,confirmedRevision:null,context:emptyContext(),turns:[],profileChanged:false};
+  let finished:unknown[]=[];const settlements:number[]=[];
+  const store={claim:async()=>({conversation,work:{attempt:'attempt',turnId:'turn',revision:1,profileVersion:'v',body:'{}',sources:{}}}),
+    settle:async(_a:unknown,_id:unknown,cost:number)=>{settlements.push(cost)},operation:async()=>({status:'failed'}),
+    finish:async(...args:unknown[])=>{finished=args;return conversation}} as unknown as OnboardingStore;
+  const summary:NonNullable<ModelProposal['trainingSummary']>=['goals','availability','equipment','experience','limitations'].map(category=>({category:category as 'goals',text:'Synthetic '.repeat(34),origin:'model_inference'}));
+  summary.push({category:'availability',text:'Additional schedule '.repeat(17),origin:'model_inference'});
+  const large={...proposal,reply:'Recap. '.repeat(340),additions:[],trainingSummary:summary,planningCheck:{status:'ready',question:null,reason:null},nextQuestion:{topic:recapTopic,text:'Ready?',decision:'Practical context is supplied.'}};
+  validateProposal(large); // The model response fits; rendering its schedule exceeds 3000.
+  const provider={mode:'test',model:'synthetic',call:async()=>({proposal:large,usage:{input:1,output:1}}),cost:()=>5} as never;
+  await onboardingService(store,provider,'test').command({userId:'synthetic',sessionId:'synthetic'},'synthetic',{operationId:'synthetic',expectedRevision:0,kind:'message',text:'Goals'},async()=>true);
+  assert.deepEqual(settlements,[5]);assert.equal(finished[3],undefined);assert.equal(finished[4],undefined);assert.equal(finished[5],'incomplete');assert.equal(finished[6],undefined);
+});
 test('private parser/provider failures do not log personal input; malformed/unauthenticated traffic is rate bounded',async t=>{
   let logs='';const stream=new Writable({write(chunk,_encoding,done){logs+=chunk.toString();done()}});
   const account={userId:'11111111-1111-4111-8111-111111111111',sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};

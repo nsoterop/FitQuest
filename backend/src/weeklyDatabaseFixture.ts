@@ -19,7 +19,13 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
   await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');
   const store=planningStore(pool),onboard=postgresOnboardingStore(pool);
   let calls=0;
-  const makeWeek=(body:string):Week=>{const input=JSON.parse(JSON.parse(body).input),outline=input.outline??fixtureOutline(input.dates);return {clarification:null,coverage:[],days:outline.days.map((d:any)=>({date:d.date,sessions:(input.savedDays?.find((x:any)=>x.date===d.date)??fixtureDetail(outline,d.date)).sessions.map((s:any,i:number)=>({...s,focus:d.sessions[i].focus}))}))}};
+  const makeWeek=(body:string):Week=>{
+    const input=JSON.parse(JSON.parse(body).input),outline=input.outline??fixtureOutline(input.dates);
+    return {units:'imperial',goalDecisions:[{sourceIndex:0,goalIndex:0,goal:'Comfortable walking',status:'addressed',reason:'Easy walking develops the stated walking goal.',evidence:[{date:input.dates[0],sessionIndex:1,activityIndex:0}]},{sourceIndex:0,goalIndex:1,goal:'General strength',status:'addressed',reason:'A conservative strength session supports general strength.',evidence:[{date:input.dates[5],sessionIndex:0,activityIndex:0}]}],clarification:null,coverage:[],days:outline.days.map((d:any)=>{
+      const saved=input.savedDays?.find((x:any)=>x.date===d.date);
+      return {date:d.date,sessions:(saved??fixtureDetail(outline,d.date)).sessions.map((s:any,i:number)=>({...s,focus:d.sessions[i].focus,timing:s.timing??(saved?null:'flexible'),intervals:s.intervals??[],activities:s.activities.map((a:any)=>({...a,distanceTarget:a.distanceTarget??null}))}))};
+    })};
+  };
   let respond:(body:string)=>Promise<ProviderResult>=async body=>({proposal:makeWeek(body),usage:{input:100,output:5000,cached:0,cacheWrite:0}});
   const normal=respond;
   const provider:OnboardingProvider={mode:'test',model:'synthetic-week',capMicro:7000000,prepare:()=>{throw Error('Expected weekly schema')},cost:u=>Math.ceil(u.input*.125+u.output*.5),call:async body=>{calls++;return respond(body)}};
@@ -40,9 +46,10 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
     assert.ok('summarySaved' in done&&done.summarySaved);assert.equal(calls,0);
     const r=await request(),response=await app.inject({method:'POST',url:'/training/generate',headers:{authorization:'Bearer alice'},payload:r});assert.equal(response.statusCode,200);assert.equal(response.headers['cache-control'],'no-store');assert.equal(calls,1);
     const versions=(await owner.query('SELECT a.prompt_version,a.schema_version FROM fitquest.onboarding_attempts a JOIN fitquest.training_generations g ON g.user_id=a.user_id AND g.attempt_id=a.id WHERE g.user_id=$1 AND g.plan_id=$2 AND g.target=$3',[alice.userId,r.planId,'week'])).rows[0];
-    assert.deepEqual(versions,{prompt_version:'catalog-week-v1',schema_version:'catalog-week-v1'});
+    assert.deepEqual(versions,{prompt_version:'catalog-week-v3',schema_version:'catalog-week-v3'});
     const {p}=await latest();assert.equal(p.days.length,7);assert.equal(p.days[0].detail.sessions.length,2);assert.equal(p.days.filter((d:any)=>!d.detail.sessions.length).length,4);
-    for(const day of p.days)assert.deepEqual(day.detail.sessions,fixtureDetail(fixtureOutline(p.dates),day.date).sessions);
+    assert.equal(p.outline.qualityVersion,2);assert.equal(p.outline.units,'imperial');assert.equal(p.outline.goalDecisions.length,2);
+    for(const day of p.days)assert.deepEqual(day.detail.sessions,fixtureDetail(fixtureOutline(p.dates),day.date).sessions.map(s=>({...s,timing:'flexible',intervals:[],activities:s.activities.map(a=>({...a,distanceTarget:null}))})));
     const before=(await owner.query('SELECT spent_micro,reserved_micro FROM fitquest.ai_budget')).rows[0];
     await Promise.all([generate(),generate()]);assert.deepEqual((await planningStore(pool).read(alice)).plans.find(p=>p.id===r.planId).days,p.days);assert.equal(calls,1);
     assert.deepEqual((await owner.query('SELECT spent_micro,reserved_micro FROM fitquest.ai_budget')).rows[0],before);
@@ -101,7 +108,7 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
     const clarification={question:'Is a safe walking path available this week?',reason:'This decides whether walking can be included.'};
     for(const partial of [false,true]){
       const {p}=await next();if(partial)await owner.query('UPDATE fitquest.training_plans SET outline=$3 WHERE user_id=$1 AND id=$2',[alice.userId,p.id,JSON.stringify(fixtureOutline(p.dates))]);
-      respond=async()=>({proposal:{clarification,coverage:[],days:p.dates.map((date:string)=>({date,sessions:[]}))},usage:{input:100,output:500,cached:0,cacheWrite:0}});
+      respond=async()=>({proposal:{units:'imperial',goalDecisions:[],clarification,coverage:[],days:p.dates.map((date:string)=>({date,sessions:[]}))},usage:{input:100,output:500,cached:0,cacheWrite:0}});
       await generate();const result=await latest();assert.equal(result.p.days.length,partial?1:0);const blocked=partial?result.p.days[0].detail:result.p.outline;assert.deepEqual(blocked.clarification,clarification);
       const target=partial?p.dates[0]:'outline',before=calls;
       const recovery=await onboard.create(alice,'America/New_York',{planId:p.id,summaryRevision:p.summaryRevision,target});assert.ok(!('completedId' in recovery));assert.equal(calls,before);
@@ -122,4 +129,43 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
       if(change==='profile')await profiles.save(alice,profile);
     }
   });
+  await t.test('legacy compound summaries use explicit existing recovery without automatic paid calls; saved days and accounting survive',async()=>{
+    for(const partial of [false,true]){
+      const {s}=await next(),legacy=trainingFixture.map(({goals,...f})=>f);
+      await store.edit(alice,s.summary.revision,legacy,'UTC');await store.ensurePlan(alice,s.summary.revision+1);
+      const {p}=await latest();
+      if(partial){
+        const outline=fixtureOutline(p.dates);
+        await owner.query('UPDATE fitquest.training_plans SET outline=$3 WHERE user_id=$1 AND id=$2',[alice.userId,p.id,JSON.stringify(outline)]);
+        await owner.query('INSERT INTO fitquest.training_days(user_id,plan_id,date,summary_revision,detail) VALUES($1,$2,$3,$4,$5)',[alice.userId,p.id,p.dates[0],p.summaryRevision,JSON.stringify(fixtureDetail(outline,p.dates[0]))]);
+      }
+      const originalDay=async()=>(await owner.query('SELECT detail::text FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 AND date=$3',[alice.userId,p.id,p.dates[0]])).rows[0]?.detail;
+      const oldDay=await originalDay(),before=calls,budget=(await owner.query('SELECT spent_micro,reserved_micro FROM fitquest.ai_budget')).rows[0];
+      await generate();let state=await latest();
+      assert.equal(calls,before);assert.equal(state.p.jobs.length,0);assert.equal(state.p.days.length,partial?2:0);
+      assert.match((partial?state.p.days[1].detail:state.p.outline).clarification.reason,/explicit goal list/);
+      await store.read(alice);assert.equal(calls,before);assert.deepEqual((await owner.query('SELECT spent_micro,reserved_micro FROM fitquest.ai_budget')).rows[0],budget);
+      if(partial)assert.equal(await originalDay(),oldDay);
+      const recoveryService=onboardingService(onboard,{...provider,prepare:()=>({body:'{}',reserveMicro:1000})},'test');
+      const recovery=await recoveryService.clarify(alice,{planId:p.id,summaryRevision:p.summaryRevision,target:partial?p.dates[1]:'outline'},async()=>true);
+      assert.ok('turns' in recovery);assert.equal(calls,before);
+      const goalSummary=trainingFixture.map(f=>({...f,origin:'model_inference' as const}));
+      respond=async()=>({proposal:{trainingSummary:goalSummary,reply:'Comfortable walking first, plus general strength. Three flexible 25-minute days.',additions:[],planningCheck:{status:'ready',question:null,reason:null},nextQuestion:{topic:'Onboarding recap',text:'Ready?',decision:'Review the individual retained goals.'},readiness:'ready_with_limits',limitations:[]},usage:{input:100,output:100,cached:0,cacheWrite:0}});
+      const reviewed=await recoveryService.command(alice,recovery.id,{kind:'message',operationId:randomUUID(),expectedRevision:recovery.revision,text:'Please review those individual goals.'},async()=>true);
+      assert.ok('turns' in reviewed);assert.deepEqual(reviewed.context.trainingSummary![0]!.goals,['Comfortable walking','General strength']);
+      const done=await recoveryService.command(alice,recovery.id,{kind:'message',operationId:randomUUID(),expectedRevision:reviewed.revision,text:'Looks good'},async()=>true);
+      assert.ok('summarySaved' in done);assert.equal(calls,before+1);
+      await assert.rejects(onboard.read(alice,recovery.id),{code:'not_found'});
+      respond=normal;await generate();state=await latest();assert.equal(state.p.days.length,7);assert.equal(calls,before+2);
+      assert.deepEqual(state.s.summary.document[0].goals,['Comfortable walking','General strength']);
+      if(partial)assert.equal(await originalDay(),oldDay);
+    }
+  });
+  await t.test('editing goal prose cannot silently retain stale planner identities',async()=>{
+    const {s,p}=await latest(),oldDays=structuredClone(p.days),changed=structuredClone(s.summary.document);
+    changed[0].text='Comfortable walking first, and learning to juggle.';
+    await store.edit(alice,s.summary.revision,changed,'UTC');const result=await store.read(alice);
+    assert.equal(result.summary.document[0].goals,undefined);assert.deepEqual(result.plans.find(x=>x.id===p.id).days,oldDays);
+  });
+
 }

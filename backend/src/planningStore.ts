@@ -6,7 +6,7 @@ import type { Account } from './auth.js';
 import { OnboardingError } from './onboardingDomain.js';
 import { minimizeModelInput,type OnboardingProvider } from './onboardingProvider.js';
 import { catalog } from './activityCatalog.js';
-import { checkTimeZone,checkedSummary,sevenDates,type TrainingSummary } from './trainingSummary.js';
+import { checkTimeZone,checkedSummary,sevenDates,hasGoalSet,type TrainingSummary } from './trainingSummary.js';
 import { preparePlanning,planningPromptVersion,savedDetail,type PlanningInput,type Outline,type Detail } from './planningDomain.js';
 
 export type GenerationRequest={summaryRevision:number;planId:string;target:string;retryAttempt:string|null};
@@ -54,6 +54,13 @@ export function planningStore(pool:Pool) {
       checkedSummary(document);checkTimeZone(timeZone);
       return tx(a,async c=>{await rate(c,a);const old=await summary(c,a);
         if(old.revision!==expected)throw new OnboardingError(409,'summary_changed');
+        document=document.map((f,i)=>{
+          const previous=old.document[i];
+          if(f.category==='goals'&&previous?.text!==f.text&&JSON.stringify(f.goals)===JSON.stringify(previous?.goals)){
+            const {goals,...updated}=f;return updated;
+          }
+          return f;
+        });
         // A repeated save after a lost response is read back, never silently applied twice.
         await c.query('UPDATE fitquest.training_summaries SET revision=revision+1,document=$2,time_zone=$3,updated_at=now() WHERE user_id=$1',[a.userId,JSON.stringify(document),timeZone]);
         return view(c,a);
@@ -83,12 +90,24 @@ export function planningStore(pool:Pool) {
         if(r.target!=='outline'&&r.target!=='week'&&!plan.outline)throw new OnboardingError(409,'outline_required');
         const input:PlanningInput={kind:r.target==='week'?'week':r.target==='outline'?'outline':'day',summary:s.document,profile:{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb)},dates:plan.dates};
         if(input.kind==='week') {
+          input.qualityVersion=2;input.preferredUnits=plan.outline?.units??'imperial';
           const days=(await c.query('SELECT detail FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 ORDER BY date',[a.userId,r.planId])).rows.map(x=>x.detail as Detail);
           if(plan.outline?.clarification||plan.outline&&informationCoverage(plan.outline.coverage)||days.some(d=>d.clarification||informationCoverage(d.coverage)))throw new OnboardingError(409,'clarification_required');
           if(plan.outline?.coverage.length||days.some(d=>d.coverage.length))throw new OnboardingError(409,'catalog_coverage');
           if(plan.dates.every((date:string)=>days.some(d=>d.date===date)))return;
           if(plan.outline)input.outline=plan.outline;
           input.savedDays=days.map(d=>({date:d.date,sessions:d.sessions,coverage:d.coverage,clarification:d.clarification??null}));
+          // Legacy prose has no independent, user-reviewed goal identities. Do not
+          // guess goal boundaries or pay a planner to define its own coverage test.
+          if(provider&&p.age>=18&&!hasGoalSet(input.summary)) {
+            const clarification={question:'Can we review the individual goals in your saved summary before planning?',reason:'This older summary has no explicit goal list, so planning cannot yet verify that every goal is covered.'};
+            if(!plan.outline)await c.query('UPDATE fitquest.training_plans SET outline=$3 WHERE user_id=$1 AND id=$2',[a.userId,r.planId,JSON.stringify({days:plan.dates.map((date:string)=>({date,sessions:[]})),coverage:[],clarification})]);
+            else {
+              const date=plan.dates.find((date:string)=>!days.some(d=>d.date===date));
+              await c.query('INSERT INTO fitquest.training_days(user_id,plan_id,date,summary_revision,detail) VALUES($1,$2,$3,$4,$5)',[a.userId,r.planId,date,s.revision,JSON.stringify(savedDetail({date,sessions:[],coverage:[],clarification}))]);
+            }
+            return;
+          }
         }
         if(input.kind==='day') {
           if(plan.outline.clarification||informationCoverage(plan.outline.coverage))throw new OnboardingError(409,'clarification_required');
@@ -109,7 +128,7 @@ export function planningStore(pool:Pool) {
           outbound=redacted;
           try{prepared=input.kind==='week'?prepareWeek(provider,redacted):preparePlanning(provider,redacted)}catch(e){failure=e instanceof OnboardingError?e.code:'planning_context_limit'}
           if(prepared) {
-            await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,$5,$6)",[a.userId,attempt,provider.purpose??'app',provider.model,input.kind==='week'?'catalog-week-v1':planningPromptVersion,input.kind==='week'?'catalog-week-v1':'catalog-plan-v1']);
+            await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,$5,$6)",[a.userId,attempt,provider.purpose??'app',provider.model,input.kind==='week'?'catalog-week-v3':planningPromptVersion,input.kind==='week'?'catalog-week-v3':'catalog-plan-v1']);
             if(!(await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed',[attempt,prepared.reserveMicro,provider.capMicro])).rows[0]?.allowed)failure='budget_exhausted';
           }
         }
@@ -129,7 +148,7 @@ export function planningStore(pool:Pool) {
       if(value) {
         if(w.target==='week') {
           const week=value as CheckedWeek;
-          await c.query('UPDATE fitquest.training_plans SET outline=$3 WHERE user_id=$1 AND id=$2 AND outline IS NULL',[a.userId,w.planId,JSON.stringify(week.outline)]);
+          await c.query('UPDATE fitquest.training_plans SET outline=$3 WHERE user_id=$1 AND id=$2',[a.userId,w.planId,JSON.stringify(week.outline)]);
           for(const detail of week.details)await c.query('INSERT INTO fitquest.training_days(user_id,plan_id,date,summary_revision,detail) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',[a.userId,w.planId,detail.date,w.revision,JSON.stringify(savedDetail(detail))]);
         }
         else if(w.target==='outline')await c.query('UPDATE fitquest.training_plans SET outline=$3 WHERE user_id=$1 AND id=$2 AND outline IS NULL',[a.userId,w.planId,JSON.stringify(value)]);

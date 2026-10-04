@@ -7,16 +7,28 @@ import type { Context, RecoveryRequest } from './onboardingDomain.js';
 import { OnboardingError } from './onboardingError.js';
 
 export const summaryCategories=['goals','availability','equipment','experience','limitations'] as const;
-export type SummaryFact={category:typeof summaryCategories[number];text:string;origin:'user_report'|'model_inference'|'assumption'|'unknown'};
+export type SummaryFact={category:typeof summaryCategories[number];text:string;origin:'user_report'|'model_inference'|'assumption'|'unknown';goals?:string[]|null};
 export type TrainingSummary=SummaryFact[];
 export const summarySchema={type:'array',minItems:5,maxItems:12,items:{type:'object',additionalProperties:false,required:['category','text','origin'],properties:{
   category:{type:'string',enum:summaryCategories},text:{type:'string',minLength:1,maxLength:350,pattern:'\\S'},
   origin:{type:'string',enum:['user_report','model_inference','assumption','unknown']},
+  goals:{anyOf:[{type:'null'},{type:'array',minItems:1,maxItems:24,items:{type:'string',minLength:1,maxLength:150,pattern:'\\S'}}]},
 }}} as const;
+// The provider wire contract always includes goals; saved older summaries may omit it.
+export const modelSummarySchema={...summarySchema,items:{...summarySchema.items,required:[...summarySchema.items.required,'goals']}};
 const validate=new Ajv().compile<TrainingSummary>(summarySchema);
 export function checkedSummary(value:unknown):TrainingSummary {
   if(!validate(value)||summaryCategories.some(c=>!value.some(f=>f.category===c)))throw new OnboardingError(422,'invalid_summary');
+  if(value.some(f=>f.category!=='goals'||f.origin==='unknown'?f.goals!=null:Object.hasOwn(f,'goals')&&!f.goals?.length))throw new OnboardingError(422,'invalid_summary');
+  const goals=value.flatMap(f=>f.goals??[]),keys=goals.map(g=>g.trim().toLowerCase());
+  if(goals.length>24||new Set(keys).size!==keys.length)throw new OnboardingError(422,'invalid_summary');
   return value;
+}
+export const hasGoalSet=(summary:TrainingSummary)=>summary.some(f=>f.category==='goals'&&f.origin!=='unknown')&&summary.every(f=>f.category!=='goals'||f.origin==='unknown'||!!f.goals?.length);
+export function expectedGoals(summary:TrainingSummary) {
+  checkedSummary(summary);
+  if(!hasGoalSet(summary))throw new OnboardingError(409,'summary_needs_correction');
+  return summary.flatMap((f,sourceIndex)=>(f.goals??[]).map((goal,goalIndex)=>({sourceIndex,goalIndex,goal})));
 }
 export function checkTimeZone(zone:string) {
   try {if(zone.length>80)throw Error();new Intl.DateTimeFormat('en-US',{timeZone:zone}).format();return zone;}

@@ -9,6 +9,7 @@ const closingInvitations = [
   'Does this recap capture things accurately?',
   'Does this recap look right, or would you like to correct anything?',
   'Does this recap capture what you shared, or would you like to correct anything?',
+  'Does this recap reflect your goals and practical constraints, or would you like to correct anything?',
   'Does this capture what you’ve shared?',
   'Ready?',
   'You can correct or add anything.',
@@ -30,5 +31,19 @@ function recapFacts(text: string) {
 export function renderOnboardingReply(proposal: ModelProposal) {
   const parts = [proposal.reply, proposal.nextQuestion?.text ?? ''];
   if (proposal.nextQuestion?.topic !== recapTopic) return parts.filter(Boolean).join('\n\n');
-  return [...parts.map(recapFacts), recapQuestion].filter(Boolean).join('\n\n');
+  const facts=parts.map(recapFacts);
+  const normalize=(text:string)=>text.replace(/\s+/g,' ').trim().toLowerCase();
+  let visible=normalize(facts.join(' '));
+  for(const [category,label] of [['goals','Goals'],['availability','Schedule understood as']] as const){
+    // Exact retained facts are the fallback for generic acknowledgments. New goal
+    // lists are also shown, so agreement covers the identities planning will use.
+    const retained=proposal.trainingSummary?.filter(f=>f.category===category)??[];
+    const texts=retained.flatMap(f=>[f.text,...(category==='goals'?f.goals??[]:[])]);
+    const missing:string[]=[];
+    for(const text of texts){
+      if(!visible.includes(normalize(text))){missing.push(text);visible+=' '+normalize(text)}
+    }
+    if(missing.length)facts.push(`${label}: ${missing.join(' ')}`);
+  }
+  return [...facts,recapQuestion].filter(Boolean).join('\n\n');
 }
