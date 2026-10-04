@@ -1,6 +1,6 @@
 # FitQuest
 
-iOS-first adaptive fitness-coach project. The current deployment provides email accounts, a persistent athlete profile and conversational AI onboarding. Catalog-backed planning and clarification recovery are deployed at `0cfff25b51f1d468f0073f34183ae9913b72c8b9`; authenticated phone acceptance remains unverified.
+iOS-first adaptive fitness-coach project. The current deployment provides email accounts, a persistent athlete profile and conversational AI onboarding. Complete-week planning, minimal exercise rows and clarification recovery are deployed at `05b4ec884a2512da7e8b88bcd6dbc4a5fd89b4d8`; authenticated phone acceptance remains unverified.
 
 **Conversational onboarding and the assigned catalog-backed planning slice are the resumed scope.** The owner authorized its context fix, multi-turn verification, reviewed publication/activation on existing services and reconnection of the installed phone app. Engineering deployed and activated HQ’s reviewed SHA on October 3. Other paused work and native builds remain outside scope.
 
@@ -9,13 +9,21 @@ iOS-first adaptive fitness-coach project. The current deployment provides email 
 - [iPhone setup and UI state](mobile/README.md)
 - [Backend, database and deployment](backend/README.md)
 
-## Complete weeks and minimal sessions — HQ accepted, deployment pending
+## Complete weeks and minimal sessions — deployed; phone acceptance pending
 
-The owner’s correction is implemented locally: explicit onboarding completion requests **one complete weekly model response**, then saves the outline and all seven dated days together. Mixed modalities, multiple sessions per day and rest remain athlete-specific. There are no per-day Generate controls. Saved reopen makes no model call; existing partial weeks offer one explicit **Complete weekly plan** action, preserving saved prescriptions. Interrupted/invalid output never publishes a partial new week, and retries require the failed attempt. Clarification and completed-chat cleanup protections remain intact.
+Owner testing reset after deployment `05b4ec8` (October 3, 2026): confirmed exactly one Auth account, then removed its old retained summary, two plans, one day detail and three completed generation jobs. Its conversation/transcript/revisions/operations were already absent. A guarded transaction used the application's per-user advisory lock, exact target fingerprints and active-work checks; a separate read verified all eight content tables empty for that account. Account/profile/two sessions, request counters, all 44 independent AI attempts and the single spending ledger have identical before/after fingerprints. Charges, reservations and the $7/$0.25 caps remain unchanged; no model call occurred. Repeat this account-scoped checklist after application-change deployments during testing, as authorized in AGENTS.md. No private-content backup/export was created; deletion does not imply removal from provider retention or existing backups.
+
+For this reset, reload FitQuest and choose **Start onboarding → Continue to onboarding**. The existing account-scoped start flow clears a draft belonging to the removed conversation. Physical-phone draft cleanup remains unverified; account sign-out is unnecessary. The previous saved plans are no longer available in the app.
+
+The owner’s correction is deployed: explicit onboarding completion requests **one complete weekly model response**, then saves the outline and all seven dated days together. Mixed modalities, multiple sessions per day and rest remain athlete-specific. There are no per-day Generate controls. Saved reopen makes no model call; existing partial weeks offer one explicit **Complete weekly plan** action, preserving saved prescriptions. Interrupted/invalid output never publishes a partial new week, and retries require the failed attempt. Clarification and completed-chat cleanup protections remain intact.
 
 Exercise rows show only the catalog name and concise sets/repetitions, duration, distance or count (with per-side wording where prescribed). Descriptions, setup, phases, load/rest/effort prose and metadata are absent from rows; validated catalog data is retained.
 
-HQ independently passed **98 backend tests** with isolated PostgreSQL and zero skips, **62 mobile tests**, both typechecks, diff checks and offline Expo compatibility. Tests assert one weekly dispatch/all seven saved days, zero-call reopen, explicit partial-week completion, concurrency, atomic rollback, timeout/incomplete/budget recovery, immutable existing days and exact rendered row text. Engineering's bounded synthetic Luna request returned seven complete days (three training/four rest, including a two-session day) in 11.834 seconds, conservatively settled at **$0.007804** from the existing ledger. HQ found no blocking issues and made no paid calls or hosted writes; its disposable test database is stopped. Accepted for publication and Engineering deployment, with no migration, new resource or native build needed. The last verified live backend remains `0cfff25` until deployment verification. Physical-phone acceptance remains unverified.
+HQ independently passed **98 backend tests** with isolated PostgreSQL and zero skips, **62 mobile tests**, both typechecks, diff checks and offline Expo compatibility. Tests assert one weekly dispatch/all seven saved days, zero-call reopen, explicit partial-week completion, concurrency, atomic rollback, timeout/incomplete/budget recovery, immutable existing days and exact rendered row text. Engineering's bounded synthetic Luna request returned seven complete days (three training/four rest, including a two-session day) in 11.834 seconds, conservatively settled at **$0.007804** from the existing ledger. HQ found no blocking issues and made no paid calls or hosted writes; its disposable test database is stopped. Accepted for publication and Engineering deployment, with no migration, new resource or native build needed. Engineering verified the reviewed checkpoint live below. Physical-phone acceptance remains unverified.
+
+Engineering verified [05b4ec884a2512da7e8b88bcd6dbc4a5fd89b4d8 Live on Render](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db0qijqd0e5s73cpth4g) on October 3, 2026 at 9:18:07 PM EDT (33.6 seconds). Runtime SHA, five changed compiled artifacts and weekly bounds match the reviewed build. `/health` returned the exact 200 contract; all 22 signed-out/invalid-token private-route checks returned 401/no-store, including generation and clarification. Starter, Blueprint and After CI Checks Pass are unchanged. Ledger/attempt fingerprints are unchanged: $0.035217 spent/$0.002308 reserved, including $0.022321 evaluation spent/$0.002308 reserved, under the original $7/$0.25 caps. No AI call, migration, configuration change or native build occurred during deployment verification.
+
+Metro at `http://192.168.87.227:8081` serves the actual iOS manifest and **4,912,995-byte** bundle (both HTTP 200). Verified `target:'week'`, the single weekly completion action and exercise rows containing only name/prescription, with instruction/setup/load metadata absent. Reload the installed app; for an existing partial plan use **View training → Complete weekly plan**. Saved reopen must not generate again. Phone layout, authenticated acceptance and keyboard behavior remain unverified; native build remains `49e1ff3`.
 
 ## Previous clarification release — deployed; phone acceptance pending
 
@@ -56,7 +64,7 @@ Reload the installed phone app on the Mac's Wi-Fi (`http://192.168.87.227:8081`)
 | Mobile | React Native 0.86 / React 19 / TypeScript / Expo SDK 57; iOS development build with Mac-hosted Metro |
 | API | Fastify 5 / TypeScript / Node 24 on the existing Render `fitquest-api` service |
 | Accounts and database | Supabase Free project `wqvxddvihlobnalxpzow`; email/password with confirmation; PostgreSQL private `fitquest.profiles` table |
-| Published application | `0cfff25b51f1d468f0073f34183ae9913b72c8b9` on `codex/reset-backend-connectivity`; deployed to Render |
+| Published application | `05b4ec884a2512da7e8b88bcd6dbc4a5fd89b4d8` on `codex/reset-backend-connectivity`; deployed to Render |
 | iPhone build | [67f13060-1006-4b6f-a2f5-f59eed28d594](https://expo.dev/accounts/nsoterop/projects/fitquest/builds/67f13060-1006-4b6f-a2f5-f59eed28d594), built from `49e1ff3`; owner confirmed launch after installation |
 | Reviewed UI | `Hi <firstname>` after successful save or existing-profile load; included in this source checkpoint |
 | Onboarding | Hosted AI active with GPT-6 Luna and the single $7 lifetime allowance. Reviewed mobile UI: concise disclosure → conversation/answer/Send; navigation/deletion in a secondary menu, with draft and conditional recovery retained. Phone acceptance pending. |
@@ -71,7 +79,7 @@ Signed out → email sign-in or account creation → required email confirmation
 - Current JavaScript: an existing profile or confirmed save opens **Hi &lt;firstname&gt;**. There is no profile-edit navigation from that greeting yet.
 - Sign-out clears account-specific UI and returns to authentication. Backend status remains in a small footer.
 
-The greeting now opens onboarding. This records an understanding, including reports, inferences and unknowns; confirmation is not independent verification or medical clearance. Explicit completion retains a compact editable summary, deletes the chat, then opens the weekly plan (the deployed release generates tomorrow only; the pending correction above generates all seven days together); training logs, nutrition features and Apple Health remain outside it.
+The greeting now opens onboarding. This records an understanding, including reports, inferences and unknowns; confirmation is not independent verification or medical clearance. Explicit completion retains a compact editable summary, deletes the chat, then generates and opens the complete seven-day plan; training logs, nutrition features and Apple Health remain outside it.
 
 ## Historical completion-only retention deployment
 
