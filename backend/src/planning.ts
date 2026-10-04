@@ -1,3 +1,4 @@
+import { informationCoverage } from './planningReadiness.js';
 import type { Account } from './auth.js';
 import { OnboardingError } from './onboardingDomain.js';
 import type { OnboardingProvider,ProviderResult } from './onboardingProvider.js';
@@ -21,7 +22,7 @@ export function planningService(store:PlanningStore,provider?:OnboardingProvider
         if(controller.signal.aborted)await store.settle(a,work.attempt,null);
         if(!await authorize())throw new OnboardingError(401,'session_ended');
         let value;let failure:string|undefined=result.failure;
-        if(!failure)try{value=work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!)}catch(e){failure=e instanceof OnboardingError?e.code:'invalid_plan'}
+        if(!failure)try{value=work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!);if(informationCoverage(value.coverage)){value=undefined;throw new OnboardingError(422,'invalid_plan')}}catch(e){failure=e instanceof OnboardingError?e.code:'invalid_plan'}
         await store.finish(a,work,value,failure);
       }
       return store.read(a);

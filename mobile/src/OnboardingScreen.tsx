@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { isDeletedOnboarding, type DeletedOnboarding, OnboardingApiError, onboardingErrorText, onboardingRequest, operationId, type OnboardingCommand, type OnboardingConversation } from './onboardingApi';
+import { isDeletedOnboarding, type DeletedOnboarding, type RecoveryRequest, OnboardingApiError, onboardingErrorText, onboardingRequest, operationId, type OnboardingCommand, type OnboardingConversation } from './onboardingApi';
 import { useConversationScroll } from './ConversationScrollView';
 import { privateDrafts } from './onboardingDraftStorage';
 import type { OnboardingDraftStore } from './onboardingDraft';
 
-export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,drafts=privateDrafts}: {
-  userId:string;accessToken:()=>Promise<string>;onSessionEnded?:()=>void;onClose:(message?:string,summarySaved?:boolean)=>void;drafts?:OnboardingDraftStore;
+export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,recovery,drafts=privateDrafts}: {
+  recovery?:RecoveryRequest;userId:string;accessToken:()=>Promise<string>;onSessionEnded?:()=>void;onClose:(message?:string,summarySaved?:boolean)=>void;drafts?:OnboardingDraftStore;
 }) {
-  const [accepted,setAccepted]=useState(false);
+  const [accepted,setAccepted]=useState(!!recovery);
   const [conversation,setConversation]=useState<OnboardingConversation|null>(null);
   const [text,setText]=useState('');const [pending,setPending]=useState<OnboardingCommand|null>(null);
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [draftError,setDraftError]=useState('');
@@ -58,14 +58,14 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
     finally{clearTimeout(timeout);if(request.current===controller){request.current=null;if(alive.current)setBusy(false)}}
   }
   async function start() {
-    await perform((token,signal)=>onboardingRequest('POST',null,null,token,signal),async result=>{
+    await perform((token,signal)=>onboardingRequest('POST',null,null,token,signal,fetch,recovery),async result=>{
       const draft=await drafts.read(userId);if(!alive.current)return;
       if(draft&&draft.conversationId===result?.id){setText(draft.text);setPending(draft.pending)}
       else if(draft)await drafts.clear(userId,draft.conversationId??undefined);
       setAccepted(true);
     });
   }
-  useEffect(()=>{alive.current=true;return()=>{alive.current=false;request.current?.abort();request.current=null}},[]);
+  useEffect(()=>{alive.current=true;if(recovery)void start();return()=>{alive.current=false;request.current?.abort();request.current=null}},[]);
   async function refresh() {
     if(!conversation)return;
     await perform((token,signal)=>onboardingRequest('GET',conversation.id,null,token,signal));
@@ -83,7 +83,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
       try{return await onboardingRequest('POST',conversation.id,command,token,signal)}
       catch(error){
         // Explicit bound/revision rejections roll back. Unknown outcomes retain the same pending ID.
-        if(error instanceof OnboardingApiError&&['context_limit','storage_limit','revision_conflict'].includes(error.code)&&alive.current&&!signal.aborted){
+        if(error instanceof OnboardingApiError&&['context_limit','storage_limit','revision_conflict','clarification_required','summary_changed'].includes(error.code)&&alive.current&&!signal.aborted){
           await drafts.write(userId,{conversationId:conversation.id,text,pending:null,savedAt:Date.now()});
           if(alive.current&&!signal.aborted)setPending(null);
         }
@@ -125,6 +125,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,draf
         {conversation&&button('Delete conversation',()=>setDeleteRequested(true),false,true)}
       </>}
     </View>}
+    {recovery&&!conversation&&<><Text style={styles.copy}>{busy?'Loading clarification…':error||'Continue from your saved summary.'}</Text>{!busy&&button('Load clarification',()=>void start())}</>}
     {!accepted?<>
       <Text accessibilityRole="header" style={styles.title}>Before we begin</Text>
       <Text style={styles.copy}>AI onboarding is for adults 18+. Your messages and relevant profile information are shared with OpenAI. Unfinished conversations stay until you finish or delete them. Completing onboarding keeps a concise editable training summary and plans, and deletes the chat. The summary and relevant profile facts are shared with OpenAI for planning. Provider retention and backups are separate.</Text>

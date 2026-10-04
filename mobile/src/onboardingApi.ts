@@ -1,3 +1,4 @@
+export type RecoveryRequest={summaryRevision:number;planId:string;target:string};
 export type UnderstandingItem={id:string;topic:string;value:string;origin:'profile'|'user_report'|'model_inference'|'assumption'|'unknown';review:'unreviewed'|'confirmed'|'disputed';source:string;quote:string;supersedes:string|null;recordedAt:string};
 export type OnboardingCommand={operationId:string;expectedRevision:number;timeZone?:string}&(
   {kind:'message';text:string}|{kind:'retry';turnId:string}|{kind:'skip';topic:string}|{kind:'edit';itemId:string|null;topic:string;value:string}|{kind:'confirm';reviewedRevision:number});
@@ -16,7 +17,7 @@ export class OnboardingApiError extends Error {
   constructor(code:string,sessionEnded=false){super(onboardingErrorText(code));this.code=code;this.sessionEnded=sessionEnded}
 }
 export function onboardingErrorText(code:string):string {
-  const messages:Record<string,string>={ai_disabled:'AI replies are unavailable. Your answer is saved.',
+  const messages:Record<string,string>={clarification_required:'Answer the planning question before finishing. Your conversation is still saved.',summary_changed:'Your saved summary changed. Return to training to continue from the current summary.',conversation_in_progress:'An unfinished conversation is already saved. Return to the greeting and resume or delete it before clarifying this plan.',clarification_unavailable:'This plan no longer needs clarification. Return to training and reload.',ai_disabled:'AI replies are unavailable. Your answer is saved.',
     adults_only:'AI onboarding is for adults 18+. Your account and profile are still available.',
     budget_exhausted:'AI replies have reached the spending limit. Your answer is saved.',
     context_limit:'This answer was not saved. Try a shorter answer.',
@@ -41,19 +42,20 @@ export function isConversation(value:unknown):value is OnboardingConversation {
     Array.isArray(x.context.skipped)&&x.context.skipped.every(s=>typeof s==='string')&&Array.isArray(x.turns)&&x.turns.length<=100&&x.turns.every(t=>typeof t.id==='string'&&typeof t.message==='string'&&
       (t.reply===null||typeof t.reply==='string')&&(t.questionTopic===null||typeof t.questionTopic==='string')&&['pending','completed','failed'].includes(t.state));
 }
-export async function onboardingRequest(method:'POST'|'GET'|'DELETE',id:string|null,command:OnboardingCommand|null,token:string,signal:AbortSignal,fetcher:typeof fetch=fetch):Promise<OnboardingConversation|DeletedOnboarding|null> {
+export async function onboardingRequest(method:'POST'|'GET'|'DELETE',id:string|null,command:OnboardingCommand|null,token:string,signal:AbortSignal,fetcher:typeof fetch=fetch,recovery?:RecoveryRequest):Promise<OnboardingConversation|DeletedOnboarding|null> {
   try {
     const base=process.env.EXPO_PUBLIC_API_URL;if(!base||!token||signal.aborted)throw new Error();
     const url=new URL(base);if(url.protocol!=='https:'||url.username||url.password)throw new Error();
     url.pathname=`${url.pathname.replace(/\/$/,'')}/onboarding${id?`/${encodeURIComponent(id)}`:''}${command?'/commands':''}`;url.search='';url.hash='';
+    if(recovery)url.pathname=`${new URL(base).pathname.replace(/\/$/,'')}/training/clarification`;
     const response=await fetcher(url.toString(),{method,signal,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
-      ...(method==='POST'?{body:JSON.stringify(command??{disclosureVersion:'onboarding-planning-v2',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone})}:{})});
+      ...(method==='POST'?{body:JSON.stringify(recovery??command??{disclosureVersion:'onboarding-planning-v2',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone})}:{})});
     if(signal.aborted)throw new Error();
     if(response.status===401)throw new OnboardingApiError('session_ended',true);
     if(method==='DELETE'&&response.status===204)return null;
     const body:unknown=await response.json();if(signal.aborted)throw new Error();
     if(response.status!==200)throw new OnboardingApiError(typeof body==='object'&&body&&'code'in body&&typeof body.code==='string'?body.code:'unavailable');
-    if(isDeletedOnboarding(body)){if(!id||body.id!==id)throw new Error();return body}
+    if(isDeletedOnboarding(body)){if(id?body.id!==id:!recovery||body.summarySaved!==true)throw new Error();return body}
     if(!isConversation(body))throw new Error();return body;
   }catch(error){if(error instanceof OnboardingApiError)throw error;throw new OnboardingApiError('unavailable')}
 }

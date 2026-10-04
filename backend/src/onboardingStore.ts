@@ -1,5 +1,7 @@
-import { retainTrainingSummary, checkTimeZone } from './trainingSummary.js';
-import { acceptsRecap, completeTopic, completionPendingReply } from './onboardingDomain.js';
+import { retainTrainingSummary, recoveryPlanId, checkTimeZone } from './trainingSummary.js';
+import { informationCoverage } from './planningReadiness.js';
+import { checkedSummary, assertRecoveryCurrent } from './trainingSummary.js';
+import { readyToPlan, recapTopic, type RecoveryRequest, acceptsRecap, completeTopic, completionPendingReply } from './onboardingDomain.js';
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import type { Account } from './auth.js';
@@ -15,6 +17,9 @@ export function completedConversation(conversation: Conversation) {
   return conversation.state === 'confirmed' || (last?.state === 'completed' && last.questionTopic === completeTopic);
 }
 
+function sameRecovery(saved:RecoveryRequest|undefined,request:RecoveryRequest) {
+  return saved?.planId.toLowerCase()===request.planId.toLowerCase()&&saved.summaryRevision===request.summaryRevision&&saved.target===request.target;
+}
 export function postgresOnboardingStore(pool: Pool) {
   async function transaction<T>(account: Account, operation: (c: PoolClient) => Promise<T>, verifySession = true): Promise<T> {
     const c = await pool.connect();
@@ -68,23 +73,55 @@ export function postgresOnboardingStore(pool: Pool) {
     await c.query('INSERT INTO fitquest.onboarding_context_revisions(user_id,conversation_id,revision,context,profile_version) VALUES($1,$2,$3,$4,$5)',[account.userId,id,number,JSON.stringify(context),profileVersion]);
     await c.query("UPDATE fitquest.onboarding_conversations SET revision=$3,state='collecting',confirmed_revision=NULL WHERE user_id=$1 AND id=$2",[account.userId,id,number]);
   }
-  return {
-    async create(account: Account,timeZone="UTC") {
+  async function create(account:Account,timeZone?:string):Promise<Conversation>;
+  async function create(account:Account,timeZone:string|undefined,recovery:RecoveryRequest):Promise<Conversation|{completedId:string}>;
+  async function create(account:Account,timeZone="UTC",recovery?:RecoveryRequest):Promise<Conversation|{completedId:string}> {
       checkTimeZone(timeZone);
       return transaction(account,async c=>{
         await rate(c,account); const p=await profile(c,account);
         // Serializes create/resume for this verified account without a global lock.
         await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[account.userId]);
+        if(recovery) {
+          // A lost cleanup response can retry the original request. Only the exact
+          // recovery-created plan at the current revision proves that it completed.
+          const receipt=(await c.query(`SELECT s.source_conversation AS id FROM fitquest.training_summaries s
+            JOIN fitquest.training_plans p ON p.user_id=s.user_id AND p.summary_revision=s.revision
+            WHERE s.user_id=$1 AND s.revision=$2 AND p.id=$3 AND s.source_conversation IS NOT NULL`,
+            [account.userId,recovery.summaryRevision+1,recoveryPlanId(account.userId,recovery)])).rows[0];
+          if(receipt)return {completedId:receipt.id};
+        }
         let id=(await c.query('SELECT id FROM fitquest.onboarding_conversations WHERE user_id=$1 FOR UPDATE',[account.userId])).rows[0]?.id;
         if (id && completedConversation(await snapshot(c,account,id))) {
-          const old=await lock(c,account,id);
-          await retainTrainingSummary(c,account,(await snapshot(c,account,id)).context,id,old.time_zone);
+          const old=await lock(c,account,id),completed=await snapshot(c,account,id);
+          if(recovery&&!sameRecovery(completed.context.recovery,recovery))throw new OnboardingError(409,'conversation_in_progress');
+          await retainTrainingSummary(c,account,completed.context,id,old.time_zone);
           await c.query('DELETE FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2',[account.userId,id]);
+          // Do not revalidate the old revision after this transaction advances it.
+          if(recovery)return {completedId:id};
           id=undefined;
+        }
+        let seed:Context|undefined;
+        if(recovery) {
+          const saved=(await c.query('SELECT revision,document,time_zone FROM fitquest.training_summaries WHERE user_id=$1 FOR UPDATE',[account.userId])).rows[0];
+          const plan=(await c.query('SELECT summary_revision,outline FROM fitquest.training_plans WHERE user_id=$1 AND id=$2',[account.userId,recovery.planId])).rows[0];
+          if(!plan)throw new OnboardingError(404,'not_found');
+          if(!saved||saved.revision!==recovery.summaryRevision||plan.summary_revision!==saved.revision)throw new OnboardingError(409,'summary_changed');
+          const blocked=recovery.target==='outline'?plan.outline:(await c.query('SELECT detail FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 AND date::text=$3',[account.userId,recovery.planId,recovery.target])).rows[0]?.detail;
+          const legacyFailure=(await c.query("SELECT 1 FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND target=$3 AND error_code='summary_needs_correction'",[account.userId,recovery.planId,recovery.target])).rowCount;
+          if(!blocked?.clarification&&!informationCoverage(blocked?.coverage??[])&&!legacyFailure)throw new OnboardingError(409,'clarification_unavailable');
+          if(id) {
+            const active=await snapshot(c,account,id);
+            if(!sameRecovery(active.context.recovery,recovery))throw new OnboardingError(409,'conversation_in_progress');
+          }
+          seed={...emptyContext(),recovery,planningIssue:blocked?.coverage??['summary_needs_correction'],trainingSummary:checkedSummary(saved.document)};
+          if(blocked?.clarification)seed.planningCheck={status:'question',...blocked.clarification};
+          // Only retained summary facts seed recovery. Deleted chat is never consulted.
+          seed.items=saved.document.map((fact:any,i:number)=>({id:`i${i+1}`,topic:fact.category,value:fact.text,origin:fact.origin,review:'unreviewed',source:`saved${i+1}`,quote:fact.text,supersedes:null,recordedAt:new Date().toISOString()}));
+          timeZone=saved.time_zone;
         }
         if (!id) {
           id=randomUUID(); await c.query('INSERT INTO fitquest.onboarding_conversations(user_id,id,disclosure_version,time_zone) VALUES($1,$2,$3,$4)',[account.userId,id,disclosureVersion,timeZone]);
-          const context=emptyContext();
+          const context=seed??emptyContext();
           for (const [topic,value] of [['age',String(p.age)],['height',`${p.height_inches} in`],['weight',`${p.weight_lb} lb`],['gender',p.gender]]) {
             context.items.push({id:`i${context.items.length+1}`,topic:topic!,value:value!,origin:'profile',review:'unreviewed',source:`profile:${topic}`,quote:value!,supersedes:null,recordedAt:new Date().toISOString()});
           }
@@ -92,7 +129,9 @@ export function postgresOnboardingStore(pool: Pool) {
         }
         await recover(c,account,id); return snapshot(c,account,id);
       });
-    },
+  }
+  return {
+    create,
     async read(account: Account,id:string) { return transaction(account,async c=>{await rate(c,account); await lock(c,account,id); await recover(c,account,id); return snapshot(c,account,id)}); },
     async remove(account: Account,id:string) { return transaction(account,async c=>{
       await rate(c,account); await c.query('DELETE FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2',[account.userId,id]);
@@ -129,11 +168,14 @@ export function postgresOnboardingStore(pool: Pool) {
         if (conv.revision>=limits.operations) throw new OnboardingError(422,'storage_limit');
         const p=await profile(c,account);
         const old=(await c.query('SELECT context,profile_version FROM fitquest.onboarding_context_revisions WHERE user_id=$1 AND conversation_id=$2 AND revision=$3',[account.userId,id,conv.revision])).rows[0];
+        await assertRecoveryCurrent(c,account,old.context);
         let context:Context=structuredClone(old.context); const number=conv.revision+1; const now=new Date().toISOString();
         let turnId:string|null=null; let work:Claim['work'];
         if (command.kind==='confirm') {
           if(command.timeZone)await c.query('UPDATE fitquest.onboarding_conversations SET time_zone=$3 WHERE user_id=$1 AND id=$2',[account.userId,id,checkTimeZone(command.timeZone)]);
           if(command.reviewedRevision!==conv.revision || old.profile_version!==p.version) throw new OnboardingError(409,'review_changed');
+          const currentRecap=(await c.query("SELECT 1 FROM fitquest.onboarding_operations o JOIN fitquest.onboarding_turns t ON t.user_id=o.user_id AND t.conversation_id=o.conversation_id AND t.id=o.turn_id WHERE o.user_id=$1 AND o.conversation_id=$2 AND o.result_revision=$3 AND o.status='completed' AND t.state='completed' AND t.question_topic=$4 LIMIT 1",[account.userId,id,conv.revision,recapTopic])).rowCount;
+          if(!readyToPlan(context)||!currentRecap)throw new OnboardingError(409,'clarification_required');
           // Persist the exact reviewed document, including origin and unknowns; no model call.
           await revision(c,account,id,number,context,p.version);
           await c.query("UPDATE fitquest.onboarding_conversations SET state='confirmed',confirmed_revision=$3 WHERE user_id=$1 AND id=$2",[account.userId,id,command.reviewedRevision]);
@@ -141,6 +183,7 @@ export function postgresOnboardingStore(pool: Pool) {
           await c.query("UPDATE fitquest.onboarding_operations SET status='failed',error_code='review_changed' WHERE user_id=$1 AND conversation_id=$2 AND status='pending'",[account.userId,id]);
         } else if(command.kind==='edit' || command.kind==='skip') {
           const source=`edit${number}`;
+          delete context.planningCheck;
           delete context.trainingSummary; // Structured correction needs a fresh recap before retaining an AI summary.
           if(command.kind==='edit') {
             const previous=context.items.find(x=>x.id===command.itemId);
@@ -168,12 +211,14 @@ export function postgresOnboardingStore(pool: Pool) {
           if(pending) throw new OnboardingError(409,'turn_pending');
           const turns=(await c.query('SELECT * FROM fitquest.onboarding_turns WHERE user_id=$1 AND conversation_id=$2 ORDER BY sequence',[account.userId,id])).rows;
           const previous=turns.at(-1);
-          const finishing=command.kind==='message' && acceptsRecap(previous?{state:previous.state,questionTopic:previous.question_topic}:undefined,command.text) &&
+          const finishing=readyToPlan(context) && command.kind==='message' && acceptsRecap(previous?{state:previous.state,questionTopic:previous.question_topic}:undefined,command.text) &&
             (await c.query("SELECT 1 FROM fitquest.onboarding_operations WHERE user_id=$1 AND conversation_id=$2 AND turn_id=$3 AND result_revision=$4 AND status='completed' LIMIT 1",[account.userId,id,previous.id,conv.revision])).rowCount===1;
           let message:string; let sequence:number;
-          if(command.kind==='message') {
+          if(command.kind==='assess'&&!context.recovery)throw new OnboardingError(409,'clarification_unavailable');
+          if(command.kind==='assess'&&turns.length)throw new OnboardingError(409,'retry_unavailable');
+          if(command.kind==='message'||command.kind==='assess') {
             if(turns.length>=limits.turns) throw new OnboardingError(422,'storage_limit');
-            turnId=randomUUID(); message=command.text; sequence=turns.length+1;
+            turnId=randomUUID(); message=command.kind==='assess'?'Review my saved summary for the clarification needed to plan.':command.text; sequence=turns.length+1;
             context.items.push({id:`i${context.items.length+1}`,topic:'Athlete report',value:message,origin:'user_report',review:'unreviewed',source:`m${sequence}`,quote:message,supersedes:null,recordedAt:now});
             await c.query("INSERT INTO fitquest.onboarding_turns(user_id,conversation_id,id,sequence,message,state) VALUES($1,$2,$3,$4,$5,'failed')",[account.userId,id,turnId,sequence,message]);
             turns.push({id:turnId,sequence,message,reply:null});
@@ -189,12 +234,16 @@ export function postgresOnboardingStore(pool: Pool) {
             if(command.timeZone)await c.query('UPDATE fitquest.onboarding_conversations SET time_zone=$3 WHERE user_id=$1 AND id=$2',[account.userId,id,checkTimeZone(command.timeZone)]);
             // Persist conversational agreement, never confirm unseen structured items. No AI call.
             await c.query("UPDATE fitquest.onboarding_turns SET state='completed',reply=$4,question_topic=$5,error_code=NULL WHERE user_id=$1 AND conversation_id=$2 AND id=$3",[account.userId,id,turnId,completionPendingReply,completeTopic]);
+          } else if(command.kind==='assess'&&context.planningCheck?.status==='question') {
+            // The planner already supplied the exact question. Display once, without a paid re-ask.
+            const check=context.planningCheck;
+            await c.query("UPDATE fitquest.onboarding_turns SET state='completed',reply=$4,question_topic='Planning clarification',error_code=NULL WHERE user_id=$1 AND conversation_id=$2 AND id=$3",[account.userId,id,turnId,`${check.reason}\n\n${check.question}`]);
           } else if(provider && p.age>=18) {
             await rate(c,account,true);
             // Every raw report stays in context. Never truncate goals/restrictions to make a prompt fit.
             const sources:Record<string,string>={};
             for(const t of turns) sources[`m${t.sequence}`]=t.message;
-            for(const item of context.items) if(item.source.startsWith('edit')) sources[item.source]=item.quote;
+            for(const item of context.items) if(item.source.startsWith('edit')||item.source.startsWith('saved')) sources[item.source]=item.quote;
             const visible=structuredClone(context); visible.items=visible.items.filter(x=>x.origin!=='profile');
             const input:ModelInput={context:visible,sources,recent:turns.slice(-6).flatMap(t=>[
               {role:'user' as const,text:t.message,source:`m${t.sequence}`},...(t.reply?[{role:'assistant' as const,text:t.reply}]:[])]),knownProfileFields:['first name','last name','height','age','weight','gender']};
@@ -212,10 +261,12 @@ export function postgresOnboardingStore(pool: Pool) {
               }else failure='budget_exhausted';
             }
           }else if(provider) failure='adults_only';
-          if(!work&&!finishing) await c.query('UPDATE fitquest.onboarding_turns SET error_code=$4 WHERE user_id=$1 AND conversation_id=$2 AND id=$3',[account.userId,id,turnId,failure]);
+          if(!work&&!finishing&&!(command.kind==='assess'&&context.planningCheck?.status==='question')) await c.query('UPDATE fitquest.onboarding_turns SET error_code=$4 WHERE user_id=$1 AND conversation_id=$2 AND id=$3',[account.userId,id,turnId,failure]);
         }
         const turnStatus=turnId?(await c.query('SELECT state,error_code FROM fitquest.onboarding_turns WHERE user_id=$1 AND conversation_id=$2 AND id=$3',[account.userId,id,turnId])).rows[0]:{state:'completed',error_code:null};
-        await c.query('INSERT INTO fitquest.onboarding_operations(user_id,conversation_id,id,digest,kind,turn_id,result_revision,attempt_id,status,error_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[account.userId,id,command.operationId,commandDigest(command),command.kind,turnId,number,work?.attempt??null,turnStatus.state,turnStatus.error_code]);
+        // Internal assessment uses the existing message operation category; its digest
+        // retains kind=assess, so it cannot collide with an athlete message replay.
+        await c.query('INSERT INTO fitquest.onboarding_operations(user_id,conversation_id,id,digest,kind,turn_id,result_revision,attempt_id,status,error_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[account.userId,id,command.operationId,commandDigest(command),command.kind==='assess'?'message':command.kind,turnId,number,work?.attempt??null,turnStatus.state,turnStatus.error_code]);
         return {conversation:await snapshot(c,account,id),work};
       });
     },
@@ -232,6 +283,9 @@ export function postgresOnboardingStore(pool: Pool) {
           if(turn?.attempt_id===work.attempt && turn.state==='pending') await c.query("UPDATE fitquest.onboarding_turns SET state='failed',error_code='stale_attempt' WHERE user_id=$1 AND conversation_id=$2 AND id=$3",[account.userId,id,work.turnId]);
           await c.query("UPDATE fitquest.onboarding_operations SET status='failed',error_code='stale_attempt' WHERE user_id=$1 AND conversation_id=$2 AND attempt_id=$3 AND status='pending'",[account.userId,id,work.attempt]);
           return snapshot(c,account,id);
+        }
+        if(context?.recovery) {
+          try{await assertRecoveryCurrent(c,account,context)}catch(e){if(!(e instanceof OnboardingError)||e.code!=='summary_changed')throw e;failure='summary_changed';context=undefined;reply=undefined}
         }
         if(context && reply!==undefined) {
           await revision(c,account,id,conv.revision+1,context,p.version);

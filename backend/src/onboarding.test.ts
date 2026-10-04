@@ -7,7 +7,7 @@ import type { OnboardingStore } from './onboardingStore.js';
 import { buildApp } from './app.js';
 import { Writable } from 'node:stream';
 
-const proposal:ModelProposal={trainingSummary:null,reply:'I understand.',additions:[{topic:'Goal',value:'tennis',origin:'user_report',source:'m1',quote:'tennis and a pull-up'}],nextQuestion:{topic:'Activity',text:'What have you been practicing?',decision:'Understand current exposure'},readiness:'ready_with_limits',limitations:['Current capacity unknown']};
+const proposal:ModelProposal={planningCheck:{status:'question',question:'What have you been practicing?',reason:'Understand current exposure'},trainingSummary:null,reply:'I understand.',additions:[{topic:'Goal',value:'tennis',origin:'user_report',source:'m1',quote:'tennis and a pull-up'}],nextQuestion:{topic:'Activity',text:'What have you been practicing?',decision:'Understand current exposure'},readiness:'ready_with_limits',limitations:['Current capacity unknown']};
 const input:ModelInput={context:emptyContext(),sources:{m1:'tennis and a pull-up'},recent:[{role:'user',text:'tennis and a pull-up'}],knownProfileFields:['age','height','weight','gender','first name','last name']};
 test('model validation rejects forged evidence and confirmations; report values always retain original words',()=>{
   assert.deepEqual(validateProposal(proposal),proposal);

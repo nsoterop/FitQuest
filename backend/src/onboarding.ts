@@ -1,6 +1,6 @@
 import { renderOnboardingReply } from './onboardingReply.js';
 import type { Account } from './auth.js';
-import { applyProposal, disclosure, disclosureVersion, limits, opening, completionReply, OnboardingError, type Command } from './onboardingDomain.js';
+import { applyProposal, consistentReply, disclosure, disclosureVersion, limits, opening, completionReply, OnboardingError, type Command } from './onboardingDomain.js';
 import { validateProposal, type OnboardingProvider, type ProviderResult } from './onboardingProvider.js';
 import { completedConversation, type Conversation, type OnboardingStore } from './onboardingStore.js';
 
@@ -14,6 +14,13 @@ export function onboardingService(store:OnboardingStore,provider?:OnboardingProv
   };
   return {
     create:async(account:Account,timeZone?:string)=>present(await store.create(account,timeZone)),
+    async clarify(account:Account,recovery:import('./onboardingDomain.js').RecoveryRequest,authorize:()=>Promise<boolean>) {
+      const conversation=await store.create(account,undefined,recovery);
+      if('completedId' in conversation)return {id:conversation.completedId,deleted:true as const,summarySaved:true as const,message:completionReply};
+      if(conversation.turns.length)return present(conversation);
+      // Stable operation ID prevents duplicate assessment charges across lost responses/reopens.
+      return this.command(account,conversation.id,{kind:'assess',operationId:conversation.id,expectedRevision:conversation.revision},authorize);
+    },
     read:async(account:Account,id:string)=>presentStored(account,await store.read(account,id)),
     remove:(account:Account,id:string)=>store.remove(account,id),
     async command(account:Account,id:string,command:Command,authorize:()=>Promise<boolean>) {
@@ -42,8 +49,9 @@ export function onboardingService(store:OnboardingStore,provider?:OnboardingProv
         try {
           const proposal=validateProposal(result.proposal);
           context=applyProposal(claimed.conversation.context,proposal,work.sources,new Date().toISOString());
-          reply=renderOnboardingReply(proposal);
-          questionTopic=proposal.nextQuestion?.topic;
+          const display=consistentReply(context,proposal);
+          reply=renderOnboardingReply(display);
+          questionTopic=display.nextQuestion?.topic;
           if(reply.length>3000) throw new OnboardingError(422,'invalid_model_output');
         }catch{failure='incomplete'}
       }

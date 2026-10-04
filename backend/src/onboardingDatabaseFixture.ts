@@ -1,5 +1,6 @@
+import { verifyReadinessDatabase } from './readinessDatabaseFixture.js';
+import { trainingFixture } from './planningFixture.js';
 import { verifyPlanningDatabase } from './planningDatabaseFixture.js';
-import { renderOnboardingReply } from './onboardingReply.js';
 import { dialogueFixtures } from './onboardingDialogueFixture.js';
 // Synthetic local-only integration fixture, called after the disposable baseline test.
 import assert from 'node:assert/strict';
@@ -30,7 +31,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await profiles.save(alice,profile);await profiles.save(bob,{...profile,firstName:'Jordan'});
   const store=postgresOnboardingStore(pool);
   let calls=0; let allowed=true;
-  const proposal:ModelProposal={trainingSummary:null,reply:'Thanks for explaining your goals.',additions:[],nextQuestion:{topic:'Current activity',text:'What does your current activity look like?',decision:'Avoid assuming a starting point.'},readiness:'ready_with_limits',limitations:['Starting activity remains unknown.']};
+  const proposal:ModelProposal={planningCheck:{status:'ready',question:null,reason:null},trainingSummary:trainingFixture.map(f=>({...f,origin:'model_inference'})),reply:'Thanks for explaining your goals.',additions:[],nextQuestion:{topic:'Current activity',text:'What does your current activity look like?',decision:'Avoid assuming a starting point.'},readiness:'ready_with_limits',limitations:['Starting activity remains unknown.']};
   let respond:()=>Promise<ProviderResult>=async()=>({proposal,usage:{input:100,output:20,cached:0,cacheWrite:0}});
   const provider:OnboardingProvider={mode:'test',model:'synthetic-contract',capMicro:1000000,
     prepare(input){assert.equal(JSON.stringify(input).includes('Example'),false);assert.equal(JSON.stringify(input).includes(alice.userId),false);assert.equal(input.context.items.some(x=>x.origin==='profile'),false);return {body:JSON.stringify(input),reserveMicro:100}},
@@ -51,7 +52,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       if(sent>=2){assert.equal(visible.sources.m2,minimizeModelInput({context:{items:[],skipped:[],readiness:'ready',limitations:[]},sources:{m2:detailedAnswers[1]},recent:[],knownProfileFields:[]},['Alex','Example']).sources.m2);assert.ok(visible.recent.some((x:{text?:string})=>x.text?.includes('synthetic earlier response')))}
       if(sent===3){assert.ok(visible.context.skipped.includes('Schedule'));assert.ok(Object.values(visible.sources).includes(correctedAvailability));assert.ok(visible.context.items.some((x:{origin:string})=>x.origin==='model_inference'))}
       const output={...proposal,reply:'A synthetic earlier response preserves the tennis and pull-up goals.',
-        additions:sent===1?[{topic:'Possible sport preference',value:'May value recreational participation',origin:'model_inference',source:'m1',quote:'Tennis is my main priority'}]:sent===2?[{topic:'Current experience',value:'Professional tennis player',origin:'user_report',source:'m2',quote:'my tennis is recreational and inconsistent.'}]:[],nextQuestion:null};
+        additions:sent===1?[{topic:'Possible sport preference',value:'May value recreational participation',origin:'model_inference',source:'m1',quote:'Tennis is my main priority'}]:sent===2?[{topic:'Current experience',value:'Professional tennis player',origin:'user_report',source:'m2',quote:'my tennis is recreational and inconsistent.'}]:[],nextQuestion:sent===3?{topic:'Onboarding recap',text:'Ready?',decision:'Synthetic current summary reviewed.'}:null};
       return new Response(JSON.stringify({status:'completed',usage:{input_tokens:100,output_tokens:20},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(output)}]}]}));
     });
     const local=buildApp(false,{store:profiles,verifyAccount:async()=>alice,onboarding:onboardingService(store,adapter,'test')});
@@ -87,7 +88,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       assert.ok(result.context.items.some(x=>x.value==='Tennis and a pull-up; restrictions are uncertain.'));
     }
   });
-  await t.test('genuine request/storage bound rolls back unsaved text; shortening, editing and confirmation remain usable',async()=>{
+  await t.test('genuine request/storage bound rolls back unsaved text; shortening and editing remain usable; stale confirmation is rejected',async()=>{
     let dispatches=0;
     const boundedProvider:OnboardingProvider={...provider,prepare(input){return{body:serializeInput(input,'synthetic'),reserveMicro:100}},
       call:async()=>{dispatches++;return{proposal:{...proposal,reply:'A'.repeat(2300),additions:[],nextQuestion:null},usage:{input:100,output:20,cached:0,cacheWrite:0}}}};
@@ -106,8 +107,8 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     a=await send('Keep both goals.');assert.equal(dispatches,before+1);assert.equal(a.turns.at(-1)?.state,'completed');
     a=await service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'edit',itemId:null,topic:'Priority',value:'Tennis is still first.'},async()=>true);
     const reviewed=structuredClone(a.context);
-    a=await service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'confirm',reviewedRevision:a.revision},async()=>true);
-    assert.equal(a.deleted,true);await assert.rejects(store.read(alice,a.id),{code:'not_found'});assert.equal(dispatches,before+1);
+    await assert.rejects(service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'confirm',reviewedRevision:a.revision},async()=>true),{code:'clarification_required'});
+    assert.deepEqual((await store.read(alice,a.id)).context,reviewed);assert.equal(dispatches,before+1);
   });
   await t.test('conversational recap, correction, agreement and reopen never confirm unseen items or spend on acknowledgement',async()=>{
     let a=await fresh();const observed:any[]=[];let responseIndex=0;
@@ -138,22 +139,14 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
 
     }finally{await local.close()}
   });
-  await t.test('recorded synthetic shoulder, comprehensive and irregular/skip dialogues preserve displayed recaps through agreement and reopen',async()=>{
+  await t.test('older model responses without a planning assessment cannot invite completion',async()=>{
     for(const fixture of dialogueFixtures){
       const old=await store.create(alice);await store.remove(alice,old.id);
-      let a=await store.create(alice), dispatched=0;
-      const replay={...provider,call:async()=>({proposal:fixture.turns[dispatched++]!.proposal,usage:{input:100,output:20,cached:0,cacheWrite:0}})};
-      const service=onboardingService(store,replay,'test');
-      const send=(text:string)=>service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'message',text},async()=>true);
-      for(const turn of fixture.turns){
-        const result=await send(turn.message);assert.ok('turns' in result);a=result;const shown=a.turns.at(-1)!;
-        assert.equal(shown.state,'completed',fixture.name);
-        assert.equal(shown.reply,renderOnboardingReply(turn.proposal as ModelProposal));assert.notEqual(shown.questionTopic,'Onboarding complete');
-      }
-      assert.equal(a.turns.at(-1)?.questionTopic,'Onboarding recap');
-      const deleted=await send('Looks good');assert.equal(dispatched,fixture.turns.length);assert.ok('deleted' in deleted);
-      await assert.rejects(store.read(alice,a.id),{code:'not_found'});
-      assert.equal((await store.create(alice)).turns.length,0);
+      const a=await store.create(alice),turn=fixture.turns.at(-1)!;
+      const service=onboardingService(store,{...provider,call:async()=>({proposal:turn.proposal,usage:{input:100,output:20,cached:0,cacheWrite:0}})},'test');
+      const result=await service.command(alice,a.id,{operationId:randomUUID(),expectedRevision:0,kind:'message',text:turn.message},async()=>true);
+      assert.ok('turns' in result);assert.equal(result.turns[0]?.state,'failed');assert.equal(result.turns[0]?.reply,null);
+      await assert.rejects(store.claim(alice,a.id,{operationId:randomUUID(),expectedRevision:result.revision,reviewedRevision:result.revision,kind:'confirm'}),{code:'clarification_required'});
     }
   });
   await t.test('a context edit after a recap invalidates conversational agreement to that old recap',async()=>{
@@ -187,7 +180,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       await assert.rejects(c.query('SELECT * FROM fitquest.ai_budget'),{code:'42501'});
     }finally{c.release()}
   });
-  await t.test('one call, duplicate/lost response recovery, digest conflict, exact reviewed confirmation without AI',async()=>{
+  await t.test('one call, duplicate/lost response recovery, digest conflict, unsafe confirmation rejected without AI',async()=>{
     let a=await fresh();const op=randomUUID();const before=calls;
     const result=await command(a.id,a.revision,{kind:'message',text:'Tennis and my first pull-up'},op);assert.equal(result.statusCode,200);a=result.json();
     const operationResult=a.operationResult;
@@ -197,16 +190,16 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     assert.deepEqual((await command(a.id,0,{kind:'message',text:'Tennis and my first pull-up'},op)).json().operationResult,operationResult);
     assert.equal((await command(a.id,0,{kind:'confirm',reviewedRevision:0})).statusCode,409);
     const confirmed=await command(a.id,a.revision,{kind:'confirm',reviewedRevision:a.revision});
-    assert.equal(confirmed.statusCode,200);assert.equal(confirmed.json().deleted,true);assert.equal(calls,before+1);
-    await assert.rejects(store.read(alice,a.id),{code:'not_found'});
+    assert.equal(confirmed.statusCode,409);assert.equal(confirmed.json().code,'clarification_required');assert.equal(calls,before+1);
+    assert.equal((await store.read(alice,a.id)).id,a.id);
 
   });
-  await t.test('skip/correction provenance and uncertainty can be confirmed; no silent profile write',async()=>{
+  await t.test('skip/correction provenance and uncertainty require a new recap; no silent profile write',async()=>{
     let a=await fresh();a=(await command(a.id,a.revision,{kind:'skip',topic:'Schedule'})).json();
     const original=a.context.items[0];a=(await command(a.id,a.revision,{kind:'edit',itemId:original.id,topic:'Age report',value:'I reported my age incorrectly; I am 30.'})).json();
     assert.equal(a.context.items[0].review,'disputed');const edited=a.context.items.at(-1);assert.equal(edited.origin,'user_report');assert.equal(edited.review,'confirmed');assert.equal(edited.supersedes,original.id);
     assert.equal((await profiles.read(alice))?.age,29);
-    const confirmed=(await command(a.id,a.revision,{kind:'confirm',reviewedRevision:a.revision})).json();assert.equal(confirmed.deleted,true);await assert.rejects(store.read(alice,a.id),{code:'not_found'});
+    const confirmed=await command(a.id,a.revision,{kind:'confirm',reviewedRevision:a.revision});assert.equal(confirmed.statusCode,409);assert.equal(confirmed.json().code,'clarification_required');assert.equal((await store.read(alice,a.id)).id,a.id);
   });
   await t.test('claim is atomic across service instances and pool is released during provider work',async()=>{
     let finish!:(result:ProviderResult)=>void;respond=()=>new Promise(resolve=>{finish=resolve});const a=await fresh();const op=randomUUID();const before=calls;
@@ -347,7 +340,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     await profiles.save(account,{...profile,firstName:'Casey',lastName:'Fixtureperson'});
     let calls=0;const records:unknown[]=[];
     const adapter=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:1000000,inputRate:0.1,cachedRate:0.01,cacheWriteRate:0.125,outputRate:0.5},async()=>{
-      calls++;return new Response(JSON.stringify({status:'completed',usage:{input_tokens:100,output_tokens:20},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({...proposal,nextQuestion:calls<3?proposal.nextQuestion:null})}]}]}));
+      calls++;return new Response(JSON.stringify({status:'completed',usage:{input_tokens:100,output_tokens:20},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({...proposal,nextQuestion:calls<3?proposal.nextQuestion:{topic:'Onboarding recap',text:'Ready?',decision:'Synthetic current summary reviewed.'}})}]}]}));
     });
     const result=await evaluateConversation(pool,adapter,async value=>{records.push(value)});
     assert.equal(result.calls,3);assert.equal(calls,3);assert.equal(records.length,7);
@@ -388,11 +381,11 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     await store.finish(alice,a.id,pending.work,{...pending.conversation.context,readiness:'ready'},'Synthetic recap',undefined,'Onboarding recap');
     a=await store.read(alice,a.id);assert.equal((await service.create(alice)).id,a.id);assert.equal((await service.read(alice,a.id)).id,a.id);
     // Simulate completion saved by the preceding deployment, or an interrupted cleanup.
-    const complete=await store.claim(alice,a.id,{operationId:randomUUID(),expectedRevision:a.revision,kind:'message',text:'Looks good'},provider);assert.equal(complete.work,undefined);
+    await owner.query("UPDATE fitquest.onboarding_turns SET question_topic='Onboarding complete' WHERE conversation_id=$1",[a.id]);
     const fresh=await service.create(alice);assert.notEqual(fresh.id,a.id);assert.equal(fresh.turns.length,0);
     await assert.rejects(store.read(alice,a.id),{code:'not_found'});
     const work=await store.claim(alice,fresh.id,{operationId:randomUUID(),expectedRevision:0,kind:'message',text:'Pending legacy report'},provider);assert.ok(work.work);
-    await store.claim(alice,fresh.id,{operationId:randomUUID(),expectedRevision:work.conversation.revision,kind:'confirm',reviewedRevision:work.conversation.revision},provider);
+    await owner.query("UPDATE fitquest.onboarding_conversations SET state='confirmed',confirmed_revision=revision WHERE id=$1",[fresh.id]);
     const budget=(await owner.query('SELECT * FROM fitquest.ai_budget')).rows;
     const removed=await service.read(alice,fresh.id);assert.ok('deleted' in removed);
     const newest=await service.create(alice);assert.notEqual(newest.id,fresh.id);
@@ -402,6 +395,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     await store.settle(alice,pending.work.attempt,null);await store.settle(alice,work.work.attempt,null);
   });
   await verifyPlanningDatabase(t,owner,pool,profiles);
+  await verifyReadinessDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);
     assert.equal((await request('GET',`/onboarding/${a.id}`)).statusCode,429);

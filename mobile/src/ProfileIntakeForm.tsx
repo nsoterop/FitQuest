@@ -1,3 +1,4 @@
+import type { RecoveryRequest } from './onboardingApi';
 import { TrainingScreen } from './TrainingScreen';
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -24,6 +25,7 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded, userId }: {
   const [reading, setReading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [savedFirstName, setSavedFirstName] = useState<string | null>(null);
+  const [recovery,setRecovery]=useState<RecoveryRequest|undefined>();
   const [onboarding, setOnboarding] = useState(false);
   const [onboardingNotice, setOnboardingNotice] = useState('');
   const [training,setTraining]=useState(false);
@@ -116,13 +118,13 @@ export function ProfileIntakeForm({ accessToken, onSessionEnded, userId }: {
   }
 
   if (savedFirstName !== null) {
-    if(training&&userId)return <TrainingScreen key={userId} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} generateOnOpen={generateOnOpen} onClose={()=>{setTraining(false);setGenerateOnOpen(false)}}/>;
-    if (onboarding && userId) return <OnboardingScreen userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onClose={(message,summarySaved) => {setOnboarding(false);setOnboardingNotice(message??'');if(summarySaved){setGenerateOnOpen(true);setTraining(true)}}} />;
+    if(training&&userId)return <TrainingScreen key={userId} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} generateOnOpen={generateOnOpen} onClarify={request=>{setRecovery(request);setTraining(false);setGenerateOnOpen(false);setOnboarding(true)}} onClose={()=>{setTraining(false);setGenerateOnOpen(false)}}/>;
+    if (onboarding && userId) return <OnboardingScreen recovery={recovery} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onClose={(message,summarySaved) => {setOnboarding(false);setRecovery(undefined);setOnboardingNotice(message??'');if(summarySaved){setGenerateOnOpen(true);setTraining(true)}}} />;
     return <View>
       <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.welcome}>Hi {savedFirstName}</Text>
       {!!onboardingNotice && <Text accessibilityLiveRegion="polite" style={styles.copy}>{onboardingNotice}</Text>}
       {userId&&<Pressable accessibilityRole="button" accessibilityLabel="View training" onPress={()=>{setGenerateOnOpen(false);setTraining(true)}} style={[styles.button,{marginTop:20}]}><Text style={styles.buttonText}>View training</Text></Pressable>}
-      {userId && <Pressable accessibilityRole="button" accessibilityLabel="Start onboarding" onPress={() => {setOnboardingNotice('');setOnboarding(true)}} style={[styles.button, { marginTop: 24 }]}><Text style={styles.buttonText}>Start onboarding</Text></Pressable>}
+      {userId && <Pressable accessibilityRole="button" accessibilityLabel="Start onboarding" onPress={() => {setRecovery(undefined);setOnboardingNotice('');setOnboarding(true)}} style={[styles.button, { marginTop: 24 }]}><Text style={styles.buttonText}>Start onboarding</Text></Pressable>}
     </View>;
   }
   if (reading) return <Text accessibilityLiveRegion="polite" style={styles.notice}>Loading your profile…</Text>;

@@ -561,3 +561,66 @@ test('oversized unpublished outline shows accurate recovery and retries only on 
   assert.equal(requests[0].body.retryAttempt,'oversized-attempt');assert.deepEqual(requests.map(r=>r.body.target),['outline','2026-10-04']);
   await act(async()=>screen.unmount());
 });
+
+test('new and legacy clarification blocks render one action, never seven coverage-limited workouts or automatic paid requests',async()=>{
+  for(const legacy of [false,true]){
+    const saved=trainingState(),p=saved.plans[0];p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:legacy?['limitations_need_clarification']:[],...(legacy?{}:{clarification:{question:'Does the shoulder discomfort occur only when serving overhead?',reason:'This determines which movements to avoid.'}})};
+    let selected;const server=trainingServer(saved),screen=await mountTraining({onClarify:request=>{selected=request}});
+    assert.doesNotMatch(text(screen),/Coverage limited|Rest —|Correct the summary|Seven days/);assert.ok(input(screen,'Continue clarification'));assert.equal(server.requests.length,1);
+    if(!legacy)assert.match(text(screen),/Does the shoulder/);
+    await act(async()=>press(screen,'Continue clarification'));assert.deepEqual(selected,{planId:p.id,summaryRevision:1,target:'outline'});assert.equal(server.requests.length,1);
+    await act(async()=>screen.unmount());
+  }
+  const saved=trainingState(),p=saved.plans[0];p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:['missing_catalog_coverage']};trainingServer(saved);const screen=await mountTraining({onClarify(){throw Error('Catalog gap is not an unanswered question')}});
+  assert.match(text(screen),/catalog does not cover/);assert.doesNotMatch(text(screen),/Continue clarification|Coverage limited|Rest —/);await act(async()=>screen.unmount());
+});
+
+test('training clarification opens the existing minimal conversation, restores its draft and finishes with saved-summary cleanup',async()=>{
+  resetAuth(alice);globalThis.__fitquestSecure.clear();const state=trainingState(),p=state.plans[0];
+  p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:['limitations_need_clarification']};
+  const conversation={...onboardingFixture(),generationEnabled:true,turns:[{id:'recovery-turn',sequence:1,message:'Review my saved summary for the clarification needed to plan.',reply:'Does the shoulder discomfort occur only when serving overhead?',questionTopic:'Planning clarification',state:'completed',error:null}]};
+  await privateDrafts.write('alice',{conversationId:conversation.id,text:'Only serving overhead.',pending:null,savedAt:Date.now()});
+  const requests=[];
+  globalThis.fetch=async(url,options)=>{
+    requests.push({url,body:options.body?JSON.parse(options.body):null});
+    if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
+    if(url.endsWith('/training/clarification'))return{status:200,json:async()=>conversation};
+    if(url.endsWith('/commands'))return{status:200,json:async()=>({...deletionReceipt(conversation.id),summarySaved:true})};
+    return{status:200,json:async()=>state};
+  };
+  const screen=await mount();await act(async()=>{press(screen,'View training');await flush()});await act(async()=>{press(screen,'Continue clarification');await flush()});
+  assert.match(text(screen),/Does the shoulder/);assert.doesNotMatch(text(screen),/Before we begin|Continue to onboarding/);assert.equal(input(screen,'Onboarding message').props.value,'Only serving overhead.');
+  const clarification=requests.filter(r=>r.url.endsWith('/training/clarification'));assert.equal(clarification.length,1);assert.deepEqual(clarification[0].body,{planId:p.id,summaryRevision:1,target:'outline'});
+  await act(async()=>{press(screen,'Send');await flush()});assert.equal(requests.find(r=>r.url.endsWith('/commands')).body.text,'Only serving overhead.');assert.equal(await privateDrafts.read('alice'),null);assert.match(text(screen),/Your training/);
+  await act(async()=>screen.unmount());
+});
+
+test('a clarification arriving after sign-out cannot populate the next account',async()=>{
+  resetAuth(alice);globalThis.__fitquestSecure.clear();const saved=trainingState(),p=saved.plans[0];p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:['limitations_need_clarification']};let deliver;
+  globalThis.fetch=async(url)=>{if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};if(url.endsWith('/training/clarification'))return new Promise(resolve=>{deliver=resolve});return{status:200,json:async()=>saved}};
+  const screen=await mount();await act(async()=>{press(screen,'View training');await flush()});await act(async()=>{press(screen,'Continue clarification');await flush()});
+  await act(async()=>{press(screen,'Sign out');await flush()});await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
+  await act(async()=>{deliver({status:200,json:async()=>onboardingFixture()});await flush()});assert.doesNotMatch(text(screen),/Private tennis report|Onboarding message/);assert.equal(await privateDrafts.read('alice'),null);await act(async()=>screen.unmount());
+});
+
+test('clarification entry accepts a completion receipt, retries lost cleanup response, and opens saved training after draft deletion',async()=>{
+  resetAuth(alice);globalThis.__fitquestSecure.clear();const saved=trainingState(),p=saved.plans[0];
+  p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:['limitations_need_clarification']};
+  const old=onboardingFixture();await privateDrafts.write('alice',{conversationId:old.id,text:'Looks good',pending:{operationId:'completed-operation',expectedRevision:4,kind:'message',text:'Looks good'},savedAt:Date.now()});
+  const updated=structuredClone(saved);updated.summary.revision=2;updated.summary.sourceConversation=old.id;updated.plans.unshift({...structuredClone(p),id:'dddddddd-1111-4111-8111-111111111111',summaryRevision:2,outline:{coverage:[],days:p.dates.map(date=>({date,sessions:[]}))},days:[{date:p.dates[0],detail:{date:p.dates[0],coverage:[],sessions:[],activities:{},catalogVersion:p.catalogVersion}}]});
+  let completed=false,entries=0;const requests=[];
+  globalThis.fetch=async(url,options)=>{
+    requests.push({url,body:options.body?JSON.parse(options.body):null});
+    if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
+    if(url.endsWith('/training/clarification')){entries++;completed=true;if(entries===1)throw Error('Lost completion receipt');return{status:200,json:async()=>({...deletionReceipt(old.id),summarySaved:true})}}
+    if(url.endsWith('/training')){if(completed)assert.equal(await privateDrafts.read('alice'),null);return{status:200,json:async()=>completed?updated:saved}}
+    throw Error('Completion recovery must not send another answer or generate again');
+  };
+  const screen=await mount();await act(async()=>{press(screen,'View training');await flush()});await act(async()=>{press(screen,'Continue clarification');await flush()});
+  assert.equal((await privateDrafts.read('alice')).text,'Looks good');assert.ok(input(screen,'Load clarification'));
+  await act(async()=>{press(screen,'Load clarification');await flush()});
+  assert.match(text(screen),/Your training/);assert.match(text(screen),/Rest — no prescribed session/);assert.equal(await privateDrafts.read('alice'),null);
+  const entriesSent=requests.filter(r=>r.url.endsWith('/training/clarification'));assert.equal(entriesSent.length,2);assert.deepEqual(entriesSent[0].body,entriesSent[1].body);
+  assert.equal(requests.some(r=>r.url.endsWith('/commands')||r.url.endsWith('/generate')),false);
+  await act(async()=>screen.unmount());
+});

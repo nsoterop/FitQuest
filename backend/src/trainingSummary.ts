@@ -1,9 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { catalog } from './activityCatalog.js';
 import { Ajv } from 'ajv';
 import type { PoolClient } from 'pg';
 import type { Account } from './auth.js';
-import type { Context } from './onboardingDomain.js';
+import type { Context, RecoveryRequest } from './onboardingDomain.js';
 import { OnboardingError } from './onboardingError.js';
 
 export const summaryCategories=['goals','availability','equipment','experience','limitations'] as const;
@@ -41,13 +41,25 @@ export function summaryFromContext(context:Context):TrainingSummary {
     return fact?{category,text:fact.value,origin:fact.origin as SummaryFact['origin']}:{category,text:'Not captured in this older conversation. Please update before planning.',origin:'unknown'};
   });
 }
+export async function assertRecoveryCurrent(c:PoolClient,account:Account,context:Context) {
+  if(!context.recovery)return;
+  const saved=(await c.query('SELECT revision FROM fitquest.training_summaries WHERE user_id=$1 FOR UPDATE',[account.userId])).rows[0];
+  if(saved?.revision!==context.recovery.summaryRevision)throw new OnboardingError(409,'summary_changed');
+}
+// The plan created by a completed recovery is also its durable, content-free receipt.
+// Its identity binds the exact owner/request, without retaining the deleted conversation.
+export function recoveryPlanId(userId:string,recovery:RecoveryRequest) {
+  const hex=createHash('sha256').update(JSON.stringify(['fitquest-recovery-plan-v1',userId.toLowerCase(),recovery.planId.toLowerCase(),recovery.summaryRevision,recovery.target])).digest('hex');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-8${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`;
+}
 export async function retainTrainingSummary(c:PoolClient,account:Account,context:Context,conversationId:string,timeZone:string) {
   await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[account.userId]);
+  await assertRecoveryCurrent(c,account,context);
   const summary=summaryFromContext(context);
   const saved=await c.query(`INSERT INTO fitquest.training_summaries(user_id,revision,document,time_zone,source_conversation)
     VALUES($1,1,$2,$3,$4) ON CONFLICT(user_id) DO UPDATE SET revision=training_summaries.revision+1,
     document=EXCLUDED.document,time_zone=EXCLUDED.time_zone,source_conversation=EXCLUDED.source_conversation,updated_at=now() RETURNING revision`,
     [account.userId,JSON.stringify(summary),checkTimeZone(timeZone),conversationId]);
   await c.query(`INSERT INTO fitquest.training_plans(user_id,id,summary_revision,summary,time_zone,dates,catalog_version)
-    VALUES($1,$2,$3,$4,$5,$6,$7)`,[account.userId,randomUUID(),saved.rows[0].revision,JSON.stringify(summary),timeZone,JSON.stringify(sevenDates(timeZone)),catalog.version]);
+    VALUES($1,$2,$3,$4,$5,$6,$7)`,[account.userId,context.recovery?recoveryPlanId(account.userId,context.recovery):randomUUID(),saved.rows[0].revision,JSON.stringify(summary),timeZone,JSON.stringify(sevenDates(timeZone)),catalog.version]);
 }

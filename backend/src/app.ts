@@ -127,6 +127,12 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
   const planning=()=>{if(!options.planning)throw new OnboardingError(503,'unavailable');return options.planning};
   const revision={type:'integer',minimum:1,maximum:1000000};
   const planId={type:'string',pattern:'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'};
+  app.post<{Body:import('./onboardingDomain.js').RecoveryRequest}>('/training/clarification',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['summaryRevision','planId','target'],properties:{summaryRevision:revision,planId,target:{type:'string',pattern:'^(outline|[0-9]{4}-[0-9]{2}-[0-9]{2})$'}}}}},async request=>{
+    const account=accounts.get(request)!;
+    return onboarding().clarify(account,request.body,async()=>{
+      try{const next=await options.verifyAccount!(request.headers.authorization!.slice(7));return next?.userId===account.userId&&next.sessionId===account.sessionId}catch{return false}
+    });
+  });
   app.get('/training',privateRoute,async request=>planning().read(accounts.get(request)!));
   app.put<{Body:{revision:number;document:TrainingSummary;timeZone:string}}>('/training/summary',{...privateRoute,bodyLimit:16000,schema:{body:{type:'object',additionalProperties:false,required:['revision','document','timeZone'],properties:{revision,document:summarySchema,timeZone:{type:'string',minLength:1,maxLength:80}}}}},async request=>planning().edit(accounts.get(request)!,request.body.revision,request.body.document,request.body.timeZone));
   app.post<{Body:{revision:number}}>('/training/plans',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['revision'],properties:{revision}}}},async request=>planning().ensurePlan(accounts.get(request)!,request.body.revision));

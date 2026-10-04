@@ -1,3 +1,4 @@
+import { informationCoverage } from './planningReadiness.js';
 import { randomUUID } from 'node:crypto';
 import type { Pool,PoolClient } from 'pg';
 import type { Account } from './auth.js';
@@ -79,6 +80,8 @@ export function planningStore(pool:Pool) {
         if(r.target!=='outline'&&!plan.outline)throw new OnboardingError(409,'outline_required');
         const input:PlanningInput={kind:r.target==='outline'?'outline':'day',summary:s.document,profile:{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb)},dates:plan.dates};
         if(input.kind==='day') {
+          if(plan.outline.clarification||informationCoverage(plan.outline.coverage))throw new OnboardingError(409,'clarification_required');
+          if(plan.outline.coverage.length)throw new OnboardingError(409,'catalog_coverage');
           input.date=r.target;input.outline=plan.outline;
           input.previous=(await c.query('SELECT date::text,detail FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 AND date<$3 ORDER BY date',[a.userId,r.planId,r.target])).rows.map(x=>({date:x.date,sessions:x.detail.sessions}));
           const day=input.outline!.days.find(d=>d.date===r.target)!;
@@ -88,7 +91,6 @@ export function planningStore(pool:Pool) {
         const attempt=randomUUID();let failure:string|undefined,prepared:ReturnType<typeof preparePlanning>|undefined;
         if(p.age<18)failure='adults_only';
         else if(!provider)failure='ai_disabled';
-        else if(s.document.some((f:{text:string})=>f.text==='Not captured in this older conversation. Please update before planning.')||s.document.filter((f:{category:string;origin:string})=>['goals','availability','equipment','limitations'].includes(f.category)).every((f:{origin:string})=>f.origin==='unknown'))failure='summary_needs_correction';
         else {
           await rate(c,a,true);
           // Reuse existing redaction for identifiers/names without duplicating transcript.

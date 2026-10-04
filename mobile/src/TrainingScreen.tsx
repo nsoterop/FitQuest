@@ -1,7 +1,8 @@
+import type { RecoveryRequest } from './onboardingApi';
 import { privateDrafts } from './onboardingDraftStorage';
 import { useEffect,useRef,useState } from 'react';
 import { Pressable,StyleSheet,Text,TextInput,View } from 'react-native';
-import { TrainingError,trainingError,trainingRequest,type TrainingState,type TrainingPlan,type TrainingFact,type TrainingDay } from './trainingApi';
+import { needsClarification,TrainingError,trainingError,trainingRequest,type TrainingState,type TrainingPlan,type TrainingFact,type TrainingDay } from './trainingApi';
 
 const coverageText:Record<string,string>={missing_catalog_coverage:'The catalog does not cover the requested work.',equipment_or_facility_unknown:'Equipment or facility access needs clarification.',skill_partner_or_supervision_unknown:'Skill, partner or supervision requirements need clarification.',limitations_need_clarification:'Relevant limitations need clarification.',summary_needs_correction:'Update the training summary before planning.'};
 const originText:Record<string,string>={user_report:'Reported',model_inference:'AI inference',assumption:'Assumption',unknown:'Unknown'};
@@ -9,7 +10,7 @@ const originText:Record<string,string>={user_report:'Reported',model_inference:'
 const displayNumber=(value:number,digits:number)=>String(Number(value.toFixed(digits)));
 const distance=(meters:number)=>{const miles=meters/1609.344;return `${displayNumber(miles,miles<.01?4:2)} ${Math.abs(miles-1)<.005?'mile':'miles'}`};
 const calendarDate=(date:string)=>`${new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`))}, ${date}`;
-export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,generateOnOpen=false}:{userId:string;accessToken:()=>Promise<string>;onClose:()=>void;onSessionEnded?:()=>void;generateOnOpen?:boolean}) {
+export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,onClarify,generateOnOpen=false}:{userId:string;accessToken:()=>Promise<string>;onClose:()=>void;onSessionEnded?:()=>void;onClarify?:(request:RecoveryRequest)=>void;generateOnOpen?:boolean}) {
   const [state,setState]=useState<TrainingState|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false),[facts,setFacts]=useState<TrainingFact[]>([]),[showSummary,setShowSummary]=useState(false),[selected,setSelected]=useState('');
   const alive=useRef(true),pending=useRef<AbortController|null>(null),token=useRef(accessToken),ended=useRef(onSessionEnded);token.current=accessToken;ended.current=onSessionEnded;
   const initial=useRef(generateOnOpen);
@@ -39,12 +40,21 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,genera
       p=s.plans.find(x=>x.id===p!.id)!;
     };
     if(!p.outline)await generate('outline');
-    if(p.outline&&!p.outline.coverage.length&&!p.days.some(d=>d.date===p!.dates[0]))await generate(p.dates[0]!);
+    if(p.outline&&!needsClarification(p.outline)&&!p.outline.coverage.length&&!p.days.some(d=>d.date===p!.dates[0]))await generate(p.dates[0]!);
   }
   useEffect(()=>{alive.current=true;void run(async request=>{const s=await request('','GET');if(initial.current){initial.current=false;await initialPlan(request,s)}});return()=>{alive.current=false;pending.current?.abort();pending.current=null}},[userId]);
   const button=(label:string,press:()=>void,secondary=false)=><Pressable key={label} accessibilityRole="button" accessibilityLabel={label} disabled={busy} onPress={press} style={[styles.button,secondary&&styles.secondary,busy&&{opacity:.5}]}><Text style={secondary?styles.copy:styles.buttonText}>{label}</Text></Pressable>;
+  function clarification(value:{clarification?:{question:string;reason:string}|null;coverage:string[]},target:string,plan=shown) {
+    if(!plan||!state?.summary)return null;
+    return <View style={styles.day}>
+      <Text style={styles.copy}>{value.clarification?.reason??'This saved plan needs a clarification check before it can be used.'}</Text>
+      {value.clarification&&<Text style={styles.label}>{value.clarification.question}</Text>}
+      {plan.summaryRevision===state.summary.revision&&onClarify&&button('Continue clarification',()=>onClarify({planId:plan.id,summaryRevision:state.summary!.revision,target}))}
+    </View>;
+  }
   function showDay(day:TrainingDay) {
     const d=day.detail;
+    if(needsClarification(d))return clarification(d,day.date);
     return <View key={day.date} style={styles.day}>
       {d.coverage.map(code=><Text key={code} style={styles.copy}>{coverageText[code]??'Catalog coverage is limited.'}</Text>)}
       {!d.sessions.length&&!d.coverage.length&&<Text style={styles.copy}>Rest — no prescribed session.</Text>}
@@ -78,13 +88,13 @@ export function TrainingScreen({userId,accessToken,onClose,onSessionEnded,genera
         </>:button('Edit summary',()=>{setFacts(structuredClone(state.summary!.document));setEditing(true)},true)}
       </View>}
       {!current&&button('Create outline from updated summary',()=>void run(request=>initialPlan(request,state)))}
-      {current&&!current.outline&&button(current.jobs.some(j=>j.status==='failed')?'Retry outline generation':'Generate outline and tomorrow',()=>void run(request=>initialPlan(request,state,true)))}
+      {current&&!current.outline&&current.jobs.some(j=>j.error==='summary_needs_correction')?clarification({coverage:['summary_needs_correction']},'outline',current):current&&!current.outline&&button(current.jobs.some(j=>j.status==='failed')?'Retry outline generation':'Generate outline and tomorrow',()=>void run(request=>initialPlan(request,state,true)))}
     </>}
-    {shown&&<View style={styles.day}><Text style={styles.label}>Seven days · {shown.timeZone}</Text>
+    {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)?'Planning needs attention':`Seven days · ${shown.timeZone}`}</Text>
       {shown.summaryRevision!==state?.summary?.revision&&<Text style={styles.small}>Saved before your summary correction. Its existing sessions remain unchanged. Create a new outline for future generation.</Text>}
-      {shown.outline?.coverage.map(code=><Text key={code} style={styles.error}>{coverageText[code]??'Catalog coverage is limited.'} Correct the summary to create a new outline.</Text>)}
+      {shown.outline&&needsClarification(shown.outline)?clarification(shown.outline,'outline'):shown.outline?.coverage.map(code=><Text key={code} style={styles.error}>{coverageText[code]??'Catalog coverage is limited.'} A usable outline has not been created.</Text>)}
       {shown.jobs.filter(j=>j.status!=='completed').map(j=><Text key={j.target} style={styles.copy}>{j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':trainingError(j.error??'unavailable')}</Text>)}
-      {shown.outline?.days.map(d=><View key={d.date} style={styles.day}><Text style={styles.label}>{calendarDate(d.date)} · {d.sessions.length?d.sessions.map(s=>s.focus).join(' + '):shown.outline!.coverage.length?'Coverage limited':'Rest'}</Text>
+      {shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.map(d=><View key={d.date} style={styles.day}><Text style={styles.label}>{calendarDate(d.date)} · {d.sessions.length?d.sessions.map(s=>s.focus).join(' + '):'Rest'}</Text>
         {shown.days.some(x=>x.date===d.date)?showDay(shown.days.find(x=>x.date===d.date)!):!shown.outline!.coverage.length&&shown.summaryRevision===state?.summary?.revision&&button(`${shown.jobs.some(j=>j.target===d.date&&j.status==='failed')?'Retry':'Generate'} ${d.date}`,()=>void run(async request=>{const job=shown.jobs.find(j=>j.target===d.date);await request('/generate','POST',{planId:shown.id,summaryRevision:state!.summary!.revision,target:d.date,retryAttempt:job?.status==='failed'?job.attemptId:null})}))}
       </View>)}
     </View>}

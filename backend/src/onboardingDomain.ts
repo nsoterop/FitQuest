@@ -1,5 +1,6 @@
 import { OnboardingError } from './onboardingError.js';
 import { checkedSummary, summarySchema, type TrainingSummary } from './trainingSummary.js';
+import { planningCheckSchema, type PlanningCheck } from './planningReadiness.js';
 import { createHash } from 'node:crypto';
 
 export const limits = { message: 4000, items: 80, contextBytes: 32000, inputBytes: 24000, output: 2000, turns: 100, operations: 240, deadlineMs: 35000 };
@@ -21,10 +22,11 @@ export function acceptsRecap(previous: { state: string; questionTopic: string | 
 
 export type Item = { id: string; topic: string; value: string; origin: 'profile' | 'user_report' | 'model_inference' | 'assumption' | 'unknown';
   review: 'unreviewed' | 'confirmed' | 'disputed'; source: string; quote: string; supersedes: string | null; recordedAt: string };
-export type Context = { trainingSummary?:TrainingSummary; items: Item[]; skipped: string[]; readiness: 'needs_clarification' | 'ready_with_limits' | 'ready'; limitations: string[] };
+export type RecoveryRequest={summaryRevision:number;planId:string;target:string};
+export type Context = { planningCheck?:PlanningCheck; planningIssue?:string[]; recovery?:RecoveryRequest; trainingSummary?:TrainingSummary; items: Item[]; skipped: string[]; readiness: 'needs_clarification' | 'ready_with_limits' | 'ready'; limitations: string[] };
 export const emptyContext = (): Context => ({ items: [], skipped: [], readiness: 'needs_clarification', limitations: ['This understanding is based on reports, not independent verification or medical clearance.'] });
 export type Command = { operationId: string; expectedRevision: number; timeZone?:string } & (
-  { kind: 'message'; text: string } | { kind: 'retry'; turnId: string } |
+  { kind: 'message'; text: string } | {kind:'assess'} | { kind: 'retry'; turnId: string } |
   { kind: 'skip'; topic: string } | { kind: 'edit'; itemId: string | null; topic: string; value: string } |
   { kind: 'confirm'; reviewedRevision: number });
 export { OnboardingError } from './onboardingError.js';
@@ -37,11 +39,11 @@ export function bounded(context: Context): Context {
   }
   return context;
 }
-export type ModelProposal = { trainingSummary?:TrainingSummary|null; reply: string; additions: { topic: string; value: string; origin: 'user_report' | 'model_inference' | 'assumption' | 'unknown'; source: string; quote: string }[];
+export type ModelProposal = { planningCheck?:PlanningCheck; trainingSummary?:TrainingSummary|null; reply: string; additions: { topic: string; value: string; origin: 'user_report' | 'model_inference' | 'assumption' | 'unknown'; source: string; quote: string }[];
   nextQuestion: { topic: string; text: string; decision: string } | null;
   readiness: Context['readiness']; limitations: string[] };
 export const proposalSchema = {
-  type: 'object', additionalProperties: false, required: ['reply', 'additions', 'nextQuestion', 'readiness', 'limitations', 'trainingSummary'],
+  type: 'object', additionalProperties: false, required: ['reply', 'additions', 'nextQuestion', 'readiness', 'limitations', 'trainingSummary', 'planningCheck'],
   properties: {
     trainingSummary: {anyOf:[{type:'null'},summarySchema]},
     reply: { type: 'string', minLength: 1, maxLength: 2400, pattern: '\\S' },
@@ -55,20 +57,23 @@ export const proposalSchema = {
       properties: { topic: { type: 'string', minLength: 1, maxLength: 80 }, text: { type: 'string', minLength: 1, maxLength: 500 }, decision: { type: 'string', minLength: 1, maxLength: 300 } } }] },
     readiness: { type: 'string', enum: ['needs_clarification', 'ready_with_limits', 'ready'] },
     limitations: { type: 'array', maxItems: 12, items: { type: 'string', minLength: 1, maxLength: 300 } },
+    planningCheck: planningCheckSchema,
   },
 } as const;
 
 export type ModelInput = { context: Context; sources: Record<string, string>; recent: { role: 'user' | 'assistant'; text: string; source?: string }[]; knownProfileFields: string[] };
 export function applyProposal(context: Context, proposal: ModelProposal, sources: Record<string, string>, now: string): Context {
   const next = structuredClone(context);
+  const reportSources=Object.entries(sources).filter(([key])=>!key.startsWith('saved')||context.items.some(item=>item.source===key&&item.origin==='user_report')).map(([,value])=>value);
   if(proposal.trainingSummary) {
     const summary=checkedSummary(proposal.trainingSummary);
-    if(summary.some(f=>f.origin==='user_report'&&!Object.values(sources).some(source=>source.includes(f.text))))throw new OnboardingError(422,'invalid_evidence');
+    if(summary.some(f=>f.origin==='user_report'&&!reportSources.some(source=>source.includes(f.text))))throw new OnboardingError(422,'invalid_evidence');
     next.trainingSummary=summary;
   } else {delete next.trainingSummary;}
   const seen = new Set(next.items.map(x => `${x.origin}:${x.value}:${x.source}`));
   for (const proposed of proposal.additions) {
     const sourceText = sources[proposed.source];
+    if(proposed.origin==='user_report'&&proposed.source.startsWith('saved')&&!context.items.some(item=>item.source===proposed.source&&item.origin==='user_report'))throw new OnboardingError(422,'invalid_evidence');
     if (!sourceText || !proposed.quote || !sourceText.includes(proposed.quote)) throw new OnboardingError(422, 'invalid_evidence');
     // A model's paraphrase must never become an athlete's factual wording. For a report,
     // retain the verified original quote instead. Declared inferences stay inferences.
@@ -83,9 +88,29 @@ export function applyProposal(context: Context, proposal: ModelProposal, sources
       ['first name', 'last name', 'height', 'age', 'weight', 'gender'].includes(proposal.nextQuestion.topic.toLowerCase()))) {
     throw new OnboardingError(422, 'repeated_known_topic');
   }
-  // Readiness never hides recorded uncertainty; it never gates confirmation.
+  // The assessment is tied to this exact summary/revision, not to an earlier recap.
+  next.planningCheck=proposal.planningCheck;
+  if(next.planningCheck?.status==='ready' && (!next.trainingSummary || proposal.readiness==='needs_clarification' || proposal.nextQuestion&&proposal.nextQuestion.topic!==recapTopic)) {
+    const question=proposal.nextQuestion;
+    if(!question || question.topic===recapTopic)throw new OnboardingError(422,'invalid_model_output');
+    next.planningCheck={status:'question',question:question.text,reason:question.decision};
+  }
+  // Optional unknowns stay visible without making every uncertainty a blocker.
   next.readiness = proposal.readiness;
   next.limitations = [...new Set([...next.limitations, ...proposal.limitations])];
   if (next.items.some(x => x.origin === 'unknown' || x.review === 'disputed') && next.readiness === 'ready') next.readiness = 'ready_with_limits';
   return bounded(next);
+}
+
+export function readyToPlan(context:Context) {
+  return !!context.trainingSummary && context.planningCheck?.status==='ready' && context.readiness!=='needs_clarification';
+}
+// A schema-valid recap can contradict its own assessment. Display the concrete blocker
+// instead of the recap/finish invitation; the store independently protects completion.
+export function consistentReply(context:Context,proposal:ModelProposal):ModelProposal {
+  const check=context.planningCheck;
+  if(check?.status==='question')return {...proposal,reply:check.reason!,nextQuestion:{topic:proposal.nextQuestion?.topic!==recapTopic&&proposal.nextQuestion?.text===check.question?proposal.nextQuestion.topic:'Planning clarification',text:check.question!,decision:check.reason!}};
+  if(check?.status==='unavailable')return {...proposal,reply:`${check.reason} You can leave this conversation using Back to greeting, or tell me what you would like to change. A usable plan is not ready.`,nextQuestion:null};
+  if(proposal.nextQuestion?.topic===recapTopic&&!readyToPlan(context))throw new OnboardingError(422,'invalid_model_output');
+  return proposal;
 }

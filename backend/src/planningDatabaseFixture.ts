@@ -29,11 +29,13 @@ export async function verifyPlanningDatabase(t:TestContext,owner:Pool,pool:Pool,
   const next=async()=>{const s=await state();await store.edit(alice,s.summary!.revision,trainingFixture,'America/New_York');const n=await state();await store.ensurePlan(alice,n.summary!.revision);return latest()};
   await t.test('completion commits minimal summary and dated plan before cascaded chat deletion; failed COMMIT preserves both sides',async()=>{
     const old=await onboard.create(alice);await onboard.remove(alice,old.id);const a=await onboard.create(alice,'America/New_York');
-    const context={...a.context,trainingSummary:trainingFixture};
+    const context={...a.context,readiness:'ready',planningCheck:{status:'ready',question:null,reason:null},trainingSummary:trainingFixture};
     await owner.query('UPDATE fitquest.onboarding_context_revisions SET context=$3 WHERE user_id=$1 AND conversation_id=$2',[alice.userId,a.id,JSON.stringify(context)]);
+    const claim=await onboard.claim(alice,a.id,{kind:'message',text:'Synthetic complete context',operationId:randomUUID(),expectedRevision:0},{...provider,prepare:()=>({body:'{}',reserveMicro:100})});assert.ok(claim.work);
+    await onboard.settle(alice,claim.work.attempt,1);await onboard.finish(alice,a.id,claim.work,context as any,'Synthetic recap',undefined,'Onboarding recap');
     const before=await state();const api=onboardingService(onboard,undefined,'test');
     await owner.query("CREATE FUNCTION fitquest.fail_summary_commit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic summary COMMIT failure'; END $$; CREATE CONSTRAINT TRIGGER fail_summary_commit AFTER INSERT OR UPDATE ON fitquest.training_summaries DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fitquest.fail_summary_commit()");
-    const finish={kind:'confirm' as const,operationId:randomUUID(),expectedRevision:0,reviewedRevision:0,timeZone:'Pacific/Honolulu'};
+    const finish={kind:'confirm' as const,operationId:randomUUID(),expectedRevision:2,reviewedRevision:2,timeZone:'Pacific/Honolulu'};
     try {await assert.rejects(api.command(alice,a.id,finish,async()=>true));assert.equal((await onboard.read(alice,a.id)).state,'confirmed');assert.deepEqual(await state(),before)}finally{await owner.query('DROP TRIGGER fail_summary_commit ON fitquest.training_summaries; DROP FUNCTION fitquest.fail_summary_commit()')}
     const done=await api.command(alice,a.id,finish,async()=>true);assert.ok('summarySaved' in done&&done.summarySaved);assert.equal(calls,0);
     const {s,p}=await latest();assert.deepEqual(s.summary.document,trainingFixture);assert.equal(p.dates.length,7);assert.equal(p.timeZone,'Pacific/Honolulu');
