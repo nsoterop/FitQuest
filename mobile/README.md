@@ -1,10 +1,14 @@
 # FitQuest mobile
 
-## Coaching presentation — reviewed; deployment authorized
+## Coaching presentation — served with deployed backend; phone acceptance pending
 
 Repetition prescriptions now support validated ranges and optional RIR, rendered concisely (for example `3 × 8–12 · 2 RIR`). Older exact-repetition rows remain readable; time, distance, interval, phase and rest displays retain their meaning. **80 mobile tests**, TypeScript and offline Expo compatibility pass. The actual recorded synthetic revised week was replayed through `TrainingScreen`: compact draft timing/focus/duration, explicit acceptance, exact range/RIR/distance rows and reopening without a generation request all pass. This is component evidence, not physical-phone acceptance.
 
-HQ independently accepted this source and the owner authorized deployment on October 4 without the remaining fresh paid initial-generation/revision checks; those quality results remain unverified. See [backend evidence](../backend/README.md#coaching-correction--local-implementation-and-bounded-live-evidence). Matching deployed backend, served JavaScript and fresh owner-only cleanup/readback remain required before a testing handoff. No native build is needed. Prior served-bundle evidence below applies to its recorded checkpoint only; physical-phone acceptance remains pending.
+HQ independently accepted this source and the owner authorized deployment on October 4 without the remaining fresh paid initial-generation/revision checks; those quality results remain unverified. Reviewed backend **`b5f5d027c4e9d07d8e1276e249a9bf0d087d2fb4`** is Live at **6:17:49 PM EDT**, with its reviewed additive diagnostic migration. See [backend evidence](../backend/README.md#coaching-correction--local-implementation-and-bounded-live-evidence).
+
+Metro initially served stale transformed JavaScript despite current source-map text. Engineering restarted the existing LAN development server with its cache cleared. The actual iOS manifest and rebuilt **4,930,280-byte** bundle return 200 at `http://192.168.87.227:8081`; bundle SHA-256 **`6fea9c5b3eed208dd28000b6c7140d4da87dc3f82d52c29a99cba4cd45bd41df`**. Actual bundle text contains `repRange` and RIR; map SHA-256 `b191f2d7b34cb73bc5bf197381dba2a7cbe54b943e44a55f7f2d9958628f9027`, with exact source matches for `trainingPresentation.ts`, `trainingApi.ts`, `TrainingScreen.tsx` and `OnboardingScreen.tsx`. Native build remains `49e1ff3`; no new build or trust/configuration change occurred.
+
+Required owner-only cleanup committed at **6:21:01 PM EDT**, with separate readback at **6:21:14 PM**. All eight content tables were already empty, so zero rows were deleted; account/profile/session data, all 79 independent attempts and the single ledger remain unchanged. **Physical-phone reload, matching device-draft cleanup, authenticated acceptance and keyboard/layout remain unverified.** Reopen Start onboarding → Continue to onboarding to invoke existing scoped stale-draft cleanup. No owner plan was regenerated. Prior served-bundle evidence below applies to its recorded checkpoint only.
 
 ## Weekly draft review — served with deployed backend; phone acceptance pending
 
