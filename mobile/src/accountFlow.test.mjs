@@ -19,6 +19,7 @@ let loginError = null;
 let logoutError = null;
 let signupCalls = 0;
 globalThis.__fitquestSecure = new Map();
+globalThis.__fitquestAppStateListeners = new Set();
 globalThis.__fitquestTestClient = { auth: {
   onAuthStateChange: callback => { authListener = callback; return { data: { subscription: { unsubscribe() {} } } }; },
   getSession: () => restore(),
@@ -32,7 +33,7 @@ globalThis.__fitquestTestClient = { auth: {
 const native = `export const View='View', Text='Text', TextInput='TextInput', Pressable='Pressable', ScrollView='ScrollView', KeyboardAvoidingView='KeyboardAvoidingView';
   export const Platform={OS:'ios'};
   export const StyleSheet={create:x=>x}; export const Keyboard={dismiss(){}};
-  export const AppState={currentState:'active',addEventListener:()=>({remove(){}})};
+  export const AppState={currentState:'active',addEventListener:(_event,callback)=>{globalThis.__fitquestAppStateListeners.add(callback);return {remove(){globalThis.__fitquestAppStateListeners.delete(callback)}}}};
   export const Linking={addEventListener:(_name,callback)=>{globalThis.__fitquestLinkListener=callback;return {remove(){}}},getInitialURL:async()=>null};`;
 registerHooks({
   resolve(specifier, context, next) {
@@ -181,7 +182,7 @@ test('incorrect credentials and unconfirmed email keep the profile hidden with c
 test('reopen verifies the stored session before displaying and restoring only its saved profile', async () => {
   resetAuth(alice); let finishVerification; let reads=0;
   verify=async()=>new Promise(resolve=>{finishVerification=resolve});
-  globalThis.fetch=async()=>{reads++; return {status:200,json:async()=>({profile:payload})}};
+  globalThis.fetch=async url=>{if(url.endsWith('/training'))return {status:200,json:async()=>({summary:null,plans:[]})};reads++; return {status:200,json:async()=>({profile:payload})}};
   const screen=await mount();
   assert.ok(text(screen).includes('Restoring your session')); assert.equal(reads,0); assert.equal(text(screen).includes('First name'),false);
   await act(async()=>{finishVerification({data:{user:alice.user},error:null}); await flush()});
@@ -215,7 +216,7 @@ test('late initial session restoration cannot replace a newer signed-in account'
 
 test('session refresh keeps the greeting; signing out clears it before another account opens its form', async () => {
   resetAuth(alice); let reads=0;
-  globalThis.fetch=async()=>{reads++;return {status:200,json:async()=>({profile:payload})}};
+  globalThis.fetch=async url=>{if(url.endsWith('/training'))return {status:200,json:async()=>({summary:null,plans:[]})};reads++;return {status:200,json:async()=>({profile:payload})}};
   const screen=await mount();
   await act(async()=>{session={...alice,access_token:'refreshed-token'};authListener('TOKEN_REFRESHED',session);await flush()});
   assert.equal(screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''), 'Hi Alex'); assert.equal(reads,1);
@@ -350,7 +351,7 @@ test('sign out clears onboarding UI and encrypted draft; late response cannot po
   await act(async()=>screen.unmount());
 });
 test('onboarding session rejection returns to sign in; explicit deletion removes local draft and leaves profile flow',async()=>{
-  resetAuth(alice);globalThis.fetch=async url=>url.endsWith('/profile')?{status:200,json:async()=>({profile:payload})}:{status:401,json:async()=>({})};
+  resetAuth(alice);globalThis.fetch=async url=>url.endsWith('/profile')?{status:200,json:async()=>({profile:payload})}:url.endsWith('/training')?{status:200,json:async()=>({summary:null,plans:[]})}:{status:401,json:async()=>({})};
   let screen=await mount();await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});assert.ok(input(screen,'Sign in'));await act(async()=>screen.unmount());
   globalThis.__fitquestSecure.clear();let closed=0;let saved=onboardingFixture();let late;
   globalThis.fetch=async(url,options)=>url.endsWith('/commands')?new Promise(resolve=>{late=resolve}):({status:options.method==='DELETE'?204:200,json:async()=>saved});
@@ -486,6 +487,76 @@ function trainingServer(initial=trainingState()) {
   return {requests,get saved(){return saved}};
 }
 async function mountTraining(extra={}){let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(TrainingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},...extra}));await flush()});return screen}
+
+const hasTrainingAccess=screen=>screen.root.findAllByProps({accessibilityLabel:'View training'}).length>0;
+test('greeting hides training during the authoritative check, after failure and for an unfinished account',async()=>{
+  resetAuth(alice);let deliver;const requests=[];
+  globalThis.fetch=async(url,options)=>{requests.push({url,method:options.method??'GET'});if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};return new Promise(resolve=>{deliver=resolve})};
+  const screen=await mount();assert.ok(input(screen,'Start onboarding'));assert.equal(hasTrainingAccess(screen),false);
+  await act(async()=>{deliver({status:503,json:async()=>({})});await flush()});assert.equal(hasTrainingAccess(screen),false);
+  await act(async()=>{press(screen,'Retry loading saved progress');await flush()});assert.equal(hasTrainingAccess(screen),false);
+  await act(async()=>{deliver({status:200,json:async()=>({summary:null,plans:[]})});await flush()});assert.equal(hasTrainingAccess(screen),false);
+  assert.ok(requests.every(r=>r.method==='GET'));assert.equal(requests.filter(r=>r.url.endsWith('/training')).length,2);
+  await act(async()=>screen.unmount());
+});
+test('a newly saved profile and an unconfirmed recap do not grant training access',async()=>{
+  resetAuth(alice);let profile=null;const chat=onboardingFixture();chat.context.readiness='ready';chat.turns=[{id:'recap',sequence:1,message:'Here are my goals and context.',reply:'Your recap. Does that capture what matters?',questionTopic:'Onboarding recap',state:'completed',error:null}];let reads=0;
+  globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/profile-intake')){profile=payload;return{status:200,json:async()=>({message:'User Data Saved'})}}
+    if(url.endsWith('/profile'))return{status:200,json:async()=>({profile})};
+    if(url.endsWith('/training')){reads++;return{status:200,json:async()=>({summary:null,plans:[]})}}
+    return{status:200,json:async()=>chat};
+  };
+  const screen=await mount();
+  for(const [label,value] of [['First name','Alex'],['Last name','Example'],['Height (feet)','5'],['Height (inches)','8'],['Age (years)','29'],['Weight (lb)','155'],['Gender','Prefer not to say']])await act(async()=>input(screen,label).props.onChangeText(value));
+  await act(async()=>{press(screen,'Submit profile');await flush()});assert.equal(hasTrainingAccess(screen),false);assert.equal(reads,1);
+  await act(async()=>press(screen,'Start onboarding'));await act(async()=>{press(screen,'Continue to onboarding');await flush()});
+  assert.equal(hasTrainingAccess(screen),false);await act(async()=>press(screen,'Conversation options'));await act(async()=>{press(screen,'Back to greeting');await flush()});
+  assert.equal(hasTrainingAccess(screen),false);assert.equal(reads,2);await act(async()=>screen.unmount());
+});
+test('saved completion grants reload access even with no plan or pending, failed or blocked generation',async()=>{
+  for(const kind of ['summary-only','pending','failed','blocked']){
+    resetAuth(alice);const state=trainingState();if(kind==='summary-only')state.plans=[];
+    else if(kind==='blocked')state.plans[0].outline={days:state.plans[0].dates.map(date=>({date,sessions:[]})),coverage:['limitations_need_clarification']};
+    else state.plans[0].jobs=[{target:'week',status:kind,error:kind==='failed'?'provider_error':null,attemptId:'attempt'}];
+    const requests=[];globalThis.fetch=async(url,options)=>{requests.push(options.method??'GET');return{status:200,json:async()=>url.endsWith('/profile')?{profile:payload}:state}};
+    let screen=await mount();assert.equal(hasTrainingAccess(screen),true,kind);
+    await act(async()=>{press(screen,'View training');await flush()});assert.match(text(screen),/Your training/);
+    if(kind==='failed')assert.ok(input(screen,'Retry weekly plan'));
+    if(kind==='blocked')assert.ok(input(screen,'Continue clarification'));
+    await act(async()=>{press(screen,'Back to greeting');await flush()});assert.equal(hasTrainingAccess(screen),true);
+    await act(async()=>screen.unmount());screen=await mount();assert.equal(hasTrainingAccess(screen),true);assert.ok(requests.every(m=>m==='GET'));
+    await act(async()=>screen.unmount());
+  }
+});
+test('return to greeting and foreground revalidate completion after an owner test reset',async()=>{
+  resetAuth(alice);let saved=trainingState();let defer=false,deliver;
+  globalThis.fetch=async url=>{if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};if(defer)return new Promise(resolve=>{deliver=resolve});return{status:200,json:async()=>saved}};
+  const screen=await mount();assert.equal(hasTrainingAccess(screen),true);
+  await act(async()=>{press(screen,'View training');await flush()});saved={summary:null,plans:[]};defer=true;
+  await act(async()=>{press(screen,'Back to greeting');await flush()});assert.equal(hasTrainingAccess(screen),false);
+  await act(async()=>{deliver({status:200,json:async()=>saved});await flush()});assert.equal(hasTrainingAccess(screen),false);
+  defer=false;saved=trainingState();await act(async()=>{for(const cb of globalThis.__fitquestAppStateListeners)cb('active');await flush()});assert.equal(hasTrainingAccess(screen),true);
+  await act(async()=>{for(const cb of globalThis.__fitquestAppStateListeners)cb('background')});assert.equal(hasTrainingAccess(screen),false);
+  saved={summary:null,plans:[]};await act(async()=>{for(const cb of globalThis.__fitquestAppStateListeners)cb('active');await flush()});assert.equal(hasTrainingAccess(screen),false);
+  await act(async()=>screen.unmount());
+});
+test('late completion-status results cannot cross account switch, unmount or onboarding navigation',async()=>{
+  const waiting=[];globalThis.fetch=async(url,options)=>url.endsWith('/profile')?{status:200,json:async()=>({profile:payload})}:new Promise(resolve=>waiting.push({resolve,signal:options.signal}));
+  let screen;const props=userId=>({userId,accessToken:async()=>`${userId}-token`});
+  await act(async()=>{screen=TestRenderer.create(React.createElement(ProfileIntakeForm,props('alice')));await flush()});assert.equal(waiting.length,1);
+  await act(async()=>{screen.update(React.createElement(ProfileIntakeForm,props('bob')));await flush()});assert.equal(waiting[0].signal.aborted,true);
+  await act(async()=>{waiting[0].resolve({status:200,json:async()=>trainingState()});waiting[1].resolve({status:200,json:async()=>({summary:null,plans:[]})});await flush()});assert.equal(hasTrainingAccess(screen),false);
+  await act(async()=>{screen.update(React.createElement(ProfileIntakeForm,props('carol')));await flush()});
+  await act(async()=>press(screen,'Start onboarding'));assert.equal(waiting[2].signal.aborted,true);
+  await act(async()=>{waiting[2].resolve({status:200,json:async()=>trainingState()});await flush()});assert.equal(hasTrainingAccess(screen),false);
+  await act(async()=>press(screen,'Conversation options'));await act(async()=>{press(screen,'Back to greeting');await flush()});await act(async()=>screen.unmount());assert.equal(waiting[3].signal.aborted,true);
+  await act(async()=>{waiting[3].resolve({status:200,json:async()=>trainingState()});await flush()});
+});
+test('completion status 401 ends the session without exposing training',async()=>{
+  resetAuth(alice);globalThis.fetch=async url=>({status:url.endsWith('/profile')?200:401,json:async()=>({profile:payload})});
+  const screen=await mount();assert.equal(hasTrainingAccess(screen),false);assert.ok(input(screen,'Sign in'));await act(async()=>screen.unmount());
+});
 
 test('completion opens planning only after committed summary receipt and local draft cleanup, then requests the entire week once',async()=>{
   resetAuth(alice);globalThis.__fitquestSecure.clear();const mock=trainingServer();const trainingFetch=globalThis.fetch;

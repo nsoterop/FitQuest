@@ -1,5 +1,13 @@
 # FitQuest mobile
 
+## Saved-completion navigation — HQ accepted, deployment pending
+
+HQ independently passed 68 mobile tests/typechecking/offline Expo compatibility and all 106 backend tests with isolated PostgreSQL and zero skips. No blocking findings; accepted for publication and deployment, then the mandatory owner-test reset/readback. Phone acceptance remains unverified.
+
+The greeting now checks the existing authenticated `GET /training` and renders **View training** only when a saved training summary exists. Profile creation, a started conversation and an unconfirmed recap do not unlock it. Loading/errors keep the button absent; failed reads offer **Retry loading saved progress**. Returning to the greeting, foregrounding or reloading checks again, including after the owner test reset. A committed completion receipt still opens training immediately for the existing single weekly dispatch, and summary-only/pending/failed/blocked planning retains recovery access. Checks make no generation request. Account-keyed form state, aborts and request identity guards reject responses after navigation, unmount, sign-out or account switching.
+
+**68 mobile tests** and TypeScript pass; offline Expo compatibility passes. Rendered tests cover new profiles, unconfirmed recaps, pending/failed reads, summary-only and failed/pending/blocked plans, return/reload/foreground, post-reset emptiness, session rejection and late account-switch/unmount responses. Existing complete-week generation, minimal exercise rows, draft cleanup and clarification regressions still pass. Backend passes **106 tests** with isolated PostgreSQL/zero skips; its six-request synthetic wording check settled $0.003118. No native build or deployment occurred. Physical-phone navigation, grouped conversation and keyboard acceptance remain unverified; deployment and the scoped owner test reset follow HQ review/publication.
+
 React Native / TypeScript on Expo SDK 57. **Scoped onboarding and catalog-backed planning are authorized through HQ.** Existing-service deployment and phone reconnection are authorized for HQ’s reviewed checkpoint. Native builds and other paused work remain outside scope.
 
 ## Complete weeks and minimal session rows — deployed; phone acceptance pending
