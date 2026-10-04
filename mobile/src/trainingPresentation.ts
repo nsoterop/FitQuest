@@ -3,6 +3,7 @@ type Session=TrainingDay['detail']['sessions'][number];
 type Prescription=Session['activities'][number];
 const factors={m:1,km:1000,mi:1609.344,yd:.9144};
 export function validSessionMeaning(s:Session):boolean {
+  if(s.estimatedMinutes!==undefined&&(!Number.isInteger(s.estimatedMinutes)||s.estimatedMinutes<1||s.estimatedMinutes>240))return false;
   if(s.timing!==undefined&&s.timing!==null&&!['morning','midday','evening','flexible'].includes(s.timing))return false;
   if(s.intervals!==undefined&&(!Array.isArray(s.intervals)||s.intervals.length>7))return false;
   for(const a of s.activities){

@@ -21,9 +21,9 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
   let calls=0;
   const makeWeek=(body:string):Week=>{
     const input=JSON.parse(JSON.parse(body).input),outline=input.outline??fixtureOutline(input.dates);
-    return {units:'imperial',goalDecisions:[{sourceIndex:0,goalIndex:0,goal:'Comfortable walking',status:'addressed',reason:'Easy walking develops the stated walking goal.',evidence:[{date:input.dates[0],sessionIndex:1,activityIndex:0}]},{sourceIndex:0,goalIndex:1,goal:'General strength',status:'addressed',reason:'A conservative strength session supports general strength.',evidence:[{date:input.dates[5],sessionIndex:0,activityIndex:0}]}],clarification:null,coverage:[],days:outline.days.map((d:any)=>{
+    return {...(input.draftReview?{arrangementNote:null}:{}),units:'imperial',goalDecisions:[{sourceIndex:0,goalIndex:0,goal:'Comfortable walking',status:'addressed',reason:'Easy walking develops the stated walking goal.',evidence:[{date:input.dates[0],sessionIndex:1,activityIndex:0}]},{sourceIndex:0,goalIndex:1,goal:'General strength',status:'addressed',reason:'A conservative strength session supports general strength.',evidence:[{date:input.dates[5],sessionIndex:0,activityIndex:0}]}],clarification:null,coverage:[],days:outline.days.map((d:any)=>{
       const saved=input.savedDays?.find((x:any)=>x.date===d.date);
-      return {date:d.date,sessions:(saved??fixtureDetail(outline,d.date)).sessions.map((s:any,i:number)=>({...s,focus:d.sessions[i].focus,timing:s.timing??(saved?null:'flexible'),intervals:s.intervals??[],activities:s.activities.map((a:any)=>({...a,distanceTarget:a.distanceTarget??null}))}))};
+      return {date:d.date,sessions:(saved??fixtureDetail(outline,d.date)).sessions.map((s:any,i:number)=>({...s,...(input.draftReview&&!saved?{estimatedMinutes:25}:{}),focus:d.sessions[i].focus,timing:s.timing??(saved?null:'flexible'),intervals:s.intervals??[],activities:s.activities.map((a:any)=>({...a,distanceTarget:a.distanceTarget??null}))}))};
     })};
   };
   let respond:(body:string)=>Promise<ProviderResult>=async body=>({proposal:makeWeek(body),usage:{input:100,output:5000,cached:0,cacheWrite:0}});
@@ -46,10 +46,10 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
     assert.ok('summarySaved' in done&&done.summarySaved);assert.equal(calls,0);
     const r=await request(),response=await app.inject({method:'POST',url:'/training/generate',headers:{authorization:'Bearer alice'},payload:r});assert.equal(response.statusCode,200);assert.equal(response.headers['cache-control'],'no-store');assert.equal(calls,1);
     const versions=(await owner.query('SELECT a.prompt_version,a.schema_version FROM fitquest.onboarding_attempts a JOIN fitquest.training_generations g ON g.user_id=a.user_id AND g.attempt_id=a.id WHERE g.user_id=$1 AND g.plan_id=$2 AND g.target=$3',[alice.userId,r.planId,'week'])).rows[0];
-    assert.deepEqual(versions,{prompt_version:'catalog-week-v3',schema_version:'catalog-week-v3'});
+    assert.deepEqual(versions,{prompt_version:'catalog-week-v4',schema_version:'catalog-week-v4'});
     const {p}=await latest();assert.equal(p.days.length,7);assert.equal(p.days[0].detail.sessions.length,2);assert.equal(p.days.filter((d:any)=>!d.detail.sessions.length).length,4);
     assert.equal(p.outline.qualityVersion,2);assert.equal(p.outline.units,'imperial');assert.equal(p.outline.goalDecisions.length,2);
-    for(const day of p.days)assert.deepEqual(day.detail.sessions,fixtureDetail(fixtureOutline(p.dates),day.date).sessions.map(s=>({...s,timing:'flexible',intervals:[],activities:s.activities.map(a=>({...a,distanceTarget:null}))})));
+    for(const day of p.days)assert.deepEqual(day.detail.sessions,fixtureDetail(fixtureOutline(p.dates),day.date).sessions.map(s=>({...s,estimatedMinutes:25,timing:'flexible',intervals:[],activities:s.activities.map(a=>({...a,distanceTarget:null}))})));
     const before=(await owner.query('SELECT spent_micro,reserved_micro FROM fitquest.ai_budget')).rows[0];
     await Promise.all([generate(),generate()]);assert.deepEqual((await planningStore(pool).read(alice)).plans.find(p=>p.id===r.planId).days,p.days);assert.equal(calls,1);
     assert.deepEqual((await owner.query('SELECT spent_micro,reserved_micro FROM fitquest.ai_budget')).rows[0],before);
@@ -57,7 +57,7 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
   });
   await t.test('one explicit weekly backfill preserves existing days byte-for-byte and rejects rewritten prescriptions',async()=>{
     const {p}=await next(),outline=fixtureOutline(p.dates),saved=fixtureDetail(outline,p.dates[0]);
-    await owner.query('UPDATE fitquest.training_plans SET outline=$3 WHERE user_id=$1 AND id=$2',[alice.userId,p.id,JSON.stringify(outline)]);
+    await owner.query('UPDATE fitquest.training_plans SET outline=$3,review_state=$legacy$legacy$legacy$ WHERE user_id=$1 AND id=$2',[alice.userId,p.id,JSON.stringify(outline)]);
     await owner.query('INSERT INTO fitquest.training_days(user_id,plan_id,date,summary_revision,detail) VALUES($1,$2,$3,$4,$5)',[alice.userId,p.id,p.dates[0],p.summaryRevision,JSON.stringify({...saved,legacyMarker:'preserve exact JSON'})]);
     const bytes=async()=>(await owner.query('SELECT detail::text FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 AND date=$3',[alice.userId,p.id,p.dates[0]])).rows[0].detail;
     const before=await bytes(),count=calls;
@@ -107,8 +107,8 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
   await t.test('late-discovered weekly clarification is saved for existing conversation recovery, never shown as a complete rest week',async()=>{
     const clarification={question:'Is a safe walking path available this week?',reason:'This decides whether walking can be included.'};
     for(const partial of [false,true]){
-      const {p}=await next();if(partial)await owner.query('UPDATE fitquest.training_plans SET outline=$3 WHERE user_id=$1 AND id=$2',[alice.userId,p.id,JSON.stringify(fixtureOutline(p.dates))]);
-      respond=async()=>({proposal:{units:'imperial',goalDecisions:[],clarification,coverage:[],days:p.dates.map((date:string)=>({date,sessions:[]}))},usage:{input:100,output:500,cached:0,cacheWrite:0}});
+      const {p}=await next();if(partial)await owner.query('UPDATE fitquest.training_plans SET outline=$3,review_state=$legacy$legacy$legacy$ WHERE user_id=$1 AND id=$2',[alice.userId,p.id,JSON.stringify(fixtureOutline(p.dates))]);
+      respond=async()=>({proposal:{...(partial?{}:{arrangementNote:null}),units:'imperial',goalDecisions:[],clarification,coverage:[],days:p.dates.map((date:string)=>({date,sessions:[]}))},usage:{input:100,output:500,cached:0,cacheWrite:0}});
       await generate();const result=await latest();assert.equal(result.p.days.length,partial?1:0);const blocked=partial?result.p.days[0].detail:result.p.outline;assert.deepEqual(blocked.clarification,clarification);
       const target=partial?p.dates[0]:'outline',before=calls;
       const recovery=await onboard.create(alice,'America/New_York',{planId:p.id,summaryRevision:p.summaryRevision,target});assert.ok(!('completedId' in recovery));assert.equal(calls,before);
@@ -136,7 +136,7 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
       const {p}=await latest();
       if(partial){
         const outline=fixtureOutline(p.dates);
-        await owner.query('UPDATE fitquest.training_plans SET outline=$3 WHERE user_id=$1 AND id=$2',[alice.userId,p.id,JSON.stringify(outline)]);
+        await owner.query('UPDATE fitquest.training_plans SET outline=$3,review_state=$legacy$legacy$legacy$ WHERE user_id=$1 AND id=$2',[alice.userId,p.id,JSON.stringify(outline)]);
         await owner.query('INSERT INTO fitquest.training_days(user_id,plan_id,date,summary_revision,detail) VALUES($1,$2,$3,$4,$5)',[alice.userId,p.id,p.dates[0],p.summaryRevision,JSON.stringify(fixtureDetail(outline,p.dates[0]))]);
       }
       const originalDay=async()=>(await owner.query('SELECT detail::text FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 AND date=$3',[alice.userId,p.id,p.dates[0]])).rows[0]?.detail;

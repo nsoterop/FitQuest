@@ -136,6 +136,14 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
   app.get('/training',privateRoute,async request=>planning().read(accounts.get(request)!));
   app.put<{Body:{revision:number;document:TrainingSummary;timeZone:string}}>('/training/summary',{...privateRoute,bodyLimit:16000,schema:{body:{type:'object',additionalProperties:false,required:['revision','document','timeZone'],properties:{revision,document:summarySchema,timeZone:{type:'string',minLength:1,maxLength:80}}}}},async request=>planning().edit(accounts.get(request)!,request.body.revision,request.body.document,request.body.timeZone));
   app.post<{Body:{revision:number}}>('/training/plans',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['revision'],properties:{revision}}}},async request=>planning().ensurePlan(accounts.get(request)!,request.body.revision));
+  const planVersion={summaryRevision:revision,planRevision:revision,planId};
+  app.post<{Body:import('./planReview.js').PlanVersion}>('/training/accept',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:Object.keys(planVersion),properties:planVersion}}},async request=>planning().accept(accounts.get(request)!,request.body));
+  app.post<{Body:import('./planReview.js').ReviewRequest}>('/training/review',{...privateRoute,bodyLimit:12000,schema:{body:{type:'object',additionalProperties:false,required:[...Object.keys(planVersion),'feedback','retryAttempt'],properties:{...planVersion,feedback:{type:'string',minLength:1,maxLength:2000,pattern:'\\S'},retryAttempt:{anyOf:[{type:'null'},planId]}}}}},async request=>{
+    const account=accounts.get(request)!;
+    return planning().review(account,request.body,async()=>{
+      try{const next=await options.verifyAccount!(request.headers.authorization!.slice(7));return next?.userId===account.userId&&next.sessionId===account.sessionId}catch{return false}
+    });
+  });
   app.post<{Body:GenerationRequest}>('/training/generate',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['summaryRevision','planId','target','retryAttempt'],properties:{summaryRevision:revision,planId,target:{type:'string',pattern:'^(week|outline|[0-9]{4}-[0-9]{2}-[0-9]{2})$'},retryAttempt:{anyOf:[{type:'null'},planId]}}}}},async request=>{
     const account=accounts.get(request)!;
     return planning().generate(account,request.body,async()=>{

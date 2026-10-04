@@ -70,7 +70,7 @@ export async function retainTrainingSummary(c:PoolClient,account:Account,context
   const summary=summaryFromContext(context);
   const saved=await c.query(`INSERT INTO fitquest.training_summaries(user_id,revision,document,time_zone,source_conversation)
     VALUES($1,1,$2,$3,$4) ON CONFLICT(user_id) DO UPDATE SET revision=training_summaries.revision+1,
-    document=EXCLUDED.document,time_zone=EXCLUDED.time_zone,source_conversation=EXCLUDED.source_conversation,updated_at=now() RETURNING revision`,
+    document=EXCLUDED.document,preferences='[]',time_zone=EXCLUDED.time_zone,source_conversation=EXCLUDED.source_conversation,updated_at=now() RETURNING revision`,
     [account.userId,JSON.stringify(summary),checkTimeZone(timeZone),conversationId]);
   await c.query(`INSERT INTO fitquest.training_plans(user_id,id,summary_revision,summary,time_zone,dates,catalog_version)
     VALUES($1,$2,$3,$4,$5,$6,$7)`,[account.userId,context.recovery?recoveryPlanId(account.userId,context.recovery):randomUUID(),saved.rows[0].revision,JSON.stringify(summary),timeZone,JSON.stringify(sevenDates(timeZone)),catalog.version]);

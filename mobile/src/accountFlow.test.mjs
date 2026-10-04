@@ -489,6 +489,66 @@ function trainingServer(initial=trainingState()) {
 async function mountTraining(extra={}){let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(TrainingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},...extra}));await flush()});return screen}
 
 const hasTrainingAccess=screen=>screen.root.findAllByProps({accessibilityLabel:'View training'}).length>0;
+function reviewUiState(){
+  const s=trainingState(),p=s.plans[0];p.reviewState='draft';p.planRevision=1;p.reviewNote=null;p.reviewQuestion=null;
+  p.outline={days:p.dates.map((date,i)=>({date,sessions:i===0?[{focus:'Easy walking',activityIds:['FQ-ACT-00148']}]:[]})),coverage:[]};
+  p.days=p.dates.map((date,i)=>({date,detail:{date,coverage:[],catalogVersion:p.catalogVersion,activities:i===0?{'FQ-ACT-00148':{name:'Outdoor walking',instructions:'Synthetic hidden instructions'}}:{},sessions:i===0?[{timing:'morning',estimatedMinutes:12,intervals:[],activities:[{id:'FQ-ACT-00148',phase:'main',sets:1,measure:'seconds',amount:600,effort:'easy',restSeconds:0,load:'none',loadKg:null,side:'both'}]}]:[]}}));
+  p.jobs=[{target:'week',status:'completed',error:null,attemptId:'initial-week'}];return s;
+}
+test('draft overview renders actual saved dates, timing, focus and approximate minutes with one feedback box; acceptance reveals minimal details',async()=>{
+  const saved=reviewUiState(),requests=[];
+  globalThis.fetch=async(url,options)=>{const body=options.body?JSON.parse(options.body):null;requests.push({url,body,method:options.method});if(url.endsWith('/accept'))saved.plans[0].reviewState='accepted';return{status:200,json:async()=>structuredClone(saved)}};
+  let screen=await mountTraining();let visible=text(screen);assert.match(visible,/Draft plan/);assert.match(visible,/Morning/);assert.match(visible,/Easy walking/);assert.match(visible,/About /);assert.match(visible,/12/);assert.doesNotMatch(visible,/Outdoor walking —|Synthetic hidden instructions/);
+  for(const date of saved.plans[0].dates)assert.ok(visible.includes(date));
+  assert.equal(screen.root.findAllByType('TextInput').length,1);assert.equal(typeof input(screen,'Plan feedback').props.onFocus,'function');assert.equal(input(screen,'Use this plan').props.disabled,false);
+  await act(async()=>{press(screen,'Use this plan');await flush()});assert.match(text(screen),/Accepted plan/);assert.match(text(screen),/Outdoor walking — 10 min \(easy\)/);assert.doesNotMatch(text(screen),/hidden instructions/);
+  assert.deepEqual(requests.find(r=>r.url.endsWith('/accept')).body,{planId:saved.plans[0].id,summaryRevision:1,planRevision:1});
+  await act(async()=>screen.unmount());screen=await mountTraining();assert.match(text(screen),/Accepted plan/);assert.equal(requests.filter(r=>r.url.endsWith('/review')||r.url.endsWith('/generate')).length,0);assert.equal(requests.filter(r=>r.method==='POST').length,1);await act(async()=>screen.unmount());
+});
+test('yes-but feedback cannot accept a plan and updated overview uses the returned saved session changes',async()=>{
+  const saved=reviewUiState(),p=saved.plans[0],requests=[];
+  globalThis.fetch=async(url,options)=>{const body=options.body?JSON.parse(options.body):null;requests.push({url,body});if(url.endsWith('/review')){
+    p.days[0].detail.sessions[0].activities[0].amount=300;p.days[0].detail.sessions[0].estimatedMinutes=7;
+    p.days[0].detail.sessions.push({...structuredClone(p.days[0].detail.sessions[0]),timing:'evening',estimatedMinutes:8});p.outline.days[0].sessions.push({focus:'Easy walking',activityIds:['FQ-ACT-00148']});p.planRevision=2;p.reviewNote='The first day now has two shorter walking sessions.';
+  }return{status:200,json:async()=>structuredClone(saved)}};
+  const screen=await mountTraining();await act(async()=>input(screen,'Plan feedback').props.onChangeText('Yes, but split the first day into shorter sessions.'));
+  assert.equal(input(screen,'Use this plan').props.disabled,true);await act(async()=>{press(screen,'Update this week');await flush()});
+  assert.equal(requests.filter(r=>r.url.endsWith('/accept')).length,0);assert.equal(requests.find(r=>r.url.endsWith('/review')).body.feedback,'Yes, but split the first day into shorter sessions.');
+  assert.equal(input(screen,'Plan feedback').props.value,'');assert.match(text(screen),/Evening/);assert.match(text(screen),/two shorter walking/);assert.equal(input(screen,'Use this plan').props.disabled,false);await act(async()=>screen.unmount());
+});
+test('failed and pending review resume from the server, preserve the old draft and require explicit retry',async()=>{
+  for(const status of ['failed','pending']){
+    const saved=reviewUiState(),p=saved.plans[0],feedback='Keep the first day; adjust the second.';p.jobs.push({target:'review:1',status,error:status==='failed'?'provider_error':null,attemptId:'review-attempt',feedback});
+    const server=trainingServer(saved),screen=await mountTraining();assert.equal(server.requests.length,1);assert.equal(input(screen,'Plan feedback').props.value,feedback);assert.match(text(screen),/Draft plan/);assert.equal(input(screen,'Use this plan').props.disabled,true);
+    if(status==='failed'){await act(async()=>{press(screen,'Retry changes');await flush()});const request=server.requests.find(r=>r.url.endsWith('/review'));assert.equal(request.body.retryAttempt,'review-attempt');assert.equal(request.body.planRevision,1)}
+    else{assert.equal(input(screen,'Plan feedback').props.editable,false);assert.equal(input(screen,'Update this week').props.disabled,true);assert.match(text(screen),/Generation in progress/)}
+    assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,0);await act(async()=>screen.unmount());
+  }
+});
+test('conflict question appears once beside feedback without discarding saved overview or enabling stale acceptance',async()=>{
+  const saved=reviewUiState(),p=saved.plans[0];p.planRevision=2;p.reviewQuestion='Should the first day stay unchanged or may it change?';p.reviewNote='Your earlier draft is unchanged.';trainingServer(saved);
+  const screen=await mountTraining();assert.equal(text(screen).split(p.reviewQuestion).length-1,1);assert.match(text(screen),/Easy walking/);assert.equal(input(screen,'Use this plan').props.disabled,true);assert.equal(input(screen,'Plan feedback').props.value,'');await act(async()=>screen.unmount());
+});
+test('review reply cannot cross an account switch, and a session-ended response calls the existing session handler',async()=>{
+  const saved=reviewUiState();let deliver,signal,ended=0;
+  globalThis.fetch=async(url,options)=>{if(url.endsWith('/review')){signal=options.signal;return new Promise(resolve=>deliver=resolve)}return{status:200,json:async()=>options.headers.Authorization==='Bearer bob-token'?{summary:null,plans:[]}:saved}};
+  const screen=await mountTraining();await act(async()=>input(screen,'Plan feedback').props.onChangeText('Two shorter sessions please.'));await act(async()=>{press(screen,'Update this week');await flush()});
+  await act(async()=>{screen.update(React.createElement(TrainingScreen,{userId:'bob',accessToken:async()=>'bob-token',onClose(){}}));await flush()});assert.equal(signal.aborted,true);assert.doesNotMatch(text(screen),/Easy walking/);
+  await act(async()=>{deliver({status:200,json:async()=>saved});await flush()});assert.doesNotMatch(text(screen),/Easy walking|Two shorter/);await act(async()=>screen.unmount());
+  globalThis.fetch=async(url)=>url.endsWith('/review')?{status:401,json:async()=>({})}:{status:200,json:async()=>saved};
+  const signedOut=await mountTraining({onSessionEnded(){ended++}});await act(async()=>input(signedOut,'Plan feedback').props.onChangeText('Shorter sessions please.'));await act(async()=>{press(signedOut,'Update this week');await flush()});assert.equal(ended,1);await act(async()=>signedOut.unmount());
+});
+test('old plans remain readable without acceptance claims, forced regeneration or review controls',async()=>{
+  const saved=reviewUiState();saved.plans[0].reviewState='legacy';saved.plans[0].planRevision=0;const server=trainingServer(saved),screen=await mountTraining();
+  assert.match(text(screen),/acceptance was not recorded/);assert.match(text(screen),/Outdoor walking —/);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Use this plan'}).length,0);assert.equal(server.requests.length,1);await act(async()=>screen.unmount());
+});
+test('reload after a lost review response clears only the submitted feedback and does not charge for another revision',async()=>{
+  const saved=reviewUiState(),p=saved.plans[0],requests=[];let lost=true;
+  globalThis.fetch=async(url,options)=>{requests.push({url,method:options.method});if(url.endsWith('/review')&&lost){lost=false;p.planRevision=2;p.reviewNote='The requested change is saved.';throw Error('Synthetic lost response after commit')}return{status:200,json:async()=>structuredClone(saved)}};
+  const screen=await mountTraining();await act(async()=>input(screen,'Plan feedback').props.onChangeText('Make the walk shorter.'));await act(async()=>{press(screen,'Update this week');await flush()});
+  assert.equal(input(screen,'Plan feedback').props.value,'Make the walk shorter.');await act(async()=>{press(screen,'Reload saved training');await flush()});
+  assert.equal(input(screen,'Plan feedback').props.value,'');assert.equal(input(screen,'Use this plan').props.disabled,false);assert.equal(requests.filter(r=>r.method==='POST').length,1);await act(async()=>screen.unmount());
+});
 test('greeting hides training during the authoritative check, after failure and for an unfinished account',async()=>{
   resetAuth(alice);let deliver;const requests=[];
   globalThis.fetch=async(url,options)=>{requests.push({url,method:options.method??'GET'});if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};return new Promise(resolve=>{deliver=resolve})};

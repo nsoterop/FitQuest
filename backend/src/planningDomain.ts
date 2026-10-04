@@ -24,11 +24,12 @@ export const prescriptionSchema=object({id,phase:enumeration(['warmup','main','c
 export const qualityPrescriptionSchema={...prescriptionSchema,properties:{...prescriptionSchema.properties,amount:{type:'number',minimum:1,maximum:50000},distanceTarget:distanceSchema},required:[...prescriptionSchema.required,'distanceTarget']};
 const compatiblePrescription={...qualityPrescriptionSchema,required:prescriptionSchema.required};
 export const detailSchema=object({date,clarification,coverage:array(coverage,5),sessions:array(object({activities:array(prescriptionSchema,15,1)}),3)});
-export type Outline={qualityVersion?:2;units?:Units;goalDecisions?:GoalDecision[];clarification?:Clarification|null;days:{date:string;sessions:{focus:string;activityIds:string[]}[]}[];coverage:string[]};
+export type Outline={arrangementNote?:string|null;qualityVersion?:2;units?:Units;goalDecisions?:GoalDecision[];clarification?:Clarification|null;days:{date:string;sessions:{focus:string;activityIds:string[]}[]}[];coverage:string[]};
 export type Prescription={id:string;phase:'warmup'|'main'|'cooldown'|'optional';sets:number;measure:'repetitions'|'seconds'|'meters'|'count';amount:number;effort:string;restSeconds:number;load:string;loadKg:number|null;side:string;distanceTarget?:DistanceTarget|null};
-export type Detail={clarification?:Clarification|null;date:string;coverage:string[];sessions:{activities:Prescription[];timing?:Timing;intervals?:Interval[]}[]};
+export const estimateSchema={type:'integer',minimum:1,maximum:240};
+export type Detail={clarification?:Clarification|null;date:string;coverage:string[];sessions:{estimatedMinutes?:number;activities:Prescription[];timing?:Timing;intervals?:Interval[]}[]};
 const ajv=new Ajv();const compatible=(schema:typeof outlineSchema)=>({...schema,required:schema.required.filter(k=>k!=='clarification')});
-const compatibleDetail={...compatible(detailSchema),properties:{...detailSchema.properties,sessions:array({...object({activities:array(compatiblePrescription,15,1),timing:timingSchema,intervals:intervalsSchema}),required:['activities']},3)}};
+const compatibleDetail={...compatible(detailSchema),properties:{...detailSchema.properties,sessions:array({...object({activities:array(compatiblePrescription,15,1),timing:timingSchema,intervals:intervalsSchema,estimatedMinutes:estimateSchema}),required:['activities']},3)}};
 const validOutline=ajv.compile<Outline>(compatible(outlineSchema)),validDetail=ajv.compile<Detail>(compatibleDetail);
 export function checkOutline(value:unknown,dates:string[]):Outline {
   if(!validOutline(value)||value.days.some((d,i)=>d.date!==dates[i]))throw new OnboardingError(422,'invalid_plan');
@@ -62,7 +63,7 @@ export function savedDetail(detail:Detail) {
   }))};
 }
 export type PlanningInput={kind:'outline'|'day'|'week';summary:TrainingSummary;profile:{age:number;heightInches:number;weightLb:number};dates:string[];
-  qualityVersion?:2;preferredUnits?:Units;outline?:Outline;date?:string;previous?:unknown[];savedDays?:Detail[]};
+  draftReview?:boolean;preferences?:string[];review?:{feedback:string;context:{feedback:string;question:string}|null;outline:Outline;days:Detail[]};qualityVersion?:2;preferredUnits?:Units;outline?:Outline;date?:string;previous?:unknown[];savedDays?:Detail[]};
 export const planningPromptVersion='catalog-planning-v3';
 export const planningInputBytes=48000;
 // Check before publication with every earlier day filled to the detail schema's maximum.

@@ -1,0 +1,54 @@
+import { Ajv } from 'ajv';
+import { isDeepStrictEqual } from 'node:util';
+import { preservesReviewScope,reviewScope } from './planReviewScope.js';
+export { protectedDates } from './planReviewScope.js';
+import { OnboardingError } from './onboardingError.js';
+import type { OnboardingProvider } from './onboardingProvider.js';
+import type { PlanningInput,Detail } from './planningDomain.js';
+import { prepareWeek,checkWeek,draftWeekSchema,weeklyLimits,type Week,type CheckedWeek } from './weeklyPlanning.js';
+
+export type PlanVersion={planId:string;summaryRevision:number;planRevision:number};
+export type ReviewRequest=PlanVersion&{feedback:string;retryAttempt:string|null};
+export type ReviewResult={week:CheckedWeek|null;reply:string;question:string|null;lastingPreference:string|null};
+const reviewSchema={type:'object',additionalProperties:false,required:['week','changedDates','reply','lastingPreference'],properties:{
+  week:draftWeekSchema,
+  changedDates:{type:'array',maxItems:7,uniqueItems:true,items:{type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$'}},
+  reply:{type:'string',minLength:8,maxLength:600},
+  lastingPreference:{anyOf:[{type:'null'},{type:'string',minLength:8,maxLength:350}]},
+}};
+type Output={week:Week;changedDates:string[];reply:string;lastingPreference:string|null};
+const valid=new Ajv().compile<Output>(reviewSchema);
+export function prepareReview(provider:OnboardingProvider,input:PlanningInput) {
+  if(!input.review)throw new OnboardingError(422,'invalid_feedback');
+  const body=JSON.parse(prepareWeek(provider,{...input,outline:undefined,savedDays:undefined,draftReview:true}).body);
+  body.instructions+=`\nThis request is feedback on the EXISTING SAME DATED WEEK in review. Do not treat feedback as unconditional acceptance, including 'yes, but'. Never change the dates or infer performed work. The athlete does not design their exercise program: choose appropriate catalog work yourself. The review.week response contains all seven detailed dates together. Only revise work requested by the feedback, retaining explicitly kept and unaffected sessions, phases, quantities and order exactly. List the actually changed dates in changedDates; all other dates must echo saved work exactly. A focus-label-only edit does not satisfy a request to change the work. Preserve overall workload coherence, limitations, all expected goals and time limits. You may redistribute work within an authorized date, without adding total workload just to fill slots. Deterministic scope guards are ${JSON.stringify(reviewScope(input.review,input.dates))}. These guards are a conservative extraction, not permission to edit every unlisted session: interpret the full request too. A date mentioned only to keep it never restricts changes to that date. A general request for the rest of the week applies beyond kept dates. Earlier keep instructions survive a clarification; merely mentioning or praising a day does not override them. An explicit later request to change kept work may override the earlier keep only for the work actually requested. A kept morning session does not protect a different evening session on that date. If meaning or consent is unclear, ask one clarification; do not assume broader permission.\nIf feedback is ambiguous, conflicts with constraints or kept work, or requires changing another date without permission, return one essential clarification in week.clarification, all dates empty, changedDates empty and a concise conflict explanation in reply. The previous usable plan will remain intact. Do not use onboarding recovery or generate a different dated week. review.context, when present, is the single unresolved request/question; the new feedback answers or corrects it. Once resolved, do not retain a planning chat history.\nreply briefly describes actual changes (or why nothing changed), not a second plan or extra prescriptions. duration estimates must be based on the resulting saved prescriptions; never change estimates to conceal a time conflict. lastingPreference is null by default: one-off week changes do not change future preferences. Only if the athlete explicitly says 'from now on', 'going forward', 'future weeks' or 'always', copy a short exact substring containing that request into lastingPreference. Retain only distribution/timing preferences, never new goals, constraints or medical facts in that field. Do not weaken retained availability/limitations. These preferences will be disclosed in the overview and used for future planning. Existing preferences are context, never immutable constraints; the latest explicit correction wins. Return the strict review schema.`;
+  body.text.format.schema=reviewSchema;
+  const serialized=JSON.stringify(body);
+  if(Buffer.byteLength(serialized)>weeklyLimits.inputBytes)throw new OnboardingError(422,'planning_context_limit');
+  return {body:serialized,reserveMicro:provider.cost({input:Buffer.byteLength(serialized),output:weeklyLimits.outputTokens,cached:0,cacheWrite:0})};
+}
+export function checkReview(raw:unknown,input:PlanningInput):ReviewResult {
+  if(!valid(raw)||!input.review)throw new OnboardingError(422,'invalid_plan');
+  const {review}=input,value=raw as Output;
+  if(value.lastingPreference&&(!review.feedback.includes(value.lastingPreference)||!/\b(from now on|going forward|future weeks|always)\b/i.test(value.lastingPreference)))throw new OnboardingError(422,'invalid_feedback');
+  if(value.lastingPreference&&(input.preferences?.length??0)>=6)throw new OnboardingError(409,'preference_limit');
+  const checked=checkWeek(value.week,{...input,outline:undefined,savedDays:undefined,draftReview:true});
+  if(checked.outline.clarification){
+    if(value.changedDates.length||value.lastingPreference)throw new OnboardingError(422,'invalid_plan');
+    return {week:null,reply:value.reply,question:checked.outline.clarification.question,lastingPreference:null};
+  }
+  if(checked.outline.coverage.length)throw new OnboardingError(422,'catalog_coverage');
+  if(!preservesReviewScope(review,input.dates,checked.details,checked.outline))throw new OnboardingError(422,'saved_day_changed');
+  for(const date of input.dates){
+    const old=review.days.find(d=>d.date===date)!,next=checked.details.find(d=>d.date===date)!;
+    const oldOutline=review.outline.days.find(d=>d.date===date)!,newOutline=checked.outline.days.find(d=>d.date===date)!;
+    const changed=!isDeepStrictEqual(old.sessions,next.sessions)||!isDeepStrictEqual(oldOutline,newOutline);
+    const work=(day:Detail)=>day.sessions.map(({estimatedMinutes,...session})=>session);
+    if(changed&&isDeepStrictEqual(work(old),work(next)))throw new OnboardingError(422,'invalid_plan');
+    if(changed!==value.changedDates.includes(date))throw new OnboardingError(422,'invalid_plan');
+    // No catalog metadata is regenerated for untouched days during publication.
+    if(!changed)checked.details[checked.details.indexOf(next)]=old;
+  }
+  if(value.changedDates.some(d=>!input.dates.includes(d)))throw new OnboardingError(422,'invalid_plan');
+  return {week:checked,reply:value.reply,question:null,lastingPreference:value.lastingPreference};
+}

@@ -1,6 +1,7 @@
+import { trainingFixture,fixtureOutline,fixtureDetail } from './planningFixture.js';
+import { verifyPlanReviewDatabase } from './planReviewDatabaseFixture.js';
 import { verifyWeeklyDatabase } from './weeklyDatabaseFixture.js';
 import { verifyReadinessDatabase } from './readinessDatabaseFixture.js';
-import { trainingFixture } from './planningFixture.js';
 import { verifyPlanningDatabase } from './planningDatabaseFixture.js';
 import { dialogueFixtures } from './onboardingDialogueFixture.js';
 // Synthetic local-only integration fixture, called after the disposable baseline test.
@@ -22,6 +23,26 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   const migration=await readFile(new URL('../supabase/migrations/20261003030745_conversational_onboarding.sql',import.meta.url),'utf8');
   await owner.query('BEGIN');await owner.query(migration);await owner.query('COMMIT');
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261003214718_catalog_planning.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  await t.test('additive review migration preserves existing prescriptions, account/profile and spending data; old plans remain legacy',async()=>{
+    const user='44444444-4444-4444-8444-444444444444',plan='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const dates=Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`),outline=fixtureOutline(dates);
+    await owner.query('INSERT INTO auth.users(id) VALUES($1)',[user]);
+    await owner.query("INSERT INTO fitquest.training_plans(user_id,id,summary_revision,summary,time_zone,dates,catalog_version,outline) VALUES($1,$2,1,$3,'UTC',$4,'synthetic-legacy',$5)",[user,plan,JSON.stringify(trainingFixture),JSON.stringify(dates),JSON.stringify(outline)]);
+    for(const date of dates)await owner.query('INSERT INTO fitquest.training_days(user_id,plan_id,date,summary_revision,detail) VALUES($1,$2,$3,1,$4)',[user,plan,date,JSON.stringify(fixtureDetail(outline,date))]);
+    const snapshot=async()=>({
+      plans:(await owner.query('SELECT user_id,id,summary_revision,summary,time_zone,dates,catalog_version,outline,created_at FROM fitquest.training_plans ORDER BY id')).rows,
+      days:(await owner.query('SELECT * FROM fitquest.training_days ORDER BY plan_id,date')).rows,
+      accounts:(await owner.query('SELECT * FROM auth.users ORDER BY id')).rows,
+      profiles:(await owner.query('SELECT * FROM fitquest.profiles ORDER BY user_id')).rows,
+      budget:(await owner.query('SELECT * FROM fitquest.ai_budget ORDER BY id')).rows,
+      attempts:(await owner.query('SELECT * FROM fitquest.onboarding_attempts ORDER BY id')).rows,
+    });
+    const before=await snapshot();
+    await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261004174109_weekly_plan_review.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+    assert.deepEqual(await snapshot(),before);
+    assert.deepEqual((await owner.query('SELECT review_state,review_revision FROM fitquest.training_plans WHERE user_id=$1',[user])).rows,[{review_state:'legacy',review_revision:0}]);
+    await owner.query('DELETE FROM fitquest.training_plans WHERE user_id=$1',[user]);await owner.query('DELETE FROM auth.users WHERE id=$1',[user]);
+  });
   // Synthetic fixture only. Real evaluation/production accounting is never initialized here.
   await owner.query('UPDATE fitquest.ai_budget SET app_enabled=true');
   const alice={userId:'11111111-1111-4111-8111-111111111111',sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};
@@ -398,6 +419,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await verifyPlanningDatabase(t,owner,pool,profiles);
   await verifyReadinessDatabase(t,owner,pool,profiles);
   await verifyWeeklyDatabase(t,owner,pool,profiles);
+  await verifyPlanReviewDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);
     assert.equal((await request('GET',`/onboarding/${a.id}`)).statusCode,429);
