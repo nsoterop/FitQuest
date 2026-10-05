@@ -5,6 +5,7 @@ import { OnboardingError } from './onboardingError.js';
 type Review=NonNullable<PlanningInput['review']>;
 type Slot={date:string;session:number};
 type Row=Slot&{index:number;id:string};
+export type ProtectionLevel='activities'|'outline';
 export type Protections={days:string[];sessions:Slot[];activities:Row[];unresolved:boolean};
 const normalize=(s:string)=>s.toLowerCase().replace(/[’]/g,"'").replace(/[-–]/g,' ').replace(/\b(push|pull) ups\b/g,'$1 up').replace(/\s+/g,' ').trim();
 const escape=(s:string)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -22,7 +23,10 @@ function command(text:string){
  if(keep)return {kind:'keep' as const,target:keep[1]!,correction:false};
  const edit=new RegExp(`^(?:${verbs})\\b (.+)$`).exec(s)
    ??/^keep (.+?) by (?:shortening|halving|reducing|splitting|redistributing)\b/.exec(s);
- return edit?{kind:'edit' as const,target:edit[1]!,correction}:null;
+ // Adding minutes to a session edits its duration, even with a session/workout
+ // noun. A duration describing a new session ("a 10-minute session") does not.
+ const addsDuration=/^add\b.*\b(?:minutes?|mins?|hours?)\s+(?:to|onto)\b/.test(s);
+ return edit?{kind:'edit' as const,target:edit[1]!,correction,addition:/^add\b/.test(s)&&!addsDuration&&(!/\b(?:minutes?|mins?|hours?)\b/.test(s)||/\b(?:session|workout)\b/.test(s))}:null;
 }
 function targets(text:string,review:Review,dates:string[]){
  const named=dates.flatMap((date,i)=>{
@@ -41,7 +45,7 @@ function targets(text:string,review:Review,dates:string[]){
    return names.some(name=>new RegExp(`\\b${escape(normalize(name.trim()))}s?\\b`).test(text));
  }).map(r=>r.id));
  const slots=review.days.flatMap(d=>d.sessions.flatMap((s,session)=>allowed.some(t=>t.date===d.date&&(t.timing===null||t.timing===s.timing||t.timing===ordinal[session]))?[{date:d.date,session}]:[]));
- return {days:allowed.filter(t=>t.timing===null).map(t=>t.date),slots,rows:rows.filter(r=>ids.has(r.id)&&(!allowed.length||slots.some(s=>s.date===r.date&&s.session===r.session))),ids};
+ return {additionDates:allowed.map(t=>t.date),days:allowed.filter(t=>t.timing===null).map(t=>t.date),slots,rows:rows.filter(r=>ids.has(r.id)&&(!allowed.length||slots.some(s=>s.date===r.date&&s.session===r.session))),ids};
 }
 const sameSlot=(a:Slot,b:Slot)=>a.date===b.date&&a.session===b.session;
 const sameRow=(a:Row,b:Row)=>sameSlot(a,b)&&a.index===b.index;
@@ -60,25 +64,26 @@ function shortKeepAnswer(text:string,review:Review,dates:string[]){
    for(const [session,s] of day.sessions.entries()){
      const slot={date,session},timings=[s.timing,`${ordinal[session]} session`].filter((v):v is string=>!!v);
      const labels=[...timings,...timings.map(t=>`${t} session`),review.outline.days.find(d=>d.date===date)!.sessions[session]!.focus];
-     add([...labels,...names.flatMap(n=>labels.flatMap(l=>[`${n} ${l}`,`${l} on ${n}`]))],`session:${date}:${session}`,{days:[],slots:[slot],rows:[],ids:new Set()});
+     add([...labels,...names.flatMap(n=>labels.flatMap(l=>[`${n} ${l}`,`${l} on ${n}`]))],`session:${date}:${session}`,{additionDates:[],days:[],slots:[slot],rows:[],ids:new Set()});
      for(const [index,a] of s.activities.entries()){
        const catalog=activity(a.id),exerciseNames=[a.id,String(catalog['Exercise name']),...String(catalog.Aliases??'').split(';')].map(s=>s.trim()).filter(Boolean);
        if(exerciseNames.some(name=>/\bwalking\b/i.test(name)))exerciseNames.push('walk','walking');
        const qualified=[...names,...names.flatMap(n=>timings.map(t=>`${n} ${t}`))];
-       add([...exerciseNames,...qualified.flatMap(n=>exerciseNames.flatMap(e=>[`${n} ${e}`,`${e} on ${n}`]))],`row:${date}:${session}:${index}`,{days:[],slots:[],rows:[{...slot,index,id:a.id}],ids:new Set([a.id])});
+       add([...exerciseNames,...qualified.flatMap(n=>exerciseNames.flatMap(e=>[`${n} ${e}`,`${e} on ${n}`]))],`row:${date}:${session}:${index}`,{additionDates:[],days:[],slots:[],rows:[{...slot,index,id:a.id}],ids:new Set([a.id])});
      }
    }
  }
  return matches.size===1?[...matches.values()][0]!:null;
 }
-export function reviewProtections(review:Review,dates:string[]):Protections{
+export function reviewProtections(review:Review,dates:string[],level:ProtectionLevel='activities'):Protections{
  let days=new Set<string>(),sessions:Slot[]=[],activities:Row[]=[];
  const unknownTargets=new Set<string>(),pendingRemainders=new Set<string>();
  const prior=review.context?.feedback.split('\n').filter(Boolean)??[];
  for(const [turn,text] of [...prior,review.feedback].entries()){
    const commands=clauses(text).map(command).filter(c=>c!==null);
-   const edits=commands.filter(c=>c.kind==='edit').map(c=>targets(c.target,review,dates));
-   const remainder=(text:string)=>/^(?:all )?(?:the )?(?:other|remaining) (?:strength )?(?:exercises|activities|work)$|^(?:all )?(?:the )?rest(?: of (?:the )?(?:exercises|activities|work))?$/.test(text);
+   const editCommands=commands.filter(c=>c.kind==='edit');
+   const edits=editCommands.map(c=>targets(c.target,review,dates));
+   const remainder=(text:string)=>/^(?:all )?(?:the )?(?:other|remaining) (?:strength )?(?:exercises|activities|work)$|^(?:all )?(?:the )?rest(?: of (?:the )?(?:exercises|activities|work))?$/.test(text)||level==='outline'&&/^(?:all )?(?:the )?(?:(?:other|remaining) (?:days|sessions)|rest of (?:the )?(?:week|days|sessions))$/.test(text);
    const keeps=commands.filter(c=>c.kind==='keep');
    // One explicit, concrete keep answers one earlier unidentified keep. Replaying
    // the clarification history resolves that ambiguity without releasing any
@@ -98,6 +103,27 @@ export function reviewProtections(review:Review,dates:string[]):Protections{
      sessions.push(...answer.slots);activities.push(...answer.rows);
    }
    const keepOthers=(target:string)=>{
+     if(level==='outline'){
+       // Before exercises exist, the remainder is the complement of explicitly
+       // edited dates/sessions. Additions release a date, never its saved sessions.
+       const touched=new Set<string>(),changed:Slot[]=[];
+       if(!edits.length)return false;
+       for(const [i,edit] of edits.entries()){
+         const addition=editCommands[i]!.addition;
+         const named=addition?edit.additionDates:[...edit.days,...edit.slots.map(s=>s.date)];
+         if(!named.length)return false;
+         named.forEach(date=>touched.add(date));
+         if(!addition)changed.push(...edit.slots);
+       }
+       for(const day of review.days){
+         if(!touched.has(day.date))days.add(day.date);
+         for(const [session] of day.sessions.entries()){
+           const slot={date:day.date,session};
+           if(!changed.some(s=>sameSlot(s,slot)))sessions.push(slot);
+         }
+       }
+       return true;
+     }
      const changedRows=edits.flatMap(e=>e.rows);
      if(!changedRows.length)return false;
      const strength=/\bstrength\b/.test(target);
@@ -107,7 +133,13 @@ export function reviewProtections(review:Review,dates:string[]):Protections{
      }
      return true;
    };
-   const unlock=(target:ReturnType<typeof targets>)=>{
+   const unlock=(target:ReturnType<typeof targets>,addition=false)=>{
+     if(level==='outline'&&addition){
+       for(const date of target.additionDates)if(days.delete(date)){
+         sessions.push(...review.days.find(d=>d.date===date)!.sessions.map((_,session)=>({date,session})));
+       }
+       return;
+     }
      // A later explicit session edit may override an older whole-day keep only
      // for that session: the other original sessions retain independent locks.
      const wholeSlots=target.ids.size===0?target.slots:[];
@@ -124,11 +156,11 @@ export function reviewProtections(review:Review,dates:string[]):Protections{
    };
    // Current edits can release older keeps, never a conflicting keep in the same
    // utterance. Only an explicit correction marker can supersede that current keep.
-   for(const edit of edits)unlock(edit);
+   for(const [i,edit] of edits.entries())unlock(edit,editCommands[i]!.addition);
    for(const target of pendingRemainders)if(keepOthers(target))pendingRemainders.delete(target);
    for(const c of commands){
      const target=targets(c.target,review,dates);
-     if(c.kind==='edit'){if(c.correction)unlock(target);continue}
+     if(c.kind==='edit'){if(c.correction)unlock(target,c.addition);continue}
      if(remainder(c.target)){
        if(!keepOthers(c.target))pendingRemainders.add(c.target);
      }else if(target.rows.length)activities.push(...target.rows);
@@ -138,8 +170,8 @@ export function reviewProtections(review:Review,dates:string[]):Protections{
  }
  return {days:[...days],sessions:sessions.filter((s,i,a)=>a.findIndex(x=>sameSlot(x,s))===i),activities:activities.filter((s,i,a)=>a.findIndex(x=>sameRow(x,s))===i),unresolved:unknownTargets.size>0||pendingRemainders.size>0};
 }
-export function checkReviewProtections(review:Review,dates:string[],details:Detail[],outline:Outline){
- const locks=reviewProtections(review,dates),fail=()=>{throw new OnboardingError(422,'saved_day_changed')};
+export function checkReviewProtections(review:Review,dates:string[],details:Detail[],outline:Outline,level:ProtectionLevel='activities'){
+ const locks=reviewProtections(review,dates,level),fail=()=>{throw new OnboardingError(422,'saved_day_changed')};
  if(locks.unresolved&&(!isDeepStrictEqual(review.days.map(d=>d.sessions),details.map(d=>d.sessions))||!isDeepStrictEqual(review.outline.days,outline.days)))fail();
  for(const date of dates){
    const old=review.days.find(d=>d.date===date)!,next=details.find(d=>d.date===date)!,oldOutline=review.outline.days.find(d=>d.date===date)!,nextOutline=outline.days.find(d=>d.date===date)!;

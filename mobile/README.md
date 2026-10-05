@@ -1,5 +1,11 @@
 # FitQuest mobile
 
+## Outline-first planning — HQ accepted, not yet a deployed testing release
+
+New plans initially show the saved seven-day outline with session timing, purpose and approximate minutes, plus one feedback box. No exercises are generated until **Confirm outline and create workouts**. This explicit action creates every session together; failed work leaves the outline available with **Retry creating workouts**, and repeated taps/reopening do not dispatch again. Successful details use the existing minimal exercise rows. Legacy saved plans retain their prior display and acceptance behavior.
+
+**83 mobile tests**, TypeScript, offline Expo compatibility (offline validation caveat) and diff checks pass. The actual `TrainingScreen` component tree was rendered and inspected before/after confirmation: outline timing/focus/duration without exercise rows, then concise named prescriptions; feedback-before-confirmation, duplicate taps, failed/pending resume and free reopen are covered. Synthetic render evidence is `/tmp/fitquest-outline-render.json`; it is component evidence, not physical-device keyboard/layout acceptance. Backend's 184 isolated/mock tests pass. HQ independently verified the checks and accepted the source. No paid quality check, native build, deployment or owner reset was performed for this implementation. Local JavaScript is work in progress until Engineering deploys HQ's published checkpoint with the matching additive migration and records the required fresh cleanup/readback.
+
 ## Coaching presentation — served with deployed backend; phone acceptance pending
 
 Repetition prescriptions now support validated ranges and optional RIR, rendered concisely (for example `3 × 8–12 · 2 RIR`). Older exact-repetition rows remain readable; time, distance, interval, phase and rest displays retain their meaning. **80 mobile tests**, TypeScript and offline Expo compatibility pass. The actual recorded synthetic revised week was replayed through `TrainingScreen`: compact draft timing/focus/duration, explicit acceptance, exact range/RIR/distance rows and reopening without a generation request all pass. This is component evidence, not physical-phone acceptance.

@@ -1,3 +1,4 @@
+import { verifyOutlineDatabase } from './outlineDatabaseFixture.js';
 import { verifyCoachingDatabase } from './coachingDatabaseFixture.js';
 import { trainingFixture,fixtureOutline,fixtureDetail } from './planningFixture.js';
 import { verifyPlanReviewDatabase } from './planReviewDatabaseFixture.js';
@@ -40,6 +41,9 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     });
     const before=await snapshot();
     await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261004174109_weekly_plan_review.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+    await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261004233407_outline_first_planning.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+    assert.deepEqual((await owner.query('SELECT outline_first,confirmed_outline_revision FROM fitquest.training_plans WHERE user_id=$1',[user])).rows,[{outline_first:false,confirmed_outline_revision:null}]);
+    assert.equal((await owner.query("SELECT has_column_privilege('fitquest_app','fitquest.training_plans','outline_first','UPDATE') AS allowed")).rows[0].allowed,false);
     assert.deepEqual(await snapshot(),before);
     assert.deepEqual((await owner.query('SELECT review_state,review_revision FROM fitquest.training_plans WHERE user_id=$1',[user])).rows,[{review_state:'legacy',review_revision:0}]);
     await owner.query('DELETE FROM fitquest.training_plans WHERE user_id=$1',[user]);await owner.query('DELETE FROM auth.users WHERE id=$1',[user]);
@@ -435,6 +439,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await verifyWeeklyDatabase(t,owner,pool,profiles);
   await verifyPlanReviewDatabase(t,owner,pool,profiles);
   await verifyCoachingDatabase(t,owner,pool,profiles);
+  await verifyOutlineDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);

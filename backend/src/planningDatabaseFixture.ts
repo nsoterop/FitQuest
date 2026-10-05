@@ -24,7 +24,8 @@ export async function verifyPlanningDatabase(t:TestContext,owner:Pool,pool:Pool,
   const app=buildApp(false,{store:profiles,verifyAccount:async token=>token==='alice'?alice:token==='bob'?bob:null,planning:service});t.after(()=>app.close());
   const req=(method:'GET'|'POST'|'PUT',url:string,payload?:object,token='alice')=>app.inject({method,url,payload,headers:{authorization:`Bearer ${token}`}});
   const state=()=>service.read(alice);
-  const latest=async()=>{const s=await state();return {s,p:s.plans.find(p=>p.summaryRevision===s.summary!.revision)!}};
+  // These cases exercise pre-outline-first saved-plan compatibility.
+  const latest=async()=>{await owner.query('UPDATE fitquest.training_plans SET outline_first=false WHERE user_id=$1',[alice.userId]);const s=await state();return {s,p:s.plans.find(p=>p.summaryRevision===s.summary!.revision)!}};
   const generate=async(target:string,retryAttempt:string|null=null)=>{const {s,p}=await latest();return service.generate(alice,{summaryRevision:s.summary!.revision,planId:p.id,target,retryAttempt},async()=>true)};
   const next=async()=>{const s=await state();await store.edit(alice,s.summary!.revision,trainingFixture,'America/New_York');const n=await state();await store.ensurePlan(alice,n.summary!.revision);return latest()};
   await t.test('completion commits minimal summary and dated plan before cascaded chat deletion; failed COMMIT preserves both sides',async()=>{

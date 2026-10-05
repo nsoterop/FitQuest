@@ -29,7 +29,8 @@ export async function verifyReadinessDatabase(t:TestContext,owner:Pool,pool:Pool
   const service=onboardingService(store,provider,'test'),planning=planningService(plans,provider,'test');
   const app=buildApp(false,{store:profiles,verifyAccount:async token=>token==='alice'?alice:token==='bob'?bob:null,onboarding:service,planning});t.after(()=>app.close());
   const clean=async()=>{const old=await store.create(alice);await store.remove(alice,old.id);return store.create(alice)};
-  const latest=async()=>{const s=await plans.read(alice);return {s,p:s.plans.find(p=>p.summaryRevision===s.summary.revision)!}};
+  // These cases exercise pre-outline-first saved-plan compatibility.
+  const latest=async()=>{await owner.query('UPDATE fitquest.training_plans SET outline_first=false WHERE user_id=$1',[alice.userId]);const s=await plans.read(alice);return {s,p:s.plans.find(p=>p.summaryRevision===s.summary.revision)!}};
   const generate=async(target:string)=>{const {s,p}=await latest();return planning.generate(alice,{summaryRevision:s.summary.revision,planId:p.id,target,retryAttempt:null},async()=>true)};
   const send=async(a:Conversation,text:string)=>service.command(alice,a.id,{kind:'message',operationId:randomUUID(),expectedRevision:a.revision,text},async()=>true);
   const spent=async()=>Number((await owner.query('SELECT spent_micro FROM fitquest.ai_budget')).rows[0].spent_micro);

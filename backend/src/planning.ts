@@ -1,3 +1,4 @@
+import { checkOverview,checkOverviewReview } from './outlinePlanning.js';
 import { checkReview,type ReviewRequest } from './planReview.js';
 import { checkWeek,weeklyLimits } from './weeklyPlanning.js';
 import { informationCoverage } from './planningReadiness.js';
@@ -27,7 +28,7 @@ export function planningService(store:PlanningStore,provider?:OnboardingProvider
         if(controller.signal.aborted)await store.settle(a,work.attempt,null,{transport:'aborted'});
         if(!await authorize())throw new OnboardingError(401,'session_ended');
         let value;let failure:string|undefined=result.failure;
-        if(!failure)try{value=work.input.review?checkReview(result.proposal,work.input):work.target==='week'?checkWeek(result.proposal,work.input):work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!);if('coverage' in value&&informationCoverage(value.coverage)){value=undefined;throw new OnboardingError(422,'invalid_plan')}}catch(e){failure=e instanceof OnboardingError?e.code:'invalid_plan'}
+        if(!failure)try{value=work.input.outlineFirst&&work.input.kind==='outline'?(work.input.review?checkOverviewReview(result.proposal,work.input):checkOverview(result.proposal,work.input)):work.input.review?checkReview(result.proposal,work.input):work.input.kind==='week'?checkWeek(result.proposal,work.input):work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!);if('coverage' in value&&informationCoverage(value.coverage)){value=undefined;throw new OnboardingError(422,'invalid_plan')}}catch(e){failure=e instanceof OnboardingError?e.code:'invalid_plan'}
         await store.finish(a,work,value,failure);
       }
       return store.read(a);

@@ -24,7 +24,7 @@ export const prescriptionSchema=object({id,phase:enumeration(['warmup','main','c
 export const qualityPrescriptionSchema={...prescriptionSchema,properties:{...prescriptionSchema.properties,amount:{type:'number',minimum:1,maximum:50000},distanceTarget:distanceSchema,repRange:{anyOf:[{type:'null'},object({min:integer(1,100),max:integer(1,100)})]},rir:{anyOf:[{type:'null'},integer(0,5)]}},required:[...prescriptionSchema.required,'distanceTarget']};
 const compatiblePrescription={...qualityPrescriptionSchema,required:prescriptionSchema.required};
 export const detailSchema=object({date,clarification,coverage:array(coverage,5),sessions:array(object({activities:array(prescriptionSchema,15,1)}),3)});
-export type Outline={arrangementNote?:string|null;qualityVersion?:2;units?:Units;goalDecisions?:GoalDecision[];clarification?:Clarification|null;days:{date:string;sessions:{focus:string;activityIds:string[]}[]}[];coverage:string[]};
+export type Outline={arrangementNote?:string|null;qualityVersion?:2;units?:Units;goalDecisions?:GoalDecision[];clarification?:Clarification|null;days:{date:string;sessions:{focus:string;activityIds:string[];timing?:Timing;estimatedMinutes?:number}[]}[];coverage:string[]};
 export type Prescription={id:string;phase:'warmup'|'main'|'cooldown'|'optional';sets:number;measure:'repetitions'|'seconds'|'meters'|'count';amount:number;effort:string;restSeconds:number;load:string;loadKg:number|null;side:string;distanceTarget?:DistanceTarget|null;repRange?:{min:number;max:number}|null;rir?:number|null};
 export const estimateSchema={type:'integer',minimum:1,maximum:240};
 export type Detail={clarification?:Clarification|null;date:string;coverage:string[];sessions:{estimatedMinutes?:number;activities:Prescription[];timing?:Timing;intervals?:Interval[]}[]};
@@ -63,7 +63,7 @@ export function savedDetail(detail:Detail) {
   }))};
 }
 export type PlanningInput={kind:'outline'|'day'|'week';summary:TrainingSummary;profile:{age:number;heightInches:number;weightLb:number};dates:string[];
-  draftReview?:boolean;preferences?:string[];review?:{feedback:string;context:{feedback:string;question:string}|null;outline:Outline;days:Detail[]};qualityVersion?:2;preferredUnits?:Units;outline?:Outline;date?:string;previous?:unknown[];savedDays?:Detail[]};
+  outlineFirst?:boolean;approvedOutlineRevision?:number;draftReview?:boolean;preferences?:string[];review?:{feedback:string;note?:string|null;context:{feedback:string;question:string}|null;outline:Outline;days:Detail[]};qualityVersion?:2;preferredUnits?:Units;outline?:Outline;date?:string;previous?:unknown[];savedDays?:Detail[]};
 export const planningPromptVersion='catalog-planning-v3';
 export const planningInputBytes=48000;
 // Check before publication with every earlier day filled to the detail schema's maximum.

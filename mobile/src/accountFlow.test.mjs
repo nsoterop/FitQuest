@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { registerHooks } from 'node:module';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import React from 'react';
@@ -489,6 +489,45 @@ function trainingServer(initial=trainingState()) {
 async function mountTraining(extra={}){let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(TrainingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},...extra}));await flush()});return screen}
 
 const hasTrainingAccess=screen=>screen.root.findAllByProps({accessibilityLabel:'View training'}).length>0;
+function renderedTrainingText(screen){const visit=node=>typeof node==='string'?node:Array.isArray(node)?node.map(visit).join(''):node?(node.children??[]).map(visit).join('')+(node.type==='Text'?'\n':''):'';return visit(screen.toJSON())}
+function overviewUiState(){
+  const s=reviewUiState(),p=s.plans[0];p.outlineFirst=true;p.confirmedOutlineRevision=null;
+  p.outline.days[0].sessions[0]={focus:'Easy walking',activityIds:[],timing:'morning',estimatedMinutes:12};p.days=[];p.jobs=[{target:'outline',status:'completed',error:null,attemptId:'outline-attempt'}];return s;
+}
+test('outline-first renders no exercises until explicit confirmation; two generation calls and free completed reopen',async()=>{
+ const saved=overviewUiState(),p=saved.plans[0],ready=structuredClone(p.outline),requests=[];p.outline=null;p.planRevision=0;p.jobs=[];
+ globalThis.fetch=async(url,options)=>{
+  const body=options.body?JSON.parse(options.body):null;requests.push({url,body});
+  if(url.endsWith('/generate')){
+   if(body.target==='outline'){p.outline=ready;p.planRevision=1;p.jobs=[{target:'outline',status:'completed',error:null,attemptId:'outline-attempt'}]}
+   else {assert.equal(body.target,'week');assert.equal(body.confirmOutline,true);assert.equal(body.planRevision,1);p.days=reviewUiState().plans[0].days;p.reviewState='accepted';p.confirmedOutlineRevision=1;p.jobs.push({target:'details:1',status:'completed',error:null,attemptId:'detail-attempt'})}
+  }
+  return{status:200,json:async()=>structuredClone(saved)};
+ };
+ let screen=await mountTraining({generateOnOpen:true});assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,1);
+ assert.match(renderedTrainingText(screen),/Draft outline/);assert.match(renderedTrainingText(screen),/Morning.*Easy walking.*About 12 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —|Complete weekly plan|Use this plan/);
+ const rendered={overview:screen.toJSON(),overviewText:renderedTrainingText(screen)};
+ await act(async()=>{press(screen,'Confirm outline and create workouts');press(screen,'Confirm outline and create workouts');await flush()});
+ assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,2);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);assert.doesNotMatch(renderedTrainingText(screen),/Confirm outline and create workouts/);
+ rendered.details=screen.toJSON();rendered.detailsText=renderedTrainingText(screen);if(process.env.FITQUEST_RENDER_CAPTURE)writeFileSync(process.env.FITQUEST_RENDER_CAPTURE,JSON.stringify(rendered,null,2));
+ await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,2);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);await act(async()=>screen.unmount());
+});
+test('outline feedback is reviewed before confirmation and cannot silently create workout details',async()=>{
+ const saved=overviewUiState(),p=saved.plans[0],requests=[];
+ globalThis.fetch=async(url,options)=>{const body=options.body?JSON.parse(options.body):null;requests.push({url,body});if(url.endsWith('/review')){p.planRevision=2;p.outline.days[0].sessions[0].estimatedMinutes=10;p.reviewNote='The first session is shorter.'}return{status:200,json:async()=>structuredClone(saved)}};
+ const screen=await mountTraining();await act(async()=>input(screen,'Plan feedback').props.onChangeText('Make the first day shorter.'));
+ assert.equal(input(screen,'Confirm outline and create workouts').props.disabled,true);await act(async()=>{press(screen,'Update this week');await flush()});
+ assert.match(renderedTrainingText(screen),/About 10 min/);assert.equal(input(screen,'Confirm outline and create workouts').props.disabled,false);assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,0);assert.equal(p.days.length,0);await act(async()=>screen.unmount());
+});
+test('failed or pending workout creation resumes the outline, with explicit retry and no automatic dispatch',async()=>{
+ for(const status of ['failed','pending']){
+  const saved=overviewUiState(),p=saved.plans[0];p.confirmedOutlineRevision=1;p.jobs.push({target:'details:1',status,error:status==='failed'?'outline_conflict':null,attemptId:'detail-failed'});p.reviewNote='The catalog cannot support this equipment requirement.';
+  const server=trainingServer(saved),screen=await mountTraining({generateOnOpen:true});assert.equal(server.requests.length,1);assert.match(renderedTrainingText(screen),/About 12 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —/);
+  if(status==='failed'){assert.match(renderedTrainingText(screen),/equipment requirement/);await act(async()=>{press(screen,'Retry creating workouts');await flush()});const sent=server.requests.find(r=>r.url.endsWith('/generate'));assert.equal(sent.body.retryAttempt,'detail-failed');assert.equal(sent.body.confirmOutline,true)}
+  else assert.equal(input(screen,'Confirm outline and create workouts').props.disabled,true);
+  await act(async()=>screen.unmount());
+ }
+});
 function reviewUiState(){
   const s=trainingState(),p=s.plans[0];p.reviewState='draft';p.planRevision=1;p.reviewNote=null;p.reviewQuestion=null;
   p.outline={days:p.dates.map((date,i)=>({date,sessions:i===0?[{focus:'Easy walking',activityIds:['FQ-ACT-00148']}]:[]})),coverage:[]};

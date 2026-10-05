@@ -144,7 +144,7 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
       try{const next=await options.verifyAccount!(request.headers.authorization!.slice(7));return next?.userId===account.userId&&next.sessionId===account.sessionId}catch{return false}
     });
   });
-  app.post<{Body:GenerationRequest}>('/training/generate',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['summaryRevision','planId','target','retryAttempt'],properties:{summaryRevision:revision,planId,target:{type:'string',pattern:'^(week|outline|[0-9]{4}-[0-9]{2}-[0-9]{2})$'},retryAttempt:{anyOf:[{type:'null'},planId]}}}}},async request=>{
+  app.post<{Body:GenerationRequest}>('/training/generate',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['summaryRevision','planId','target','retryAttempt'],properties:{summaryRevision:revision,planId,planRevision:revision,confirmOutline:{type:'boolean'},target:{type:'string',pattern:'^(week|outline|[0-9]{4}-[0-9]{2}-[0-9]{2})$'},retryAttempt:{anyOf:[{type:'null'},planId]}}}}},async request=>{
     const account=accounts.get(request)!;
     return planning().generate(account,request.body,async()=>{
       try{const next=await options.verifyAccount!(request.headers.authorization!.slice(7));return next?.userId===account.userId&&next.sessionId===account.sessionId}catch{return false}

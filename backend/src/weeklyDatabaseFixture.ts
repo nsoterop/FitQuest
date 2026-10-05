@@ -31,7 +31,8 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
   const provider:OnboardingProvider={mode:'test',model:'synthetic-week',capMicro:7000000,prepare:()=>{throw Error('Expected weekly schema')},cost:u=>Math.ceil(u.input*.125+u.output*.5),call:async body=>{calls++;return respond(body)}};
   const service=planningService(store,provider,'test');
   const app=buildApp(false,{store:profiles,verifyAccount:async token=>token==='alice'?alice:null,planning:service});t.after(()=>app.close());
-  const latest=async()=>{const s=await store.read(alice);return {s,p:s.plans.find(p=>p.summaryRevision===s.summary!.revision)!}};
+  // These cases exercise pre-outline-first saved-plan compatibility.
+  const latest=async()=>{await owner.query('UPDATE fitquest.training_plans SET outline_first=false WHERE user_id=$1',[alice.userId]);const s=await store.read(alice);return {s,p:s.plans.find(p=>p.summaryRevision===s.summary!.revision)!}};
   const request=async()=>{const {s,p}=await latest();return {summaryRevision:s.summary.revision,planId:p.id,target:'week',retryAttempt:null as string|null}};
   const generate=async(retryAttempt:string|null=null)=>service.generate(alice,{...await request(),retryAttempt},async()=>true);
   const next=async()=>{const {s}=await latest();await store.edit(alice,s.summary.revision,trainingFixture,'America/New_York');await store.ensurePlan(alice,s.summary.revision+1);return latest()};

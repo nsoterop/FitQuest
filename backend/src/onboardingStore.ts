@@ -104,17 +104,17 @@ export function postgresOnboardingStore(pool: Pool) {
         let seed:Context|undefined;
         if(recovery) {
           const saved=(await c.query('SELECT revision,document,time_zone FROM fitquest.training_summaries WHERE user_id=$1 FOR UPDATE',[account.userId])).rows[0];
-          const plan=(await c.query('SELECT summary_revision,outline FROM fitquest.training_plans WHERE user_id=$1 AND id=$2',[account.userId,recovery.planId])).rows[0];
+          const plan=(await c.query('SELECT summary_revision,outline,outline_first,review_revision FROM fitquest.training_plans WHERE user_id=$1 AND id=$2',[account.userId,recovery.planId])).rows[0];
           if(!plan)throw new OnboardingError(404,'not_found');
           if(!saved||saved.revision!==recovery.summaryRevision||plan.summary_revision!==saved.revision)throw new OnboardingError(409,'summary_changed');
           const blocked=recovery.target==='outline'?plan.outline:(await c.query('SELECT detail FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 AND date::text=$3',[account.userId,recovery.planId,recovery.target])).rows[0]?.detail;
-          const legacyFailure=(await c.query("SELECT 1 FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND target=$3 AND error_code='summary_needs_correction'",[account.userId,recovery.planId,recovery.target])).rowCount;
+          const legacyFailure=(await c.query("SELECT 1 FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND (target=$3 OR ($3='outline' AND target=$4)) AND error_code='summary_needs_correction'",[account.userId,recovery.planId,recovery.target,plan.outline_first?`details:${plan.review_revision}`:'outline'])).rowCount;
           if(!blocked?.clarification&&!informationCoverage(blocked?.coverage??[])&&!legacyFailure)throw new OnboardingError(409,'clarification_unavailable');
           if(id) {
             const active=await snapshot(c,account,id);
             if(!sameRecovery(active.context.recovery,recovery))throw new OnboardingError(409,'conversation_in_progress');
           }
-          seed={...emptyContext(),recovery,planningIssue:blocked?.coverage??['summary_needs_correction'],trainingSummary:checkedSummary(saved.document)};
+          seed={...emptyContext(),recovery,planningIssue:legacyFailure?['summary_needs_correction']:blocked?.coverage??['summary_needs_correction'],trainingSummary:checkedSummary(saved.document)};
           if(blocked?.clarification)seed.planningCheck={status:'question',...blocked.clarification};
           // Only retained summary facts seed recovery. Deleted chat is never consulted.
           seed.items=saved.document.map((fact:any,i:number)=>({id:`i${i+1}`,topic:fact.category,value:fact.text,origin:fact.origin,review:'unreviewed',source:`saved${i+1}`,quote:fact.text,supersedes:null,recordedAt:new Date().toISOString()}));

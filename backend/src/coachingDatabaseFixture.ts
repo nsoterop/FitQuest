@@ -36,6 +36,8 @@ export async function verifyCoachingDatabase(t:TestContext,owner:Pool,pool:Pool,
   const current=reply.json();assert.equal(current.turns.at(-1).state,'completed',JSON.stringify({error:current.turns.at(-1)?.error,calls}));assert.equal(calls,1);
   const completed=await request(`/onboarding/${a.id}/commands`,{kind:'confirm',operationId:randomUUID(),expectedRevision:current.revision,reviewedRevision:current.revision});assert.equal(completed.statusCode,200);assert.equal(completed.json().deleted,true);assert.equal(calls,1);
   await assert.rejects(onboard.read(account,a.id),{code:'not_found'});
+  // Replay the historical one-response release as a legacy saved plan.
+  await owner.query('UPDATE fitquest.training_plans SET outline_first=false WHERE user_id=$1',[account.userId]);
   const state=await store.read(account),p=state.plans[0],initial=coachingRecords.find(r=>r.stage==='distributed')!;
   assert.deepEqual(state.summary!.document,initial.input.summary);
   // Keep recorded dates stable when this synthetic fixture runs on later calendar days.
