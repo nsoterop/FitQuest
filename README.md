@@ -1,5 +1,11 @@
 # FitQuest
 
+## Fixed intake and plain outline — 2026-10-06
+
+Exactly five progressive questions now save the athlete’s answers verbatim; earlier answers remain editable and intake makes no AI requests. Generate plan sends the owner’s plain-language template with factual tomorrow-through-Sunday dates. A deterministic adapter retains the original response and every recognized session, duration range, timing, purpose, rest option and optional session. Failed conversion stays recoverable; explicit review and confirmation still lead to catalog-backed details.
+
+Self-review passed **208 backend tests with isolated PostgreSQL, zero skips, and 94 mobile tests**, both TypeScript checks, offline Expo compatibility and diff checks. Synthetic checks cover answer fidelity, exact request content, free intake/reopen, retries/ownership, refused/incomplete output, failed-revision preservation and four-session detail compatibility. No paid AI calls. Release verification and the fresh owner-only reset are pending below; physical-phone keyboard/reload acceptance remains unverified.
+
 Release workflow, October 6: Engineering now owns implementation → tests/self-review → commit/push → existing-service deployment → live/Metro verification → scoped owner-test reset/readback. No mandatory HQ review or publication gate; HQ reviews only when requested. Existing scope, cost, data-preservation and security boundaries remain. Historical HQ gates below describe earlier releases, not the current workflow.
 
 ## Sunday plans, coach-chosen sessions and nutrition — deployed; reset verified

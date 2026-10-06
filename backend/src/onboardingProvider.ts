@@ -7,7 +7,7 @@ import { Ajv } from 'ajv';
 import { limits, proposalSchema, modelProposalSchema, type ModelInput, type ModelProposal, OnboardingError } from './onboardingDomain.js';
 
 export type Usage = { input: number; output: number; cached: number; cacheWrite: number };
-export type ProviderResult = { diagnostic?:ProviderDiagnostic; proposal?: unknown; usage?: Usage; failure?: 'refused' | 'incomplete' | 'provider_error' };
+export type ProviderResult = { rawText?:string; diagnostic?:ProviderDiagnostic; proposal?: unknown; usage?: Usage; failure?: 'refused' | 'incomplete' | 'provider_error' };
 export interface OnboardingProvider {
   mode: 'test' | 'openai'; model: string; capMicro: number; purpose?: 'app' | 'evaluation';
   prepare(input: ModelInput): { body: string; reserveMicro: number };
@@ -125,11 +125,14 @@ export function openAIProvider(config: { key: string; model: string; capMicro: n
         const numbers = [u?.input_tokens, u?.output_tokens, u?.input_tokens_details?.cached_tokens ?? 0, u?.input_tokens_details?.cache_write_tokens ?? 0];
         const usage = numbers.every(n => Number.isSafeInteger(n) && n >= 0) && numbers[0] <= Buffer.byteLength(body) && numbers[1] <= outputLimit
           ? { input: numbers[0], output: numbers[1], cached: numbers[2], cacheWrite: numbers[3] } : undefined;
-        if (data.status !== 'completed') return { failure: 'incomplete', usage };
+        const rawText=(Array.isArray(data.output)?data.output:[]).filter((x:any)=>x.type==='message').flatMap((x:any)=>x.content??[]).flatMap((x:any)=>x.type==='output_text'&&typeof x.text==='string'?[x.text]:x.type==='refusal'&&typeof x.refusal==='string'?[x.refusal]:[]).join('\n');
+        const plain=!request.text?.format;
+        if (data.status !== 'completed') return { failure: 'incomplete', usage,...(plain?{rawText}:{}) };
         const content = (Array.isArray(data.output) ? data.output : []).filter((x: { type?: string }) => x.type === 'message').flatMap((x: { content?: unknown[] }) => x.content ?? []);
-        if (content.some((x: { type?: string }) => x.type === 'refusal')) return { failure: 'refused', usage };
+        if (content.some((x: { type?: string }) => x.type === 'refusal')) return { failure: 'refused', usage,...(plain?{rawText}:{} ) };
         const texts = content.filter((x: { type?: string }) => x.type === 'output_text');
-        if (texts.length !== 1 || typeof texts[0].text !== 'string') return { failure: 'incomplete', usage };
+        if (texts.length !== 1 || typeof texts[0].text !== 'string') return { failure: 'incomplete', usage,...(plain?{rawText}:{}) };
+        if(plain)return {rawText:texts[0].text,usage};
         try { return { proposal: JSON.parse(texts[0].text), usage }; }
         catch { return { failure: 'incomplete', usage }; }
       } catch { return { failure:'provider_error',diagnostic:{...diagnostic,transport:signal.aborted?'aborted':diagnostic.httpStatus?'invalid_response':'network'} }; }

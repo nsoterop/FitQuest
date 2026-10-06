@@ -1,3 +1,4 @@
+import { intakeQuestions,intakeDisclosure } from './fixedIntake.js';
 import { renderOnboardingReply } from './onboardingReply.js';
 import type { Account } from './auth.js';
 import { applyProposal, consistentReply, disclosure, disclosureVersion, limits, opening, completionReply, OnboardingError, type Command } from './onboardingDomain.js';
@@ -6,7 +7,7 @@ import { completedConversation, type Conversation, type OnboardingStore } from '
 
 export function onboardingService(store:OnboardingStore,provider?:OnboardingProvider,environment=process.env.NODE_ENV) {
   if(provider?.mode==='test' && environment==='production') throw new Error('Test AI is not allowed in production.');
-  const present=(conversation:Conversation)=>({...conversation,confirmableRevision:conversation.confirmableRevision??null,generationEnabled:!!provider,opening,disclosure,disclosureVersion});
+  const present=(conversation:Conversation)=>({...conversation,confirmableRevision:conversation.confirmableRevision??null,generationEnabled:!!provider,opening,disclosure,disclosureVersion,...(conversation.context.intake?{intakeQuestions,disclosure:intakeDisclosure,disclosureVersion:'fixed-intake-v1',generationEnabled:false}:{})});
   const completionReceipt=async(account:Account,id:string)=>{
     if(!await store.removeCompleted(account,id))throw new OnboardingError(409,'revision_conflict');
     return {id,deleted:true as const,summarySaved:true as const,message:completionReply};
@@ -17,7 +18,7 @@ export function onboardingService(store:OnboardingStore,provider?:OnboardingProv
     return {id:conversation.id,deleted:true as const,summarySaved:true as const,message:completionReply};
   };
   return {
-    create:async(account:Account,timeZone?:string)=>present(await store.create(account,timeZone)),
+    create:async(account:Account,timeZone?:string,intakeVersion?:1)=>present(await store.create(account,timeZone,undefined,intakeVersion)),
     async clarify(account:Account,recovery:import('./onboardingDomain.js').RecoveryRequest,authorize:()=>Promise<boolean>) {
       const conversation=await store.create(account,undefined,recovery);
       if('completedId' in conversation)return {id:conversation.completedId,deleted:true as const,summarySaved:true as const,message:completionReply};

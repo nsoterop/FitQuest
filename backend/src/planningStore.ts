@@ -1,3 +1,5 @@
+import { intakeAnswers } from './fixedIntake.js';
+import { preparePlainOutline } from './plainOutline.js';
 import { prepareOverview,overviewDays } from './outlinePlanning.js';
 import { safeDiagnostic,type ProviderDiagnostic } from './providerDiagnostics.js';
 import { prepareWeek,weeklyLimits,type CheckedWeek } from './weeklyPlanning.js';
@@ -50,7 +52,7 @@ export function planningStore(pool:Pool) {
       FROM fitquest.training_plans WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20`,[a.userId])).rows;
     for(const p of plans) {
       p.days=(await c.query('SELECT date::text,detail FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 ORDER BY date',[a.userId,p.id])).rows;
-      p.jobs=(await c.query('SELECT target,status,error_code AS error,attempt_id AS "attemptId",feedback FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND (target NOT LIKE \'review:%\' OR target=$3) AND (target NOT LIKE \'details:%\' OR target=$4)',[a.userId,p.id,`review:${p.planRevision}`,`details:${p.planRevision}`])).rows;
+      p.jobs=(await c.query('SELECT target,status,error_code AS error,attempt_id AS "attemptId",feedback,raw_response AS "rawResponse" FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND (target NOT LIKE \'review:%\' OR target=$3) AND (target NOT LIKE \'details:%\' OR target=$4)',[a.userId,p.id,`review:${p.planRevision}`,`details:${p.planRevision}`])).rows;
     }
     return {summary:s,plans};
   }
@@ -96,7 +98,7 @@ export function planningStore(pool:Pool) {
       const retained=plan.review_context?.feedback??'';
       if(retained.length+r.feedback.length>6000)throw new OnboardingError(422,'feedback_limit');
       const input:PlanningInput={kind:plan.outline_first?'outline':'week',outlineFirst:plan.outline_first,draftReview:true,qualityVersion:2,preferredUnits:plan.outline.units,summary:s.document,preferences:s.preferences,profile:{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb)},dates:plan.dates,review:{feedback:r.feedback,note:plan.review_note,context:plan.review_context,outline:plan.outline,days}};
-      const outbound=minimizeModelInput(input as never,[p.first_name,p.last_name]) as unknown as PlanningInput;
+      const outbound=intakeAnswers(input.summary)?input:minimizeModelInput(input as never,[p.first_name,p.last_name]) as unknown as PlanningInput;
       const attempt=randomUUID();let failure:string|undefined,prepared:ReturnType<typeof prepareReview>|undefined;
       if(p.age<18)failure='adults_only';else if(!provider)failure='ai_disabled';else {
         await rate(c,a,true);
@@ -199,11 +201,11 @@ export function planningStore(pool:Pool) {
         else {
           await rate(c,a,true);
           // Reuse existing redaction for identifiers/names without duplicating transcript.
-          const redacted=minimizeModelInput(input as never,[p.first_name,p.last_name]) as unknown as PlanningInput;
+          const redacted=intakeAnswers(input.summary)?input:minimizeModelInput(input as never,[p.first_name,p.last_name]) as unknown as PlanningInput;
           outbound=redacted;
-          try{prepared=input.kind==='week'?prepareWeek(provider,redacted):plan.outline_first?prepareOverview(provider,redacted):preparePlanning(provider,redacted)}catch(e){failure=e instanceof OnboardingError?e.code:'planning_context_limit'}
+          try{prepared=input.kind==='week'?prepareWeek(provider,redacted):plan.outline_first?(intakeAnswers(input.summary)?preparePlainOutline(provider,input):prepareOverview(provider,redacted)):preparePlanning(provider,redacted)}catch(e){failure=e instanceof OnboardingError?e.code:'planning_context_limit'}
           if(prepared) {
-            await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,$5,$6)",[a.userId,attempt,provider.purpose??'app',provider.model,plan.outline_first?(input.kind==='week'?'outline-details-v2':'outline-v2'):input.kind==='week'?(input.draftReview?'catalog-week-v6':'catalog-week-v4'):planningPromptVersion,plan.outline_first?(input.kind==='week'?'outline-details-v2':'outline-v2'):input.kind==='week'?(input.draftReview?'catalog-week-v6':'catalog-week-v4'):'catalog-plan-v1']);
+            await c.query("INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,$5,$6)",[a.userId,attempt,provider.purpose??'app',provider.model,plan.outline_first?(input.kind==='week'?'outline-details-v2':intakeAnswers(input.summary)?'plain-outline-v1':'outline-v2'):input.kind==='week'?(input.draftReview?'catalog-week-v6':'catalog-week-v4'):planningPromptVersion,plan.outline_first?(input.kind==='week'?'outline-details-v2':intakeAnswers(input.summary)?'plain-outline-v1':'outline-v2'):input.kind==='week'?(input.draftReview?'catalog-week-v6':'catalog-week-v4'):'catalog-plan-v1']);
             if(!(await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed',[attempt,prepared.reserveMicro,provider.capMicro])).rows[0]?.allowed)failure='budget_exhausted';
           }
         }
@@ -220,10 +222,11 @@ export function planningStore(pool:Pool) {
       // Diagnostics are best-effort and independent of charge settlement.
       if(diagnostic)try{await tx(a,c=>c.query('UPDATE fitquest.onboarding_attempts SET provider_diagnostic=$3 WHERE user_id=$1 AND id=$2',[a.userId,attempt,safeDiagnostic(diagnostic)]),false)}catch{/* Never log private error text. */}
     },
-    finish:(a:Account,w:PlanningWork,value:Outline|Detail|CheckedWeek|ReviewResult|undefined,failure?:string)=>tx(a,async c=>{
+    finish:(a:Account,w:PlanningWork,value:Outline|Detail|CheckedWeek|ReviewResult|undefined,failure?:string,rawResponse?:string)=>tx(a,async c=>{
       const s=await summary(c,a),p=await profile(c,a);
       const job=(await c.query('SELECT * FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND target=$3 FOR UPDATE',[a.userId,w.planId,w.target])).rows[0];
       if(!job||job.status!=='pending'||job.attempt_id!==w.attempt)return;
+      if(rawResponse!==undefined&&Buffer.byteLength(rawResponse)<=64000)await c.query('UPDATE fitquest.training_generations SET raw_response=$4 WHERE user_id=$1 AND plan_id=$2 AND target=$3',[a.userId,w.planId,w.target,rawResponse]);
       if(s.revision!==w.revision||p.version!==w.profileVersion||new Date(job.deadline).getTime()<=Date.now()){failure='summary_changed';value=undefined}
       if(w.input.outlineFirst){
         const plan=(await c.query('SELECT review_revision,confirmed_outline_revision FROM fitquest.training_plans WHERE user_id=$1 AND id=$2 FOR UPDATE',[a.userId,w.planId])).rows[0];

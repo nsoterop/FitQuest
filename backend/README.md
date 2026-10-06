@@ -1,5 +1,13 @@
 # FitQuest API
 
+## Fixed intake and plain outline — 2026-10-06
+
+New clients use `fixed-intake-v1`: five ordered, editable free-text answers (up to 4,000 characters each) persist verbatim without a provider call. Final submission retains these answers privately and removes intake revisions/operations. The initial metered request contains only the owner’s coaching template and actual tomorrow-through-Sunday dates, with existing provider/model/settings. It uses plain text, without the old coaching instructions, profile, catalog, nutrition or structured-output schema. Older conversations and plans remain readable.
+
+`plainOutline.ts` converts ordinary day/session lists deterministically, preserving original text, session order, explicit timing/purpose, optional/rest semantics and duration ranges. Missing/ambiguous/incomplete/refused output remains a failed, explicit-retry job; there is no repair/extraction call. Reviews preserve protected work and confirmation creates all catalog details in one request. Forward migration `20261006175043_fixed_intake_plain_outline.sql` only expands existing private JSON bounds and adds bounded private `raw_response` storage; it does not rewrite records, grants or accounting.
+
+Validation: **208 backend tests, isolated PostgreSQL, zero skips**, TypeScript and diff checks. Includes exact request bytes/content, zero-intake accounting, lost-response duplicates, ownership, failed response retention, protected revision failure/retry and four-session catalog details. No paid evaluation. Hosted migration/deployment/reset evidence is recorded after release completion.
+
 ## Sunday plans and nutrition — implementation and release
 
 New `planDates` ranges are tomorrow through Sunday in the athlete's timezone (1–7 dates). Calendar arithmetic covers all request weekdays, DST, timezone midnight and year changes. Outline/detail/review validation requires exactly the saved dates; acceptance checks the actual date count. Saved rolling seven-date work retains its original dates and prescriptions. New prompts scale work to the remaining dates instead of compressing a full week.

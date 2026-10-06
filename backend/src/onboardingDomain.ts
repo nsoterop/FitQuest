@@ -1,3 +1,4 @@
+import type { FixedIntake } from './fixedIntake.js';
 import { OnboardingError } from './onboardingError.js';
 import { checkedSummary, summarySchema, modelSummarySchema, type TrainingSummary } from './trainingSummary.js';
 import { planningCheckSchema, type PlanningCheck } from './planningReadiness.js';
@@ -23,7 +24,7 @@ export function acceptsRecap(previous: { state: string; questionTopic: string | 
 export type Item = { id: string; topic: string; value: string; origin: 'profile' | 'user_report' | 'model_inference' | 'assumption' | 'unknown';
   review: 'unreviewed' | 'confirmed' | 'disputed'; source: string; quote: string; supersedes: string | null; recordedAt: string };
 export type RecoveryRequest={summaryRevision:number;planId:string;target:string};
-export type Context = { planningCheck?:PlanningCheck; planningIssue?:string[]; recovery?:RecoveryRequest; trainingSummary?:TrainingSummary; items: Item[]; skipped: string[]; readiness: 'needs_clarification' | 'ready_with_limits' | 'ready'; limitations: string[] };
+export type Context = { intake?:FixedIntake; planningCheck?:PlanningCheck; planningIssue?:string[]; recovery?:RecoveryRequest; trainingSummary?:TrainingSummary; items: Item[]; skipped: string[]; readiness: 'needs_clarification' | 'ready_with_limits' | 'ready'; limitations: string[] };
 export const emptyContext = (): Context => ({ items: [], skipped: [], readiness: 'needs_clarification', limitations: ['This understanding is based on reports, not independent verification or medical clearance.'] });
 export type Command = { operationId: string; expectedRevision: number; timeZone?:string } & (
   { kind: 'message'; text: string } | {kind:'assess'} | { kind: 'retry'; turnId: string } |
@@ -34,7 +35,7 @@ export const digest = (value: unknown) => createHash('sha256').update(JSON.strin
 // Idempotency excludes the optimistic revision: an identical operation survives a lost response.
 export const commandDigest = ({ expectedRevision: _revision, ...payload }: Command) => digest(payload);
 export function bounded(context: Context): Context {
-  if (context.items.length > limits.items || Buffer.byteLength(JSON.stringify(context)) > limits.contextBytes || context.skipped.length > 30) {
+  if (context.items.length > limits.items || Buffer.byteLength(JSON.stringify(context)) > (context.intake?96000:limits.contextBytes) || context.skipped.length > 30) {
     throw new OnboardingError(422, 'context_limit');
   }
   return context;

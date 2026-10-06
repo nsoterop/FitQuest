@@ -4,7 +4,7 @@ export type OnboardingCommand={operationId:string;expectedRevision:number;timeZo
   {kind:'message';text:string}|{kind:'retry';turnId:string}|{kind:'skip';topic:string}|{kind:'edit';itemId:string|null;topic:string;value:string}|{kind:'confirm';reviewedRevision:number});
 export type OnboardingConversation={id:string;revision:number;state:'collecting'|'confirmed';confirmedRevision:number|null;
   confirmableRevision?:number|null;
-  context:{items:UnderstandingItem[];skipped:string[];readiness:'needs_clarification'|'ready_with_limits'|'ready';limitations:string[]};
+  intakeQuestions?:string[];context:{intake?:{version:1;answers:string[]};items:UnderstandingItem[];skipped:string[];readiness:'needs_clarification'|'ready_with_limits'|'ready';limitations:string[]};
   turns:{id:string;sequence:number;message:string;reply:string|null;questionTopic:string|null;state:'pending'|'completed'|'failed';error:string|null}[];
   profileChanged:boolean;generationEnabled:boolean;opening:string;disclosure:string;disclosureVersion:string};
 export type DeletedOnboarding={id:string;deleted:true;summarySaved?:boolean;message:string};
@@ -35,6 +35,7 @@ export function onboardingErrorText(code:string):string {
 export function isConversation(value:unknown):value is OnboardingConversation {
   if(typeof value!=='object'||!value)return false;
   const x=value as OnboardingConversation;
+  if(x.context?.intake&&(x.context.intake.version!==1||!Array.isArray(x.context.intake.answers)||x.context.intake.answers.length>5||x.context.intake.answers.some(a=>typeof a!=='string'||!a.trim()||a.length>4000)||!Array.isArray(x.intakeQuestions)||x.intakeQuestions.length!==5||x.intakeQuestions.some(q=>typeof q!=='string')))return false;
   return typeof x.id==='string'&&Number.isInteger(x.revision)&&x.revision>=0&&['collecting','confirmed'].includes(x.state)&&
     (x.confirmableRevision===undefined||x.confirmableRevision===null||Number.isInteger(x.confirmableRevision)&&x.confirmableRevision===x.revision)&&
     typeof x.generationEnabled==='boolean'&&typeof x.profileChanged==='boolean'&&typeof x.opening==='string'&&typeof x.disclosure==='string'&&typeof x.disclosureVersion==='string'&&
@@ -51,7 +52,7 @@ export async function onboardingRequest(method:'POST'|'GET'|'DELETE',id:string|n
     url.pathname=`${url.pathname.replace(/\/$/,'')}/onboarding${id?`/${encodeURIComponent(id)}`:''}${command?'/commands':''}`;url.search='';url.hash='';
     if(recovery)url.pathname=`${new URL(base).pathname.replace(/\/$/,'')}/training/clarification`;
     const response=await fetcher(url.toString(),{method,signal,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
-      ...(method==='POST'?{body:JSON.stringify(recovery??command??{disclosureVersion:'onboarding-planning-v2',timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone})}:{})});
+      ...(method==='POST'?{body:JSON.stringify(recovery??command??{disclosureVersion:'fixed-intake-v1',intakeVersion:1,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone})}:{})});
     if(signal.aborted)throw new Error();
     if(response.status===401)throw new OnboardingApiError('session_ended',true);
     if(method==='DELETE'&&response.status===204)return null;

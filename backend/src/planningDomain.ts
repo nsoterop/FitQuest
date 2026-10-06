@@ -1,3 +1,4 @@
+import type { PlainSession } from './plainOutline.js';
 import type { Nutrition } from './nutrition.js';
 import { clarificationSchema, planningReadinessInstructions, type Clarification } from './planningReadiness.js';
 import { Ajv } from 'ajv';
@@ -25,7 +26,7 @@ export const prescriptionSchema=object({id,phase:enumeration(['warmup','main','c
 export const qualityPrescriptionSchema={...prescriptionSchema,properties:{...prescriptionSchema.properties,amount:{type:'number',minimum:1,maximum:50000},distanceTarget:distanceSchema,repRange:{anyOf:[{type:'null'},object({min:integer(1,100),max:integer(1,100)})]},rir:{anyOf:[{type:'null'},integer(0,5)]}},required:[...prescriptionSchema.required,'distanceTarget']};
 const compatiblePrescription={...qualityPrescriptionSchema,required:prescriptionSchema.required};
 export const detailSchema=object({date,clarification,coverage:array(coverage,5),sessions:array(object({activities:array(prescriptionSchema,15,1)}),3)});
-export type Outline={nutrition?:Nutrition;arrangementNote?:string|null;qualityVersion?:2;units?:Units;goalDecisions?:GoalDecision[];clarification?:Clarification|null;days:{date:string;sessions:{focus:string;activityIds:string[];timing?:Timing;estimatedMinutes?:number}[]}[];coverage:string[]};
+export type Outline={sourceFormat?:'plain-v1';originalResponse?:string;nutrition?:Nutrition;arrangementNote?:string|null;qualityVersion?:2;units?:Units;goalDecisions?:GoalDecision[];clarification?:Clarification|null;days:{date:string;sourceHeading?:string;restText?:string;sessions:{plain?:PlainSession;focus:string;activityIds:string[];timing?:Timing;estimatedMinutes?:number}[]}[];coverage:string[]};
 export type Prescription={id:string;phase:'warmup'|'main'|'cooldown'|'optional';sets:number;measure:'repetitions'|'seconds'|'meters'|'count';amount:number;effort:string;restSeconds:number;load:string;loadKg:number|null;side:string;distanceTarget?:DistanceTarget|null;repRange?:{min:number;max:number}|null;rir?:number|null};
 export const estimateSchema={type:'integer',minimum:1,maximum:240};
 export type Detail={clarification?:Clarification|null;date:string;coverage:string[];sessions:{estimatedMinutes?:number;activities:Prescription[];timing?:Timing;intervals?:Interval[]}[]};
@@ -39,8 +40,12 @@ export function checkOutline(value:unknown,dates:string[]):Outline {
   if((value.clarification||value.coverage.length)&&value.days.some(d=>d.sessions.length))throw new OnboardingError(422,'invalid_plan');
   return value;
 }
-export function checkDetail(value:unknown,day:Outline['days'][number]):Detail {
-  if(!validDetail(value)||value.date!==day.date)throw new OnboardingError(422,'invalid_plan');
+const plainDetailSchema=structuredClone(compatibleDetail);delete (plainDetailSchema.properties.sessions as any).maxItems;delete ((plainDetailSchema.properties.sessions.items as any).properties.estimatedMinutes).maximum;
+const validPlainDetail=ajv.compile<Detail>(plainDetailSchema);
+export function checkDetail(raw:unknown,day:Outline['days'][number],plain=false):Detail {
+  if(!(plain?validPlainDetail(raw):validDetail(raw)))throw new OnboardingError(422,'invalid_plan');
+  const value=raw as Detail;
+  if(value.date!==day.date)throw new OnboardingError(422,'invalid_plan');
   if(value.clarification&&value.coverage.length)throw new OnboardingError(422,'invalid_plan');
   if(value.clarification||value.coverage.length){if(value.sessions.length)throw new OnboardingError(422,'invalid_plan');return value}
   if(value.sessions.length!==day.sessions.length)throw new OnboardingError(422,'invalid_plan');

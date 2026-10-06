@@ -1,3 +1,4 @@
+import { intakeAnswers,intakeSummary } from './fixedIntake.js';
 import { nutritionInputSchema,type NutritionInput } from './nutrition.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { catalog } from './activityCatalog.js';
@@ -8,7 +9,7 @@ import type { Context, RecoveryRequest } from './onboardingDomain.js';
 import { OnboardingError } from './onboardingError.js';
 
 export const summaryCategories=['goals','availability','equipment','experience','limitations'] as const;
-export type SummaryFact={category:typeof summaryCategories[number]|'nutrition';text:string;origin:'user_report'|'model_inference'|'assumption'|'unknown';goals?:string[]|null;nutritionInput?:NutritionInput|null};
+export type SummaryFact={intakeIndex?:number;category:typeof summaryCategories[number]|'nutrition';text:string;origin:'user_report'|'model_inference'|'assumption'|'unknown';goals?:string[]|null;nutritionInput?:NutritionInput|null};
 export type TrainingSummary=SummaryFact[];
 export const summarySchema={type:'array',minItems:5,maxItems:12,items:{type:'object',additionalProperties:false,required:['category','text','origin'],properties:{
   category:{type:'string',enum:[...summaryCategories,'nutrition']},text:{type:'string',minLength:1,maxLength:350,pattern:'\\S'},
@@ -18,9 +19,11 @@ export const summarySchema={type:'array',minItems:5,maxItems:12,items:{type:'obj
 }}} as const;
 // The provider wire contract always includes goals; saved older summaries may omit it.
 export const modelSummarySchema={...summarySchema,items:{...summarySchema.items,required:[...summarySchema.items.required,'goals']}};
-const validate=new Ajv().compile<TrainingSummary>(summarySchema);
+export const storedSummarySchema={anyOf:[summarySchema,{type:'array',minItems:5,maxItems:5,items:{type:'object',additionalProperties:false,required:['intakeIndex','category','text','origin'],properties:{intakeIndex:{type:'integer',minimum:0,maximum:4},category:{type:'string',enum:summaryCategories},text:{type:'string',minLength:1,maxLength:4000,pattern:'\\S'},origin:{const:'user_report'}}}}]};
+const validate=new Ajv().compile<TrainingSummary>(storedSummarySchema);
 export function checkedSummary(value:unknown):TrainingSummary {
   if(!validate(value)||summaryCategories.some(c=>!value.some(f=>f.category===c)))throw new OnboardingError(422,'invalid_summary');
+  if(intakeAnswers(value))return value;
   if(value.some(f=>f.category!=='goals'||f.origin==='unknown'?f.goals!=null:Object.hasOwn(f,'goals')&&!f.goals?.length))throw new OnboardingError(422,'invalid_summary');
   if(value.some(f=>f.nutritionInput!=null&&(f.category!=='nutrition'||f.origin!=='user_report')))throw new OnboardingError(422,'invalid_summary');
   const goals=value.flatMap(f=>f.goals??[]),keys=goals.map(g=>g.trim().toLowerCase());
@@ -30,6 +33,7 @@ export function checkedSummary(value:unknown):TrainingSummary {
 export const hasGoalSet=(summary:TrainingSummary)=>summary.some(f=>f.category==='goals'&&f.origin!=='unknown')&&summary.every(f=>f.category!=='goals'||f.origin==='unknown'||!!f.goals?.length);
 export function expectedGoals(summary:TrainingSummary) {
   checkedSummary(summary);
+  const answers=intakeAnswers(summary);if(answers)return [{sourceIndex:0,goalIndex:0,goal:answers[0]!}];
   if(!hasGoalSet(summary))throw new OnboardingError(409,'summary_needs_correction');
   return summary.flatMap((f,sourceIndex)=>(f.goals??[]).map((goal,goalIndex)=>({sourceIndex,goalIndex,goal})));
 }
@@ -46,6 +50,7 @@ export function planDates(zone:string,now=new Date()) {
   return Array.from({length:7-new Date(local).getUTCDay()},(_,i)=>new Date(local+(i+1)*86400000).toISOString().slice(0,10));
 }
 export function summaryFromContext(context:Context):TrainingSummary {
+  if(context.intake)return intakeSummary(context.intake);
   if(context.trainingSummary)return checkedSummary(context.trainingSummary);
   // Older sessions have no compact snapshot. Preserve concise, categorized facts where
   // possible, never the catch-all raw-message items or a full transcript. Mark gaps explicitly.

@@ -986,3 +986,41 @@ test('partial Sunday plans render compact nutrition beside review and preserve i
   await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert(renderedTrainingText(screen).includes(p.dates.at(-1)));await act(async()=>screen.unmount());
  }
 });
+
+const fixedQuestions=['What would you like to achieve with your training?','What does your current activity or training look like?','What equipment and training facilities do you have access to?',"What would you like your training schedule to look like—days available, time per session, and whether you're open to multiple sessions per day? You can leave the arrangement up to the coach.",'Are there any injuries, pain, medical restrictions or other limitations your plan should account for? “None” is fine.'];
+const fixedFixture=()=>({...onboardingFixture(),intakeQuestions:fixedQuestions,context:{...onboardingFixture().context,items:[],intake:{version:1,answers:[]}}});
+test('fixed intake reveals exactly five questions progressively, edits/resumes verbatim, and only final Generate plan completes',async()=>{
+ resetAuth(alice);let saved=fixedFixture(),commands=[],creates=[],closed=[];
+ globalThis.fetch=async(url,options)=>{
+  if(url.endsWith('/commands')){const c=JSON.parse(options.body);commands.push(c);if(c.kind==='confirm')return {status:200,json:async()=>({id:saved.id,deleted:true,summarySaved:true,message:'Answers saved.'})};assert.equal(c.kind,'edit');saved=structuredClone(saved);saved.context.intake.answers[Number(c.topic.split(':')[1])]=c.value;saved.revision++;}
+  else if(options.method==='POST')creates.push(JSON.parse(options.body));
+  return {status:200,json:async()=>saved};
+ };
+ let screen=await mountOnboarding({onClose:(...args)=>closed.push(args)});assert.equal(creates[0].intakeVersion,1);assert.equal(commands.length,0);
+ const answers=['Strong and mobile. '+ 'Exact details '.repeat(35),'Walk twice weekly.','Floor and route.','No preference','None'];
+ for(let i=0;i<5;i++){
+  for(let j=0;j<5;j++)assert.equal(text(screen).includes(fixedQuestions[j]),j<=i);
+  assert.equal(screen.root.findAllByProps({accessibilityLabel:'Generate plan'}).length,0);
+  const field=input(screen,`Answer ${i+1}`);assert(field.props.onFocus);assert(field.props.onContentSizeChange);assert.equal(field.props.multiline,true);assert.equal(field.props.style.maxHeight,180);
+  await act(async()=>field.props.onChangeText(answers[i]));await act(async()=>{press(screen,'Send');await flush()});
+ }
+ assert.equal(commands.length,5);assert(commands.every(c=>c.kind==='edit'));assert(!text(screen).includes('Onboarding recap'));assert(!text(screen).includes('Nutrition'));
+ assert.equal(input(screen,'Generate plan').props.disabled,false);
+ await act(async()=>{press(screen,'Edit answer 2')});await act(async()=>input(screen,'Answer 2').props.onChangeText('Changed activity, still unsent.'));assert.equal(input(screen,'Generate plan').props.disabled,true);await flush();
+ await act(async()=>screen.unmount());screen=await mountOnboarding({onClose:(...args)=>closed.push(args)});assert.equal(input(screen,'Answer 2').props.value,'Changed activity, still unsent.');assert.equal(commands.length,5);
+ await act(async()=>{press(screen,'Save answer');await flush()});assert.equal(saved.context.intake.answers[1],'Changed activity, still unsent.');assert.equal(saved.context.intake.answers[0],answers[0]);
+ await act(async()=>{press(screen,'Generate plan');await flush()});assert.equal(commands.filter(c=>c.kind==='confirm').length,1);assert.equal(closed[0][1],true);assert.equal(await privateDrafts.read('alice'),null);await act(async()=>screen.unmount());
+});
+test('fixed intake pending answer retries the same operation, and account switch cannot show prior answers',async()=>{
+ resetAuth(alice);let saved=fixedFixture(),sent=[],fail=true;
+ globalThis.fetch=async(url,options)=>{if(url.endsWith('/commands')){const c=JSON.parse(options.body);sent.push(c);if(fail)throw Error('connection lost');saved={...saved,revision:1,context:{...saved.context,intake:{version:1,answers:[c.value]}}};}return {status:200,json:async()=>saved}};
+ let screen=await mountOnboarding();await act(async()=>input(screen,'Answer 1').props.onChangeText('Synthetic goals'));await act(async()=>{press(screen,'Send');await flush()});fail=false;await act(async()=>{press(screen,'Try again');await flush()});assert.equal(sent[0].operationId,sent[1].operationId);assert.equal(saved.context.intake.answers[0],'Synthetic goals');
+ await act(async()=>{screen.update(React.createElement(OnboardingScreen,{userId:'bob',accessToken:async()=>'bob-token',onClose(){}}));await flush()});assert.doesNotMatch(text(screen),/Synthetic goals/);await act(async()=>screen.unmount());
+});
+test('plain list and failed-response recovery render verbatim, retain four sessions/ranges and never generate on reopen',async()=>{
+ const saved=overviewUiState(),p=saved.plans[0];p.dates=['2026-10-11'];const raw='Sunday\nFour optional practice sessions, each about 15–25 minutes.';
+ p.outline={sourceFormat:'plain-v1',originalResponse:raw,coverage:[],clarification:null,days:[{date:p.dates[0],sessions:Array.from({length:4},(_,i)=>({focus:`Session ${i+1}`,activityIds:[],timing:null,plain:{sourceText:`Optional session ${i+1} · 15–25 minutes`,goal:`Goal ${i+1}`,durationText:'15–25 minutes',durationRange:{min:15,max:25},timingText:null,optional:true}}))}]};
+ saved.summary.document=saved.summary.document.slice(0,5).map((f,i)=>({...f,intakeIndex:i,text:i===0?'Faithful answer '.repeat(40):f.text,goals:undefined}));
+ const server=trainingServer(saved);let screen=await mountTraining();assert(renderedTrainingText(screen).includes(raw));assert(!renderedTrainingText(screen).includes('About undefined'));assert.equal(input(screen,'Confirm outline and create workouts').props.disabled,false);await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(server.requests.filter(r=>r.method==='POST').length,0);await act(async()=>screen.unmount());
+ p.outline=null;p.planRevision=0;p.jobs=[{target:'outline',status:'failed',error:'outline_conversion',attemptId:'synthetic-failure',rawResponse:'Synthetic unparseable response'}];trainingServer(saved);screen=await mountTraining();assert.match(renderedTrainingText(screen),/Response saved for recovery — not a usable plan/);assert.match(renderedTrainingText(screen),/Synthetic unparseable response/);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Confirm outline and create workouts'}).length,0);await act(async()=>screen.unmount());
+});

@@ -1,3 +1,4 @@
+import { verifyFixedIntakeDatabase } from './fixedIntakeDatabaseFixture.js';
 import { verifySundayDatabase } from './sundayDatabaseFixture.js';
 import { verifyOutlineDatabase } from './outlineDatabaseFixture.js';
 import { verifyCoachingDatabase } from './coachingDatabaseFixture.js';
@@ -51,6 +52,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     await owner.query('DELETE FROM fitquest.training_plans WHERE user_id=$1',[user]);await owner.query('DELETE FROM auth.users WHERE id=$1',[user]);
   });
   await owner.query(await readFile(new URL('../supabase/migrations/20261004203442_provider_diagnostics.sql',import.meta.url),'utf8'));
+  await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261006175043_fixed_intake_plain_outline.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   // Synthetic fixture only. Real evaluation/production accounting is never initialized here.
   await owner.query('UPDATE fitquest.ai_budget SET app_enabled=true');
   const alice={userId:'11111111-1111-4111-8111-111111111111',sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};
@@ -472,6 +474,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await verifyCoachingDatabase(t,owner,pool,profiles);
   await verifyOutlineDatabase(t,owner,pool,profiles);
   await verifySundayDatabase(t,owner,pool,profiles);
+  await verifyFixedIntakeDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);

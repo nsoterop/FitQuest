@@ -1,3 +1,4 @@
+import { checkedIntake } from './fixedIntake.js';
 import { safeDiagnostic,type ProviderDiagnostic } from './providerDiagnostics.js';
 import { retainTrainingSummary, recoveryPlanId, checkTimeZone } from './trainingSummary.js';
 import { informationCoverage } from './planningReadiness.js';
@@ -84,9 +85,9 @@ export function postgresOnboardingStore(pool: Pool) {
     await c.query('INSERT INTO fitquest.onboarding_context_revisions(user_id,conversation_id,revision,context,profile_version) VALUES($1,$2,$3,$4,$5)',[account.userId,id,number,JSON.stringify(context),profileVersion]);
     await c.query("UPDATE fitquest.onboarding_conversations SET revision=$3,state='collecting',confirmed_revision=NULL WHERE user_id=$1 AND id=$2",[account.userId,id,number]);
   }
-  async function create(account:Account,timeZone?:string):Promise<Conversation>;
+  async function create(account:Account,timeZone?:string,recovery?:undefined,intakeVersion?:1):Promise<Conversation>;
   async function create(account:Account,timeZone:string|undefined,recovery:RecoveryRequest):Promise<Conversation|{completedId:string}>;
-  async function create(account:Account,timeZone="UTC",recovery?:RecoveryRequest):Promise<Conversation|{completedId:string}> {
+  async function create(account:Account,timeZone="UTC",recovery?:RecoveryRequest,intakeVersion?:1):Promise<Conversation|{completedId:string}> {
       checkTimeZone(timeZone);
       return transaction(account,async c=>{
         await rate(c,account); const p=await profile(c,account);
@@ -131,9 +132,9 @@ export function postgresOnboardingStore(pool: Pool) {
           timeZone=saved.time_zone;
         }
         if (!id) {
-          id=randomUUID(); await c.query('INSERT INTO fitquest.onboarding_conversations(user_id,id,disclosure_version,time_zone) VALUES($1,$2,$3,$4)',[account.userId,id,disclosureVersion,timeZone]);
-          const context=seed??emptyContext();
-          for (const [topic,value] of [['age',String(p.age)],['height',`${p.height_inches} in`],['weight',`${p.weight_lb} lb`],['gender',p.gender]]) {
+          id=randomUUID(); await c.query('INSERT INTO fitquest.onboarding_conversations(user_id,id,disclosure_version,time_zone) VALUES($1,$2,$3,$4)',[account.userId,id,intakeVersion===1?'fixed-intake-v1':disclosureVersion,timeZone]);
+          const context=seed??{...emptyContext(),...(intakeVersion===1?{intake:{version:1 as const,answers:[]}}:{})};
+          for (const [topic,value] of (context.intake?[]:[['age',String(p.age)],['height',`${p.height_inches} in`],['weight',`${p.weight_lb} lb`],['gender',p.gender]])) {
             context.items.push({id:`i${context.items.length+1}`,topic:topic!,value:value!,origin:'profile',review:'unreviewed',source:`profile:${topic}`,quote:value!,supersedes:null,recordedAt:new Date().toISOString()});
           }
           await c.query('INSERT INTO fitquest.onboarding_context_revisions(user_id,conversation_id,revision,context,profile_version) VALUES($1,$2,0,$3,$4)',[account.userId,id,JSON.stringify(context),p.version]);
@@ -182,7 +183,22 @@ export function postgresOnboardingStore(pool: Pool) {
         await assertRecoveryCurrent(c,account,old.context);
         let context:Context=structuredClone(old.context); const number=conv.revision+1; const now=new Date().toISOString();
         let turnId:string|null=null; let work:Claim['work'];
-        if (command.kind==='confirm') {
+        if(context.intake){
+          checkedIntake(context.intake);
+          if(command.kind==='edit'){
+            const index=Number(command.topic.replace(/^intake:/,''));
+            if(command.itemId!==null||!/^intake:[0-4]$/.test(command.topic)||index>context.intake.answers.length)throw new OnboardingError(422,'invalid_intake');
+            context.intake.answers[index]=command.value;checkedIntake(context.intake);
+            await revision(c,account,id,number,context,p.version);
+          }else if(command.kind==='confirm'){
+            checkedIntake(context.intake,true);
+            if(command.reviewedRevision!==conv.revision)throw new OnboardingError(409,'review_changed');
+            if(p.age<18)throw new OnboardingError(403,'adults_only');
+            if(command.timeZone)await c.query('UPDATE fitquest.onboarding_conversations SET time_zone=$3 WHERE user_id=$1 AND id=$2',[account.userId,id,checkTimeZone(command.timeZone)]);
+            await revision(c,account,id,number,context,p.version);
+            await c.query("UPDATE fitquest.onboarding_conversations SET state='confirmed',confirmed_revision=$3 WHERE user_id=$1 AND id=$2",[account.userId,id,number]);
+          }else throw new OnboardingError(422,'invalid_intake');
+        } else if (command.kind==='confirm') {
           if(command.timeZone)await c.query('UPDATE fitquest.onboarding_conversations SET time_zone=$3 WHERE user_id=$1 AND id=$2',[account.userId,id,checkTimeZone(command.timeZone)]);
           if(command.reviewedRevision!==conv.revision || old.profile_version!==p.version) throw new OnboardingError(409,'review_changed');
           if(!readyToPlan(context)||!await currentRecap(c,account,id,conv.revision))throw new OnboardingError(409,'clarification_required');

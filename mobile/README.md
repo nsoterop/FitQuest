@@ -1,5 +1,11 @@
 # FitQuest mobile
 
+## Fixed intake and plain outline — 2026-10-06
+
+The five-question form reveals one question after each saved answer, supports editing earlier answers and resumes private device drafts. Generate plan appears after all five answers; unfinished edits and pending saves block submission. The input uses the existing keyboard-aware scroll coordinator. The high-level plan displays its original response faithfully, including optional sessions, purposes and duration ranges; failed conversion displays recovery text without a confirmation action. Explicit review/confirmation and saved catalog-detail reads remain available.
+
+Validation: **94 mobile tests**, TypeScript and offline Expo compatibility. Synthetic renderer checks cover progression, long verbatim answers, prior edits/draft resume, retry identity, account switching, raw-outline display and failure/reopen behavior. No native build. Served Metro source verification and the owner-only reset follow deployment; actual phone keyboard behavior and draft cleanup are still unverified.
+
 ## Sunday plans and nutrition — matching release served
 
 The client accepts 1–7 dated days and labels completed plans with their actual count; saved rolling-seven-day plans remain readable. Outline review shows a compact daily kcal/protein/carbohydrate/fat line with starting-estimate rationale/assumptions, or a deferral explanation alongside usable training. The existing feedback, explicit workout confirmation, pending/retry/revision and free-reopen flow remains. Nutrition follows the approved outline into the detailed plan. Editing nutrition summary prose clears stale structured inputs.

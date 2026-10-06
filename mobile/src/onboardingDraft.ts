@@ -1,11 +1,11 @@
 import type { secureSessionStorage } from './secureSessionStorage';
 import type { OnboardingCommand } from './onboardingApi';
-export type OnboardingDraft={conversationId:string|null;text:string;pending:OnboardingCommand|null;savedAt:number};
+export type OnboardingDraft={answerIndex?:number|null;conversationId:string|null;text:string;pending:OnboardingCommand|null;savedAt:number};
 export function onboardingDrafts(storage:ReturnType<typeof secureSessionStorage>) {
   const key=(userId:string)=>`onboarding.${userId}`;
   const valid=(x:unknown):x is OnboardingDraft=>{
     if(!x||typeof x!=='object')return false;const d=x as OnboardingDraft;
-    return (d.conversationId===null||typeof d.conversationId==='string')&&typeof d.text==='string'&&d.text.length<=4000&&Number.isFinite(d.savedAt)&&
+    return (d.conversationId===null||typeof d.conversationId==='string')&&(d.answerIndex==null||Number.isInteger(d.answerIndex)&&d.answerIndex>=0&&d.answerIndex<5)&&typeof d.text==='string'&&d.text.length<=4000&&Number.isFinite(d.savedAt)&&
       (d.pending===null||typeof d.pending==='object'&&typeof d.pending.operationId==='string'&&Number.isInteger(d.pending.expectedRevision)&&['message','retry','edit','skip','confirm'].includes(d.pending.kind))&&JSON.stringify(d).length<=10000;
   };
   let queue:Promise<unknown>=Promise.resolve();

@@ -1,3 +1,4 @@
+import { FixedIntakeForm } from './FixedIntakeForm';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { isDeletedOnboarding, type DeletedOnboarding, type RecoveryRequest, OnboardingApiError, onboardingErrorText, onboardingRequest, operationId, type OnboardingCommand, type OnboardingConversation } from './onboardingApi';
@@ -16,6 +17,7 @@ function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [draftError,setDraftError]=useState('');
   const [needsRefresh,setNeedsRefresh]=useState(false);const [optionsOpen,setOptionsOpen]=useState(false);
   const [deleteRequested,setDeleteRequested]=useState(false);
+  const [editIndex,setEditIndex]=useState<number|null>(null);const editRef=useRef<number|null>(null);editRef.current=editIndex;
   const alive=useRef(true);const request=useRef<AbortController|null>(null);const tokenGetter=useRef(accessToken);tokenGetter.current=accessToken;
   const sending=useRef(false);const ending=useRef(false);
   const unsent=useRef('');
@@ -29,7 +31,7 @@ function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
 
   async function saveDraft(nextText:string,nextPending:OnboardingCommand|null,id=current.current?.id??null) {
     if(!alive.current||ending.current)return;
-    try{await drafts.write(userId,{conversationId:id,text:nextText,pending:nextPending,savedAt:Date.now()});if(alive.current)setDraftError('')}
+    try{await drafts.write(userId,{conversationId:id,text:nextText,pending:nextPending,answerIndex:editRef.current,savedAt:Date.now()});if(alive.current)setDraftError('')}
     catch{if(alive.current)setDraftError('Could not save your draft. Keep this screen open and try again.')}
   }
   async function finishDeleted(result:DeletedOnboarding) {
@@ -72,7 +74,7 @@ function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
       return onboardingRequest('POST',null,null,token,signal,fetch,recovery);
     },async result=>{
       const draft=await drafts.read(userId);if(!alive.current)return;
-      if(draft&&draft.conversationId===result?.id){setText(draft.text);unsent.current=draft.text;setPending(draft.pending)}
+      if(draft&&draft.conversationId===result?.id){setText(draft.text);unsent.current=draft.text;setPending(draft.pending);setEditIndex(draft.answerIndex??null)}
       else if(draft)await drafts.clear(userId,draft.conversationId??undefined);
       setAccepted(true);
     });
@@ -88,7 +90,7 @@ function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
     sending.current=true;setBusy(true);setDraftError('');
     setPending(command);
     // Await durable operation ID before dispatch. A lost response replays this same command.
-    try{await drafts.write(userId,{conversationId:conversation.id,text,pending:command,savedAt:Date.now()})}
+    try{await drafts.write(userId,{conversationId:conversation.id,text,pending:command,answerIndex:editRef.current,savedAt:Date.now()})}
     catch{if(alive.current){setError('Could not save your answer on this device. Try again.');setBusy(false)}sending.current=false;return}
     if(!alive.current||request.current||ending.current){sending.current=false;return}
     await perform(async(token,signal)=>{
@@ -102,7 +104,7 @@ function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
         throw error;
       }
     },async()=>{
-      setPending(null);setText('');unsent.current='';
+      setPending(null);setText('');unsent.current='';setEditIndex(null);editRef.current=null;
       await drafts.clear(userId,conversation.id);if(alive.current)setDraftError('');
       // Failed responses remain visible; only an explicit retry can call AI again.
     });
@@ -146,8 +148,18 @@ function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
     {recovery&&!conversation&&<><Text style={styles.copy}>{busy?'Loading clarification…':error||'Continue from your saved summary.'}</Text>{!busy&&button('Load clarification',()=>void start())}</>}
     {!accepted?<>
       <Text accessibilityRole="header" style={styles.title}>Before we begin</Text>
-      <Text style={styles.copy}>AI onboarding is for adults 18+. Your messages and relevant profile information are shared with OpenAI. Unfinished conversations stay until you finish or delete them. Completing onboarding keeps a concise editable training summary and plans, and deletes the chat. The summary and relevant profile facts are shared with OpenAI for planning. Provider retention and backups are separate.</Text>
+      <Text style={styles.copy}>Planning is for adults 18+. These five answers are saved privately, exactly as submitted. No AI is used during intake. Your answers are shared with OpenAI only when you choose Generate plan. Confirming the outline sends your context, relevant profile facts and the exercise catalog for detailed workouts. Planning answers and plans stay saved; intake revisions and the device draft are removed after submission. Provider retention and backups are separate.</Text>
       {button('Continue to onboarding',()=>void start())}
+    </>:conversation?.context.intake?<>
+      <FixedIntakeForm questions={conversation.intakeQuestions!} answers={conversation.context.intake.answers} text={text} editIndex={editIndex} disabled={busy||!!pending||needsRefresh} canGenerate={!draftError&&!needsRefresh}
+        onText={next=>{unsent.current=next;setText(next);void saveDraft(next,null)}}
+        onEdit={index=>{editRef.current=index;setEditIndex(index);const next=conversation.context.intake!.answers[index]!;unsent.current=next;setText(next);void saveDraft(next,null)}}
+        onCancel={()=>{editRef.current=null;setEditIndex(null);unsent.current='';setText('');void saveDraft('',null)}}
+        onSave={index=>void send({kind:'edit',itemId:null,topic:`intake:${index}`,value:text,operationId:operationId(),expectedRevision:conversation.revision})}
+        onGenerate={()=>{if(unsent.current.trim()||editRef.current!==null||busy||pending||needsRefresh||draftError)return;void send({kind:'confirm',operationId:operationId(),expectedRevision:conversation.revision,reviewedRevision:conversation.revision})}}/>
+      {busy&&<Text accessibilityLiveRegion="polite" style={styles.notice}>Saving…</Text>}
+      {!!(error||draftError)&&<Text accessibilityRole="alert" style={styles.error}>{error||draftError}</Text>}
+      {!busy&&(pending?button('Try again',()=>void send(pending),false,true):needsRefresh&&button('Reload answers',()=>void refresh(),false,true))}
     </>:conversation?<>
       {conversation.turns.length===0&&<View ref={question} collapsable={false} onLayout={answerLayout}><Text style={styles.copy}>{conversation.opening}</Text></View>}
       {conversation.turns.map(turn=><View key={turn.id} style={styles.turn}>

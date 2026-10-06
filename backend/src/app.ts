@@ -1,5 +1,5 @@
 import type { PlanningService } from './planning.js';
-import { summarySchema } from './trainingSummary.js';
+import { storedSummarySchema as summarySchema } from './trainingSummary.js';
 import type { TrainingSummary } from './trainingSummary.js';
 import type { GenerationRequest } from './planningStore.js';
 import Fastify, { type FastifyServerOptions } from 'fastify';
@@ -110,9 +110,9 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
       return reply.code(status).send({code:error instanceof OnboardingError?error.code:status<500?'invalid_request':'unavailable',message:'Unable to complete onboarding. Please retry.'});
     }};
   const onboarding=()=>{if(!options.onboarding) throw new OnboardingError(503,'unavailable'); return options.onboarding};
-  app.post<{Body:{disclosureVersion:string;timeZone?:string}}>('/onboarding',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['disclosureVersion'],properties:{disclosureVersion:{const:'onboarding-planning-v2'},timeZone:{type:'string',minLength:1,maxLength:80}}}}},async request=>onboarding().create(accounts.get(request)!,request.body.timeZone));
+  app.post<{Body:{disclosureVersion:string;timeZone?:string;intakeVersion?:1}}>('/onboarding',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['disclosureVersion'],properties:{disclosureVersion:{enum:['onboarding-planning-v2','fixed-intake-v1']},intakeVersion:{const:1},timeZone:{type:'string',minLength:1,maxLength:80}}}}},async request=>{if((request.body.intakeVersion===1)!==(request.body.disclosureVersion==='fixed-intake-v1'))throw new OnboardingError(400,'invalid_request');return onboarding().create(accounts.get(request)!,request.body.timeZone,request.body.intakeVersion)});
   app.get<{Params:{id:string}}>('/onboarding/:id',{...privateRoute,schema:{params:idSchema}},async request=>onboarding().read(accounts.get(request)!,request.params.id));
-  app.post<{Params:{id:string};Body:Command}>('/onboarding/:id/commands',{...privateRoute,schema:{params:idSchema,body:commandSchema}},async request=>{
+  app.post<{Params:{id:string};Body:Command}>('/onboarding/:id/commands',{...privateRoute,bodyLimit:24000,schema:{params:idSchema,body:commandSchema}},async request=>{
     const account=accounts.get(request)!;
     return onboarding().command(account,request.params.id,request.body,async()=>{
       try {
@@ -134,7 +134,7 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
     });
   });
   app.get('/training',privateRoute,async request=>planning().read(accounts.get(request)!));
-  app.put<{Body:{revision:number;document:TrainingSummary;timeZone:string}}>('/training/summary',{...privateRoute,bodyLimit:16000,schema:{body:{type:'object',additionalProperties:false,required:['revision','document','timeZone'],properties:{revision,document:summarySchema,timeZone:{type:'string',minLength:1,maxLength:80}}}}},async request=>planning().edit(accounts.get(request)!,request.body.revision,request.body.document,request.body.timeZone));
+  app.put<{Body:{revision:number;document:TrainingSummary;timeZone:string}}>('/training/summary',{...privateRoute,bodyLimit:96000,schema:{body:{type:'object',additionalProperties:false,required:['revision','document','timeZone'],properties:{revision,document:summarySchema,timeZone:{type:'string',minLength:1,maxLength:80}}}}},async request=>planning().edit(accounts.get(request)!,request.body.revision,request.body.document,request.body.timeZone));
   app.post<{Body:{revision:number}}>('/training/plans',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['revision'],properties:{revision}}}},async request=>planning().ensurePlan(accounts.get(request)!,request.body.revision));
   const planVersion={summaryRevision:revision,planRevision:revision,planId};
   app.post<{Body:import('./planReview.js').PlanVersion}>('/training/accept',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:Object.keys(planVersion),properties:planVersion}}},async request=>planning().accept(accounts.get(request)!,request.body));

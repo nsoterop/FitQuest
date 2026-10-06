@@ -13,7 +13,7 @@ const calendarDate=(date:string)=>`${new Intl.DateTimeFormat('en-US',{weekday:'l
 type TrainingProps={userId:string;accessToken:()=>Promise<string>;onClose:()=>void;onSessionEnded?:()=>void;onClarify?:(request:RecoveryRequest)=>void;generateOnOpen?:boolean};
 export function TrainingScreen(props:TrainingProps){return <AccountTrainingScreen key={props.userId} {...props}/>}
 function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClarify,generateOnOpen=false}:TrainingProps) {
-  const [state,setState]=useState<TrainingState|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false),[facts,setFacts]=useState<TrainingFact[]>([]),[showSummary,setShowSummary]=useState(false),[selected,setSelected]=useState(''),[feedback,setFeedback]=useState('');
+  const [state,setState]=useState<TrainingState|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false),[facts,setFacts]=useState<TrainingFact[]>([]),[showSummary,setShowSummary]=useState(false),[showOriginal,setShowOriginal]=useState(false),[selected,setSelected]=useState(''),[feedback,setFeedback]=useState('');
   const alive=useRef(true),pending=useRef<AbortController|null>(null),token=useRef(accessToken),ended=useRef(onSessionEnded);token.current=accessToken;ended.current=onSessionEnded;
   const initial=useRef(generateOnOpen);
   const composer=useRef<View|null>(null),question=useRef<View|null>(null),scroll=useConversationScroll();
@@ -67,7 +67,7 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
       {d.coverage.map(code=><Text key={code} style={styles.copy}>{coverageText[code]??'Catalog coverage is limited.'}</Text>)}
       {!d.sessions.length&&!d.coverage.length&&<Text style={styles.copy}>Rest — no prescribed session.</Text>}
       {d.sessions.map((s,i)=><View key={i} style={styles.day}>
-        <Text style={styles.label}>{shown?.outline?.days.find(x=>x.date===day.date)?.sessions[i]?.focus??`Session ${i+1}`}{s.timing?` · ${s.timing[0]!.toUpperCase()}${s.timing.slice(1)}`:''}</Text>
+        <Text style={styles.label}>{shown?.outline?.days.find(x=>x.date===day.date)?.sessions[i]?.plain?.optional?'Optional · ':''}{shown?.outline?.days.find(x=>x.date===day.date)?.sessions[i]?.focus??`Session ${i+1}`}{s.timing?` · ${s.timing[0]!.toUpperCase()}${s.timing.slice(1)}`:''}</Text>
         {sessionRows(s,d.activities).map((row,j,rows)=><View key={j} style={styles.exercise}>
           {(j===0||rows[j-1]?.phase!==row.phase)&&row.phase!=='main'&&<Text style={styles.small}>{({warmup:'Warm-up',cooldown:'Cool-down',optional:'Optional'} as Record<string,string>)[row.phase]??row.phase}</Text>}
           {j>0&&rows[j-1]?.phase!==row.phase&&row.phase==='main'&&<Text style={styles.small}>Main</Text>}
@@ -86,9 +86,9 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
     {state?.summary&&<>
       {button(showSummary?'Hide training summary':'Training summary',()=>setShowSummary(!showSummary),true)}
       {!!state.summary.preferences?.length&&<Text style={styles.small}>Saved future preferences: {state.summary.preferences.join(" ")}</Text>}
-      {showSummary&&<View style={styles.day}><Text style={styles.small}>Concise saved context; AI inferences and unknowns have not been confirmed by you.</Text>
+      {showSummary&&<View style={styles.day}><Text style={styles.small}>Saved planning context; intake answers retain your exact wording. Older AI inferences and unknowns remain labeled.</Text>
         {(editing?facts:state.summary.document).map((f,i)=><View key={i} style={styles.exercise}><Text style={styles.label}>{f.category} · {originText[f.origin]}</Text>
-          {editing?<TextInput accessibilityLabel={`${f.category} ${i+1}`} value={f.text} multiline maxLength={350} editable={!busy} style={styles.input} onChangeText={text=>setFacts(old=>old.map((x,j)=>j===i?{...x,text,origin:'user_report',nutritionInput:undefined,...(x.category==='goals'?{goals:undefined}:{})}:x))}/>:<Text style={styles.copy}>{f.text}</Text>}
+          {editing?<TextInput accessibilityLabel={`${f.category} ${i+1}`} value={f.text} multiline maxLength={f.intakeIndex===undefined?350:4000} editable={!busy} style={styles.input} onChangeText={text=>setFacts(old=>old.map((x,j)=>j===i?{...x,text,origin:'user_report',nutritionInput:undefined,...(x.category==='goals'?{goals:undefined}:{})}:x))}/>:<Text style={styles.copy}>{f.text}</Text>}
         </View>)}
         {editing?<>
           <Text style={styles.small}>Corrections apply to future generation. Existing outlines and sessions remain saved; create a new week explicitly after saving.</Text>
@@ -114,7 +114,12 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
       {shown.outline&&needsClarification(shown.outline)?clarification(shown.outline,'outline'):shown.outline?.coverage.map(code=><Text key={code} style={styles.error}>{coverageText[code]??'Catalog coverage is limited.'} A usable outline has not been created.</Text>)}
       {shown.outline?.goalDecisions?.filter(g=>g.status!=='addressed').map((g,i)=><Text key={`goal-${i}`} style={styles.small}>{g.goal}: {g.reason}</Text>)}
       {shown.jobs.filter(j=>j.status!=='completed'&&(j.target===`review:${shown.planRevision}`||j.target==='week'||j.target===`details:${shown.planRevision}`||!shown.jobs.some(x=>x.target==='week'))).map(j=><Text key={j.target} style={styles.copy}>{j.target.startsWith('review:')?'Changes':j.target==='week'?'Week':j.target.startsWith('details:')?'Workouts':j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':trainingError(j.error??'unavailable')}</Text>)}
-      {shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.map(d=><View key={d.date} style={styles.day}><Text style={styles.label}>{calendarDate(d.date)} · {d.sessions.length?d.sessions.map(s=>s.focus).join(' + '):'Rest'}</Text>
+      {shown.outline?.sourceFormat==='plain-v1'&&<>
+        {weekComplete(shown)&&button(showOriginal?'Hide original outline':'View original outline',()=>setShowOriginal(!showOriginal),true)}
+        {(!weekComplete(shown)||showOriginal)&&<Text selectable style={styles.copy}>{shown.outline.originalResponse}</Text>}
+      </>}
+      {!shown.outline&&shown.jobs.filter(j=>j.rawResponse&&j.status==='failed').map(j=><View key={`raw-${j.target}`} style={styles.day}><Text style={styles.label}>Response saved for recovery — not a usable plan</Text><Text selectable style={styles.copy}>{j.rawResponse}</Text></View>)}
+      {shown.outline&&(shown.outline.sourceFormat!=='plain-v1'||weekComplete(shown))&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.map(d=><View key={d.date} style={styles.day}><Text style={styles.label}>{calendarDate(d.date)} · {d.sessions.length?d.sessions.map(s=>s.focus).join(' + '):'Rest'}</Text>
         {shown.days.some(x=>x.date===d.date)?shown.reviewState==='draft'?<View style={styles.exercise}>{shown.days.find(x=>x.date===d.date)!.detail.sessions.length?shown.days.find(x=>x.date===d.date)!.detail.sessions.map((session,i)=><Text key={i} style={styles.copy}>{session.timing?session.timing[0]!.toUpperCase()+session.timing.slice(1):'Flexible'} · {d.sessions[i]?.focus} · About {session.estimatedMinutes} min</Text>):<Text style={styles.copy}>Rest — no prescribed session.</Text>}</View>:showDay(shown.days.find(x=>x.date===d.date)!):shown.outlineFirst?<View style={styles.exercise}>{d.sessions.length?d.sessions.map((session,i)=><Text key={i} style={styles.copy}>{session.timing?session.timing[0]!.toUpperCase()+session.timing.slice(1):'Flexible'} · {session.focus} · About {session.estimatedMinutes} min</Text>):<Text style={styles.copy}>Rest — no planned session.</Text>}</View>:<Text style={styles.copy}>Details not generated.</Text>}
       </View>)}
       {reviewing&&(shown.outlineFirst?overviewReady:weekComplete(shown))&&shown.summaryRevision===state?.summary?.revision&&<View style={styles.day}>
