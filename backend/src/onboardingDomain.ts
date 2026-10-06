@@ -9,7 +9,7 @@ export const opening = 'What would you like to improve, and what would progress 
 export const disclosure = 'AI onboarding is for adults 18+. Relevant profile information, messages and conversation context are shared with OpenAI. Unfinished conversations stay until you finish or delete them. After explicit completion, a concise editable training summary and plans stay private in FitQuest; the transcript and conversation revisions are deleted. Summary and relevant profile facts are sent to OpenAI for catalog-based planning. Provider retention and backups are separate. This is not medical clearance.';
 export const recapTopic = 'Onboarding recap';
 export const completeTopic = 'Onboarding complete';
-export const recapQuestion = 'Does that capture what matters? Reply “Looks good” to finish onboarding, keep a concise editable training summary for planning and delete this conversation, or tell me what to change or add.';
+export const recapQuestion = 'Does that capture what matters? Send any changes below, or choose Continue to save your training summary, delete this conversation and create your weekly outline.';
 export const completionPendingReply = 'Onboarding complete. Removing this conversation…';
 export const completionReply = 'Onboarding finished. Your training summary is saved for planning. The conversation is deleted. Your profile is unchanged.';
 // Agreement applies only to the immediately preceding, displayed recap. Added details,

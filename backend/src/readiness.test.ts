@@ -15,21 +15,21 @@ test('a concrete indispensable question replaces a premature recap and its finis
   const context=apply(bad),display=consistentReply(context,bad);
   assert.equal(readyToPlan(context),false);assert.notEqual(display.nextQuestion?.topic,recapTopic);
   assert.equal(renderOnboardingReply(display),`${bad.planningCheck.reason}\n\n${bad.planningCheck.question}`);
-  assert.equal(renderOnboardingReply(display).includes('Looks good'),false);
+  assert.equal(renderOnboardingReply(display).includes('choose Continue'),false);
   assert.throws(()=>apply({...proposal,readiness:'needs_clarification'}),{code:'invalid_model_output'});
 });
 test('known mild restriction, optional unknown and general disclaimer do not independently block completion',()=>{
   for(const limitation of ['Mild discomfort only serving overhead; ordinary walking is comfortable.','No limitations reported.','Optional preferred training time skipped.']){
     const value={...proposal,trainingSummary:summary.map(f=>f.category==='limitations'?{...f,text:limitation,origin:'unknown' as const}:f)};
     const context=apply(value);context.items.push({id:'uncertain',topic:'Optional preference',value:'Unknown',origin:'unknown',review:'disputed',source:'',quote:'',recordedAt:'',supersedes:null});
-    assert.equal(readyToPlan(context),true);assert.match(renderOnboardingReply(consistentReply(context,value)),/Looks good/);
+    assert.equal(readyToPlan(context),true);assert.match(renderOnboardingReply(consistentReply(context,value)),/choose Continue/);
   }
 });
 test('declining an indispensable answer offers an exit without repeated question or false finish',()=>{
   const value={...proposal,planningCheck:{status:'unavailable' as const,question:null,reason:'Without knowing whether any walking is possible, I cannot select the requested walking sessions.'}};
   const context=apply(value),display=consistentReply(context,value);
   assert.equal(readyToPlan(context),false);assert.equal(display.nextQuestion,null);
-  assert.match(display.reply,/Back to greeting/);assert.match(display.reply,/usable plan is not ready/);assert.doesNotMatch(display.reply,/Looks good/);
+  assert.match(display.reply,/Back to greeting/);assert.match(display.reply,/usable plan is not ready/);assert.doesNotMatch(display.reply,/choose Continue/);
 });
 test('clarification is distinct from catalog failure and cannot coexist with prescribed work',()=>{
   const dates=sevenDates('UTC'),outline=fixtureOutline(dates),clarification={question:'Is a stable wall available where you train?',reason:'The selected support exercise requires a stable wall.'};
@@ -52,7 +52,7 @@ test('recorded Luna clarification preserves the answered restriction through a u
   const {readinessLiveFixture:f}=await import('./readinessLiveFixture.js');
   const initial=applyProposal(emptyContext(),validateProposal(f.question),{m1:f.message},'');
   const question=consistentReply(initial,f.question as ModelProposal);
-  assert.equal(readyToPlan(initial),false);assert.match(question.nextQuestion!.text,/movement/);assert.doesNotMatch(renderOnboardingReply(question),/Looks good/);
+  assert.equal(readyToPlan(initial),false);assert.match(question.nextQuestion!.text,/movement/);assert.doesNotMatch(renderOnboardingReply(question),/choose Continue/);
   const final=applyProposal(initial,validateProposal(f.recap),{m1:f.message,m2:f.answer},'');
   assert.equal(readyToPlan(final),true);assert.equal(f.recap.nextQuestion.topic,recapTopic);
   assert.ok(final.trainingSummary!.some(f=>/overhead/.test(f.text)));assert.ok(final.trainingSummary!.some(f=>/skipped/.test(f.text)));

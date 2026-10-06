@@ -5,9 +5,11 @@ import { useConversationScroll } from './ConversationScrollView';
 import { privateDrafts } from './onboardingDraftStorage';
 import type { OnboardingDraftStore } from './onboardingDraft';
 
-export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,recovery,drafts=privateDrafts}: {
+type OnboardingProps={
   recovery?:RecoveryRequest;userId:string;accessToken:()=>Promise<string>;onSessionEnded?:()=>void;onClose:(message?:string,summarySaved?:boolean)=>void;drafts?:OnboardingDraftStore;
-}) {
+};
+export function OnboardingScreen(props:OnboardingProps){return <AccountOnboardingScreen key={props.userId} {...props}/>}
+function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,recovery,drafts=privateDrafts}:OnboardingProps) {
   const [accepted,setAccepted]=useState(!!recovery);
   const [conversation,setConversation]=useState<OnboardingConversation|null>(null);
   const [text,setText]=useState('');const [pending,setPending]=useState<OnboardingCommand|null>(null);
@@ -16,6 +18,7 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
   const [deleteRequested,setDeleteRequested]=useState(false);
   const alive=useRef(true);const request=useRef<AbortController|null>(null);const tokenGetter=useRef(accessToken);tokenGetter.current=accessToken;
   const sending=useRef(false);const ending=useRef(false);
+  const unsent=useRef('');
   const [cleanup,setCleanup]=useState<DeletedOnboarding|null>(null);
   const [cleanupError,setCleanupError]=useState(false);
   const composer=useRef<View>(null), question=useRef<View>(null);
@@ -58,9 +61,18 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
     finally{clearTimeout(timeout);if(request.current===controller){request.current=null;if(alive.current)setBusy(false)}}
   }
   async function start() {
-    await perform((token,signal)=>onboardingRequest('POST',null,null,token,signal,fetch,recovery),async result=>{
+    await perform(async(token,signal)=>{
+      const draft=await drafts.read(userId);
+      if(draft?.conversationId&&draft.pending?.kind==='confirm'){
+        // Recover a committed confirmation before create/resume can start a new
+        // chat. This read cannot acknowledge unseen work or call the model.
+        try{return await onboardingRequest('GET',draft.conversationId,null,token,signal)}
+        catch(error){if(!(error instanceof OnboardingApiError)||error.code!=='not_found')throw error;await drafts.clear(userId,draft.conversationId)}
+      }
+      return onboardingRequest('POST',null,null,token,signal,fetch,recovery);
+    },async result=>{
       const draft=await drafts.read(userId);if(!alive.current)return;
-      if(draft&&draft.conversationId===result?.id){setText(draft.text);setPending(draft.pending)}
+      if(draft&&draft.conversationId===result?.id){setText(draft.text);unsent.current=draft.text;setPending(draft.pending)}
       else if(draft)await drafts.clear(userId,draft.conversationId??undefined);
       setAccepted(true);
     });
@@ -83,14 +95,14 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
       try{return await onboardingRequest('POST',conversation.id,command,token,signal)}
       catch(error){
         // Explicit bound/revision rejections roll back. Unknown outcomes retain the same pending ID.
-        if(error instanceof OnboardingApiError&&['context_limit','storage_limit','revision_conflict','clarification_required','summary_changed'].includes(error.code)&&alive.current&&!signal.aborted){
+        if(error instanceof OnboardingApiError&&['context_limit','storage_limit','revision_conflict','review_changed','profile_changed','clarification_required','summary_changed'].includes(error.code)&&alive.current&&!signal.aborted){
           await drafts.write(userId,{conversationId:conversation.id,text,pending:null,savedAt:Date.now()});
           if(alive.current&&!signal.aborted)setPending(null);
         }
         throw error;
       }
     },async()=>{
-      setPending(null);setText('');
+      setPending(null);setText('');unsent.current='';
       await drafts.clear(userId,conversation.id);if(alive.current)setDraftError('');
       // Failed responses remain visible; only an explicit retry can call AI again.
     });
@@ -103,6 +115,12 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
     return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={[styles.button,secondary&&styles.secondary,disabled&&styles.disabled]}><Text style={secondary?styles.secondaryText:styles.buttonText}>{label}</Text></Pressable>;
   }
   const activeTurn=conversation?.turns.find(t=>t.state==='pending');const latest=conversation?.turns.at(-1);
+  const readyRecap=conversation?.confirmableRevision===conversation?.revision&&conversation?.state==='collecting'&&!conversation.profileChanged&&conversation.context.readiness!=='needs_clarification'&&latest?.state==='completed'&&latest.questionTopic==='Onboarding recap'&&!!latest.reply;
+  const cannotContinue=busy||!!pending||!!activeTurn||needsRefresh||!!draftError||!!text.trim();
+  function continueFromRecap(){
+    if(!readyRecap||cannotContinue||unsent.current.trim()||current.current!==conversation)return;
+    void send({kind:'confirm',operationId:operationId(),expectedRevision:conversation.revision,reviewedRevision:conversation.revision});
+  }
   const failure=latest?.state==='failed'?onboardingErrorText(latest.error??'provider_error'):'';
   if(cleanup)return <View style={styles.section}>
     <Text accessibilityLiveRegion="polite" style={styles.copy}>{cleanup.message}</Text>
@@ -136,11 +154,14 @@ export function OnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
         <View style={styles.answer}><Text style={styles.copy}>{turn.message}</Text></View>
         {turn.reply&&<View ref={turn.id===latest?.id?question:undefined} collapsable={false} onLayout={turn.id===latest?.id?answerLayout:undefined}><Text style={styles.copy}>{turn.reply}</Text></View>}
       </View>)}
-      {(busy||activeTurn)&&<Text accessibilityLiveRegion="polite" style={styles.notice}>{pending||activeTurn?'Thinking…':'Loading…'}</Text>}
-      <View ref={composer} collapsable={false} style={styles.composer} onLayout={answerLayout}>
+      {(busy||activeTurn)&&<Text accessibilityLiveRegion="polite" style={styles.notice}>{pending?.kind==='confirm'?'Saving…':pending||activeTurn?'Thinking…':'Loading…'}</Text>}
+      <View ref={composer} collapsable={false} style={styles.composerGroup} onLayout={answerLayout}>
+      <View style={styles.composer}>
         <TextInput accessibilityLabel="Onboarding message" placeholder="Your answer" onFocus={()=>reveal({composer,question},true)} value={text} multiline maxLength={4000} editable={!busy&&!pending&&!activeTurn}
-          onChangeText={next=>{setText(next);void saveDraft(next,null)}} style={styles.input}/>
+          onChangeText={next=>{unsent.current=next;setText(next);void saveDraft(next,null)}} style={styles.input}/>
         {button('Send',()=>command({kind:'message',text:text.trim()}),busy||!text.trim()||!!pending||!!activeTurn||needsRefresh)}
+      </View>
+      {readyRecap&&button('Continue',continueFromRecap,cannotContinue)}
       </View>
       {!busy&&<>
         {!!(error||failure)&&<Text accessibilityRole="alert" style={styles.error}>{error||failure}</Text>}
@@ -157,7 +178,7 @@ const styles=StyleSheet.create({
   section:{marginTop:16,gap:16},title:{fontSize:24,fontWeight:'600',color:'#193B34'},
   copy:{fontSize:16,lineHeight:25,color:'#193B34'},notice:{fontSize:15,lineHeight:23,color:'#52655E'},
   turn:{gap:14},answer:{alignSelf:'flex-end',maxWidth:'92%',backgroundColor:'#E5EEE8',borderRadius:14,padding:12},
-  composer:{flexDirection:'row',alignItems:'flex-end',gap:10},
+  composerGroup:{gap:10},composer:{flexDirection:'row',alignItems:'flex-end',gap:10},
   input:{flex:1,minHeight:48,maxHeight:180,borderWidth:1,borderColor:'#91A69B',borderRadius:12,padding:12,color:'#193B34',fontSize:17,backgroundColor:'#FFFFFF'},
   button:{minHeight:44,borderRadius:12,backgroundColor:'#176B5B',paddingHorizontal:16,paddingVertical:12,alignItems:'center',justifyContent:'center'},
   buttonText:{color:'#FFFFFF',fontSize:16,fontWeight:'600'},secondary:{backgroundColor:'transparent',alignSelf:'flex-start'},secondaryText:{color:'#176B5B',fontSize:16},

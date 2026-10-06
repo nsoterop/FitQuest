@@ -79,7 +79,10 @@ export async function verifyReadinessDatabase(t:TestContext,owner:Pool,pool:Pool
     const retry={kind:'retry' as const,turnId:a.turns.at(-1)!.id,operationId:randomUUID(),expectedRevision:a.revision};
     const retried=await service.command(alice,a.id,retry,async()=>true);assert.ok('turns' in retried);a=retried;
     await service.command(alice,a.id,retry,async()=>true);assert.equal(calls,before+2);assert.equal(await spent()-budget,200);
-    assert.ok('deleted' in await send(a,'Looks good'));
+    assert.equal(a.confirmableRevision,a.revision);
+    const confirm={kind:'confirm' as const,operationId:randomUUID(),expectedRevision:a.revision,reviewedRevision:a.revision};
+    const completed=await service.command(alice,a.id,confirm,async()=>true);assert.ok('deleted' in completed);
+    assert.deepEqual(await service.command(alice,a.id,confirm,async()=>true),completed);
     const receipt=await service.clarify(alice,r,async()=>true);assert.ok('deleted' in receipt&&receipt.summarySaved);assert.equal(receipt.id,a.id);assert.equal(calls,before+2);
     const after=await latest();assert.equal(after.s.summary.revision,r.summaryRevision+1);assert.deepEqual(after.s.summary.document,resolved);assert.equal(after.p.outline,null);
     assert.deepEqual(after.s.plans.find(p=>p.id===oldPlan).days,oldDays);assert.ok(after.s.plans.find(p=>p.id===r.planId).outline.clarification);

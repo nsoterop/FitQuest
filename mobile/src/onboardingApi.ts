@@ -3,6 +3,7 @@ export type UnderstandingItem={id:string;topic:string;value:string;origin:'profi
 export type OnboardingCommand={operationId:string;expectedRevision:number;timeZone?:string}&(
   {kind:'message';text:string}|{kind:'retry';turnId:string}|{kind:'skip';topic:string}|{kind:'edit';itemId:string|null;topic:string;value:string}|{kind:'confirm';reviewedRevision:number});
 export type OnboardingConversation={id:string;revision:number;state:'collecting'|'confirmed';confirmedRevision:number|null;
+  confirmableRevision?:number|null;
   context:{items:UnderstandingItem[];skipped:string[];readiness:'needs_clarification'|'ready_with_limits'|'ready';limitations:string[]};
   turns:{id:string;sequence:number;message:string;reply:string|null;questionTopic:string|null;state:'pending'|'completed'|'failed';error:string|null}[];
   profileChanged:boolean;generationEnabled:boolean;opening:string;disclosure:string;disclosureVersion:string};
@@ -35,6 +36,7 @@ export function isConversation(value:unknown):value is OnboardingConversation {
   if(typeof value!=='object'||!value)return false;
   const x=value as OnboardingConversation;
   return typeof x.id==='string'&&Number.isInteger(x.revision)&&x.revision>=0&&['collecting','confirmed'].includes(x.state)&&
+    (x.confirmableRevision===undefined||x.confirmableRevision===null||Number.isInteger(x.confirmableRevision)&&x.confirmableRevision===x.revision)&&
     typeof x.generationEnabled==='boolean'&&typeof x.profileChanged==='boolean'&&typeof x.opening==='string'&&typeof x.disclosure==='string'&&typeof x.disclosureVersion==='string'&&
     !!x.context&&Array.isArray(x.context.items)&&x.context.items.length<=80&&x.context.items.every(i=>typeof i.id==='string'&&typeof i.topic==='string'&&typeof i.value==='string'&&typeof i.source==='string'&&typeof i.quote==='string'&&typeof i.recordedAt==='string'&&
       ['profile','user_report','model_inference','assumption','unknown'].includes(i.origin)&&['unreviewed','confirmed','disputed'].includes(i.review))&&

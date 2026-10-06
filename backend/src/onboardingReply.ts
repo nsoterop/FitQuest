@@ -5,6 +5,7 @@ import { recapQuestion, recapTopic, type ModelProposal } from './onboardingDomai
 // risking removal of athlete facts. Match at a sentence/paragraph boundary and at the end.
 const closingInvitations = [
   recapQuestion,
+  'Does that capture what matters? Reply “Looks good” to finish onboarding, keep a concise editable training summary for planning and delete this conversation, or tell me what to change or add.',
   'Does that capture what matters?',
   'Does this recap capture things accurately?',
   'Does this recap look right, or would you like to correct anything?',

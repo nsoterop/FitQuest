@@ -893,3 +893,86 @@ test('actual synthetic revised week renders compact overview then exact rep rang
   assert.match(visible,/Kneeling push-up — 2 × 8–10 · 3 RIR/);assert.match(visible,/Outdoor walking — 0.7 miles \(easy\)/);assert.match(visible,/Standing-start acceleration — 4 × 20 yd \(moderate\)/);assert.doesNotMatch(visible,/Hands-elevated push-up —|Place your hands|Support yourself/);
   await act(async()=>screen.unmount());screen=await mountTraining();assert.match(text(screen),/Accepted plan/);assert.equal(requests.filter(url=>url.endsWith('/review')||url.endsWith('/generate')).length,0);await act(async()=>screen.unmount());
 });
+
+function readyRecapFixture(revision=2){
+ const base=onboardingFixture();return {...base,revision,confirmableRevision:revision,generationEnabled:true,context:{...base.context,readiness:'ready_with_limits'},turns:[{id:'recap',sequence:1,message:'Synthetic goals and schedule.',reply:'Recap: two flexible sessions. Send changes, or choose Continue.',questionTopic:'Onboarding recap',state:'completed',error:null}]};
+}
+test('ready recap Continue sits below clarification input, preserves unsent corrections and confirms the updated revision once',async()=>{
+ globalThis.__fitquestSecure.clear();let saved=readyRecapFixture(),resolveConfirm;const commands=[];let closed=0;
+ globalThis.fetch=async(url,options)=>{
+  if(url.endsWith('/commands')){const c=JSON.parse(options.body);commands.push(c);if(c.kind==='confirm')return new Promise(resolve=>{resolveConfirm=resolve});saved={...readyRecapFixture(4),turns:[...saved.turns,{...saved.turns[0],id:'updated',sequence:2,message:c.text,reply:'Updated recap: one flexible session. Choose Continue.'}]}}
+  return{status:200,json:async()=>saved};
+ };
+ const screen=await mountOnboarding({onClose(_message,summarySaved){assert.equal(summarySaved,true);closed++}});
+ const view=screen.root.findAllByType('View').find(v=>v.children.some(c=>typeof c==='object'&&c.props.accessibilityLabel==='Continue'));
+ const continueIndex=view.children.findIndex(c=>typeof c==='object'&&c.props.accessibilityLabel==='Continue');
+ const inputIndex=view.children.findIndex(c=>typeof c==='object'&&c.findAllByProps({accessibilityLabel:'Onboarding message'}).length);
+ assert.ok(inputIndex>=0&&continueIndex>inputIndex);assert.equal(input(screen,'Continue').props.disabled,false);
+ if(process.env.FITQUEST_CONTINUE_RENDER_CAPTURE)writeFileSync(process.env.FITQUEST_CONTINUE_RENDER_CAPTURE,JSON.stringify(screen.toJSON(),null,2));
+ const oldContinue=input(screen,'Continue').props.onPress;
+ await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Only one session.');oldContinue();await flush()});
+ assert.equal(commands.length,0);assert.equal(input(screen,'Continue').props.disabled,true);
+ await act(async()=>{press(screen,'Send');await flush()});assert.equal(commands[0].kind,'message');assert.match(text(screen),/Updated recap/);assert.equal(input(screen,'Onboarding message').props.value,'');
+ await act(async()=>{oldContinue();await flush()});assert.equal(commands.length,1);
+ await act(async()=>{press(screen,'Continue');press(screen,'Continue');await flush()});assert.equal(commands.length,2);assert.equal(input(screen,'Continue').props.disabled,true);
+ assert.equal(commands[1].kind,'confirm');assert.equal(commands[1].expectedRevision,4);assert.equal(commands[1].reviewedRevision,4);assert.equal('text' in commands[1],false);assert.equal(closed,0);
+ await act(async()=>{resolveConfirm({status:200,json:async()=>({...deletionReceipt(saved.id),summarySaved:true})});await flush()});
+ assert.equal(closed,1);assert.equal(await privateDrafts.read('alice'),null);assert.doesNotMatch(text(screen),/Synthetic goals|Updated recap/);await act(async()=>screen.unmount());
+});
+test('Continue fails closed for old-server responses, ordinary questions, essential clarification, stale readiness, profile change and failed or pending work',async()=>{
+ for(const patch of [{confirmableRevision:undefined},{confirmableRevision:null},{context:{...readyRecapFixture().context,readiness:'needs_clarification'}},{profileChanged:true},{turns:[]},...['pending','failed'].map(state=>({turns:[{...readyRecapFixture().turns[0],state}]})),{turns:[{...readyRecapFixture().turns[0],questionTopic:'Equipment'}]},{turns:[{...readyRecapFixture().turns[0],reply:null}]}]){
+  globalThis.__fitquestSecure.clear();const saved={...readyRecapFixture(),...patch};globalThis.fetch=async()=>({status:200,json:async()=>saved});
+  const screen=await mountOnboarding();assert.equal(screen.root.findAllByProps({accessibilityLabel:'Continue'}).length,0);await act(async()=>screen.unmount());
+ }
+});
+test('Continue lost response reuses its operation, reopens through a read receipt, and waits for device cleanup before closing',async()=>{
+ globalThis.__fitquestSecure.clear();const saved=readyRecapFixture(),sent=[];let committed=false,closed=0,failCleanup=false;
+ globalThis.fetch=async(url,options)=>{
+  if(url.endsWith('/commands')){sent.push(JSON.parse(options.body));committed=true;throw Error('lost committed reply')}
+  if(options.method==='GET'&&committed)return{status:200,json:async()=>({...deletionReceipt(saved.id),summarySaved:true})};
+  return{status:200,json:async()=>saved};
+ };
+ const drafts={...privateDrafts,clear:async(...args)=>{if(failCleanup)throw Error('local cleanup failed');return privateDrafts.clear(...args)}};
+ const props={drafts,onClose(_message,saved){assert.equal(saved,true);closed++}};
+ let screen=await mountOnboarding(props);await act(async()=>{press(screen,'Continue');await flush()});assert.equal(closed,0);assert.equal(input(screen,'Continue').props.disabled,true);
+ await act(async()=>{press(screen,'Try again');await flush()});assert.deepEqual(sent[0],sent[1]);assert.equal((await privateDrafts.read('alice')).pending.kind,'confirm');await act(async()=>screen.unmount());
+ failCleanup=true;screen=await mountOnboarding(props);assert.equal(sent.length,2);assert.equal(closed,0);assert.ok(input(screen,'Finish cleanup'));assert.doesNotMatch(text(screen),/Synthetic goals/);
+ failCleanup=false;await act(async()=>{press(screen,'Finish cleanup');await flush()});assert.equal(closed,1);assert.equal(await privateDrafts.read('alice'),null);await act(async()=>screen.unmount());
+});
+test('rejected Continue reloads the current recap before a new confirmation and account changes abort late completion',async()=>{
+ globalThis.__fitquestSecure.clear();let saved=readyRecapFixture(),reject=true,deliver;const sent=[];let closed=0;
+ globalThis.fetch=async(url,options)=>{
+  if(options.method==='GET')saved=readyRecapFixture(4);
+  if(url.endsWith('/commands')){sent.push(JSON.parse(options.body));if(reject)return{status:409,json:async()=>({code:'review_changed'})};return new Promise(resolve=>{deliver=resolve})}
+  return{status:200,json:async()=>saved};
+ };
+ const props={userId:'alice',accessToken:async()=>'alice-token',onClose(){closed++}};
+ const screen=await mountOnboarding(props);await act(async()=>{press(screen,'Continue');await flush()});assert.equal((await privateDrafts.read('alice')).pending,null);assert.equal(input(screen,'Continue').props.disabled,true);
+ await act(async()=>{press(screen,'Check for reply');await flush()});assert.equal(input(screen,'Continue').props.disabled,false);reject=false;
+ await act(async()=>{press(screen,'Continue');await flush()});assert.equal(sent[1].reviewedRevision,4);assert.notEqual(sent[0].operationId,sent[1].operationId);
+ await act(async()=>{screen.update(React.createElement(OnboardingScreen,{...props,userId:'bob',accessToken:async()=>'bob-token'}));await flush()});assert.ok(input(screen,'Continue to onboarding'));assert.doesNotMatch(text(screen),/Synthetic goals/);
+ await act(async()=>{deliver({status:200,json:async()=>({...deletionReceipt(saved.id),summarySaved:true})});await flush()});assert.equal(closed,0);assert.equal(await privateDrafts.read('bob'),null);await act(async()=>screen.unmount());
+});
+test('Continue completion opens existing outline generation once after saved-summary cleanup, with free training reopen',async()=>{
+ resetAuth(alice);globalThis.__fitquestSecure.clear();const saved=readyRecapFixture(),training=overviewUiState();const outline=training.plans[0].outline;
+ training.summary.sourceConversation=saved.id;Object.assign(training.plans[0],{outline:null,jobs:[],days:[],planRevision:0});let completed=false,confirmations=0,generations=0;
+ globalThis.fetch=async(url,options)=>{
+  if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
+  if(url.endsWith('/commands')){assert.equal(JSON.parse(options.body).kind,'confirm');confirmations++;completed=true;return{status:200,json:async()=>({...deletionReceipt(saved.id),summarySaved:true})}}
+  if(url.includes('/training')){
+   if(url.endsWith('/generate')){assert.equal(await privateDrafts.read('alice'),null);assert.equal(JSON.parse(options.body).target,'outline');generations++;Object.assign(training.plans[0],{outline,planRevision:1,jobs:[{target:'outline',status:'completed',attemptId:'synthetic',error:null}]})}
+   return{status:200,json:async()=>completed?training:{summary:null,plans:[]}};
+  }
+  return{status:200,json:async()=>saved};
+ };
+ const screen=await mount();await act(async()=>{press(screen,'Start onboarding');await flush()});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
+ await act(async()=>{press(screen,'Continue');press(screen,'Continue');await flush();await flush()});assert.equal(confirmations,1);assert.equal(generations,1);assert.ok(input(screen,'Confirm outline and create workouts'));
+ await act(async()=>{press(screen,'Back to greeting');await flush()});await act(async()=>{press(screen,'View training');await flush()});assert.equal(generations,1);await act(async()=>screen.unmount());
+});
+test('ready clarification recovery offers the same Continue control; outline confirmation stays blocked after an uncertain request until reload',async()=>{
+ globalThis.__fitquestSecure.clear();const ready=readyRecapFixture();globalThis.fetch=async()=>({status:200,json:async()=>ready});let screen;
+ await act(async()=>{screen=TestRenderer.create(React.createElement(OnboardingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},recovery:{summaryRevision:1,planId:'synthetic',target:'outline'}}));await flush()});assert.equal(input(screen,'Continue').props.disabled,false);await act(async()=>screen.unmount());
+ const saved=overviewUiState();let attempts=0;globalThis.fetch=async(url)=>{if(url.endsWith('/generate')){attempts++;throw Error('lost response')}return{status:200,json:async()=>saved}};
+ screen=await mountTraining();await act(async()=>{press(screen,'Confirm outline and create workouts');await flush()});assert.equal(attempts,1);assert.equal(input(screen,'Confirm outline and create workouts').props.disabled,true);
+ await act(async()=>{press(screen,'Reload saved training');await flush()});assert.equal(input(screen,'Confirm outline and create workouts').props.disabled,false);await act(async()=>screen.unmount());
+});

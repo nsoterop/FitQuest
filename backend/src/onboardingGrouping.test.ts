@@ -34,8 +34,8 @@ function turn(context:Context,sources:Record<string,string>,proposal:ModelPropos
   assert.equal((rendered.match(/\?/g)??[]).length,1);
   if(proposal.planningCheck?.status==='question'){
     assert.equal(displayed.nextQuestion?.text,proposal.planningCheck.question);
-    assert.doesNotMatch(rendered,/Looks good/);assert.equal(readyToPlan(next),false);
-  } else {assert.equal(readyToPlan(next),true);assert.match(rendered,/Looks good/)}
+    assert.doesNotMatch(rendered,/choose Continue/);assert.equal(readyToPlan(next),false);
+  } else {assert.equal(readyToPlan(next),true);assert.match(rendered,/choose Continue/)}
   return {context:next,displayed,rendered,projected};
 }
 test('the actual fresh service opening asks goals alone without intake or a completion claim',async()=>{
@@ -115,7 +115,7 @@ test('recorded Luna grouped conversation preserves pacing, irregular activity, c
     }else{
       assert.equal(displayed.nextQuestion!.topic,recapTopic);assert.equal(readyToPlan(context),true);
       assert.equal(rendered,`${proposal.reply}\n\n${renderOnboardingReply({...proposal,reply:'',nextQuestion:{...proposal.nextQuestion!,text:''}})}`);
-      assert.equal((rendered.match(/Looks good/g)??[]).length,1);assert.doesNotMatch(rendered,/Please review|Please correct/);
+      assert.equal((rendered.match(/choose Continue/g)??[]).length,1);assert.doesNotMatch(rendered,/Please review|Please correct/);
       if(fixture.name==='correction'){
         const availability=context.trainingSummary!.find(f=>f.category==='availability')!.text;
         assert.match(availability,/one.*20.minute/i);assert.doesNotMatch(availability,/two|25/);assert.match(rendered,/tennis|pull-up/i);
@@ -143,7 +143,7 @@ test('summary and existing recap preserve distribution, per-session/day caps and
   const ambiguous={...facts,availability:'Can fit morning and evening; prefers short sessions, 30 minutes, scope of limit unknown.'};
   const question='Is 30 minutes your limit per session or for the whole day?';
   const missing=turn(emptyContext(),{m1:Object.values(ambiguous).join(' ')},response(ambiguous,question,'Availability'));
-  assert.equal(missing.displayed.nextQuestion!.text,question);assert.doesNotMatch(missing.rendered,/Looks good/);
+  assert.equal(missing.displayed.nextQuestion!.text,question);assert.doesNotMatch(missing.rendered,/choose Continue/);
   const correction='30 minutes is the whole-day limit. I prefer one session, even when two slots are available.';
   const final=turn(missing.context,{m1:Object.values(ambiguous).join(' '),m2:correction},response({...facts,availability:correction},null));
   assert.ok(final.rendered.includes(correction));assert.equal(final.displayed.nextQuestion!.topic,recapTopic);
@@ -160,7 +160,7 @@ test('recorded v9 scheduling replies preserve preferences and caps; actual recap
     if(f.case==='ambiguous-duration'){
       assert.notEqual(display.nextQuestion?.topic,recapTopic);assert.match(display.nextQuestion!.text,/each session.*total.*day/);assert.match(availability,/per session or per day/);
     }else{
-      assert.equal(display.nextQuestion!.topic,recapTopic);assert.match(rendered,/Looks good/);
+      assert.equal(display.nextQuestion!.topic,recapTopic);assert.match(rendered,/choose Continue/);
       for(const fact of context.trainingSummary!.filter(x=>x.category==='availability'||x.category==='goals'))assert.ok(rendered.toLowerCase().includes(fact.text.toLowerCase()));
       if(f.case==='distributed-volunteered'){for(const goal of ['walking endurance','upper-body strength','shoulder mobility','acceleration technique'])assert.ok(rendered.toLowerCase().includes(goal));console.log('Corrected recorded recap:\n'+rendered);assert.match(availability,/separate morning.*evening/);assert.match(availability,/25 minutes per session and 35 minutes total per day/)}
       if(f.case==='single-correction'){assert.match(availability,/prefers one session per day/);assert.match(availability,/30-minute.*total training time per day/)}

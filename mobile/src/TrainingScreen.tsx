@@ -128,7 +128,7 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
         {shown.outlineFirst&&button(shown.jobs.some(j=>j.target===`details:${shown.planRevision}`&&j.status==='failed')?'Retry creating workouts':'Confirm outline and create workouts',()=>void run(async request=>{
           const job=shown.jobs.find(j=>j.target===`details:${shown.planRevision}`);
           await request('/generate','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision,confirmOutline:true,target:'week',retryAttempt:job?.status==='failed'?job.attemptId:null});
-        }),false,!!feedback.trim()||!!inFlight||!!shown.reviewQuestion)}
+        }),false,!!feedback.trim()||!!inFlight||!!shown.reviewQuestion||!!error)}
         </View>
       </View>}
     </View>}

@@ -117,6 +117,33 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       await assert.rejects(store.read(alice,a.id),{code:'not_found'});
     }finally{await local.close()}
   });
+  await t.test('Continue eligibility tracks the exact ready recap, corrections, pending replies and changed profiles',async()=>{
+    const local=buildApp(false,{store:profiles,verifyAccount:async()=>alice,onboarding:onboardingService(store,provider,'test')});
+    const command=(id:string,revision:number,fields:object)=>local.inject({method:'POST',url:`/onboarding/${id}/commands`,headers:{authorization:'Bearer alice'},payload:{operationId:randomUUID(),expectedRevision:revision,...fields}});
+    const old=await store.create(alice);await store.remove(alice,old.id);let a:any=await store.create(alice);assert.equal(a.confirmableRevision,null);
+    const recap={...proposal,nextQuestion:{topic:'Onboarding recap',text:'Ready?',decision:'Current synthetic recap.'}};
+    respond=async()=>({proposal:recap,usage:{input:100,output:20,cached:0,cacheWrite:0}});
+    try{
+      a=(await command(a.id,a.revision,{kind:'message',text:'Synthetic practical context.'})).json();
+      assert.equal(a.confirmableRevision,a.revision);const oldRevision=a.revision;
+      a=(await command(a.id,a.revision,{kind:'message',text:'A correction to the synthetic schedule.'})).json();
+      assert.equal(a.confirmableRevision,a.revision);assert.ok(a.revision>oldRevision);
+      const old=await command(a.id,a.revision,{kind:'confirm',reviewedRevision:oldRevision});assert.equal(old.json().code,'review_changed');
+      const pending=await store.claim(alice,a.id,{kind:'message',text:'Another correction.',operationId:randomUUID(),expectedRevision:a.revision},provider);
+      assert.equal(pending.conversation.confirmableRevision,null);assert.ok(pending.work);
+      await assert.rejects(store.claim(alice,a.id,{kind:'confirm',operationId:randomUUID(),expectedRevision:pending.conversation.revision,reviewedRevision:pending.conversation.revision}),{code:'clarification_required'});
+      await store.settle(alice,pending.work.attempt,0);
+      await store.finish(alice,a.id,pending.work,undefined,undefined,'provider_error');
+      assert.equal((await store.read(alice,a.id)).confirmableRevision,null);
+      a=(await command(a.id,(await store.read(alice,a.id)).revision,{kind:'retry',turnId:pending.work.turnId})).json();
+      assert.equal(a.confirmableRevision,a.revision);
+      await profiles.save(alice,{...profile,age:30});
+      assert.equal((await store.read(alice,a.id)).confirmableRevision,null);
+      const accounting=(await owner.query('SELECT * FROM fitquest.ai_budget')).rows;
+      const before=calls;const rejection=await command(a.id,a.revision,{kind:'confirm',reviewedRevision:a.revision});assert.equal(rejection.json().code,'review_changed');assert.equal(calls,before);
+      assert.deepEqual((await owner.query('SELECT * FROM fitquest.ai_budget')).rows,accounting);
+    }finally{await local.close();await profiles.save(alice,profile);await store.remove(alice,a.id);respond=async()=>({proposal,usage:{input:100,output:20,cached:0,cacheWrite:0}})}
+  });
   await t.test('compacted provider context still rejects fabricated original sources and quotes before content commit',async()=>{
     for(const addition of [{topic:'Goal',value:'Invented',origin:'user_report',source:'m999',quote:'Tennis'},
       {topic:'Goal',value:'Invented',origin:'user_report',source:'m1',quote:'A sentence the athlete never supplied'}]){
@@ -166,7 +193,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     try{
       await send('Tennis is my priority.');assert.equal(a.turns.at(-1).questionTopic,'Availability');
       await send('Two half-hour sessions, but days vary.');assert.equal(a.turns.at(-1).questionTopic,'Equipment');assert.ok(observed[1].recent.some((x:any)=>x.text.includes('How much time')));
-      await send('Public courts. I walk now and have no important limitations.');assert.ok(a.turns.at(-1).reply.includes('Looks good'));assert.equal(a.turns.at(-1).questionTopic,'Onboarding recap');
+      await send('Public courts. I walk now and have no important limitations.');assert.ok(a.turns.at(-1).reply.includes('choose Continue'));assert.equal(a.turns.at(-1).questionTopic,'Onboarding recap');
       await send('Can you summarize that?');assert.equal(responseIndex,4);assert.equal(a.turns.at(-1).questionTopic,'Onboarding recap');
       await send('Actually only one half-hour session, not two.');assert.equal(responseIndex,5);assert.ok(a.turns.at(-1).reply.includes('One flexible half-hour session'));assert.ok(observed[4].sources.m2.includes('Two half-hour'));assert.ok(observed[4].sources.m5.includes('only one'));
       const before=calls, op=randomUUID(), oldId=a.id, revision=a.revision;
@@ -394,11 +421,12 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     assert.ok('turns' in recap);a=recap;
     const profileBefore=await profiles.read(alice), bobBefore=await store.create(bob);
     const ledger=async()=>({budget:(await owner.query('SELECT * FROM fitquest.ai_budget')).rows,attempts:(await owner.query('SELECT * FROM fitquest.onboarding_attempts ORDER BY id')).rows});
-    const before=await ledger();const finish={operationId:randomUUID(),expectedRevision:a.revision,kind:'message' as const,text:'Looks good'};
+    assert.equal(a.confirmableRevision,a.revision);const turnsBefore=a.turns;
+    const before=await ledger();const finish={operationId:randomUUID(),expectedRevision:a.revision,kind:'confirm' as const,reviewedRevision:a.revision};
     await owner.query("CREATE FUNCTION fitquest.fail_test_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic delete failure'; END $$; CREATE CONSTRAINT TRIGGER fail_test_delete AFTER DELETE ON fitquest.onboarding_conversations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fitquest.fail_test_delete()");
     try {
       await assert.rejects(service.command(alice,a.id,finish,async()=>true));
-      assert.equal((await store.read(alice,a.id)).turns.at(-1)?.questionTopic,'Onboarding complete');
+      assert.equal((await store.read(alice,a.id)).state,'confirmed');assert.deepEqual((await store.read(alice,a.id)).turns,turnsBefore);
       await assert.rejects(service.create(alice)); // No new session until cleanup commits.
       assert.equal(generated,1);
     }finally{await owner.query('DROP TRIGGER fail_test_delete ON fitquest.onboarding_conversations; DROP FUNCTION fitquest.fail_test_delete()')}
@@ -409,7 +437,8 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       assert.equal((await owner.query(`SELECT count(*)::int AS n FROM fitquest.${table} WHERE user_id=$1 AND ${field}=$2`,[alice.userId,a.id])).rows[0].n,0);
     }
     assert.deepEqual(await ledger(),before);assert.deepEqual(await profiles.read(alice),profileBefore);assert.deepEqual(await store.read(bob,bobBefore.id),bobBefore);
-    await assert.rejects(service.command(alice,a.id,finish,async()=>true),{code:'not_found'});assert.equal(generated,1);
+    assert.deepEqual(await service.command(alice,a.id,finish,async()=>true),deleted);assert.deepEqual(await service.read(alice,a.id),deleted);assert.equal(generated,1);
+    await assert.rejects(service.read(bob,a.id),{code:'not_found'});await assert.rejects(service.command(bob,a.id,finish,async()=>true),{code:'not_found'});
     const fresh=await service.create(alice);assert.notEqual(fresh.id,a.id);assert.equal(fresh.turns.length,0);
     assert.equal(await store.removeCompleted(alice,a.id),true);assert.equal((await store.read(alice,fresh.id)).id,fresh.id);
     await assert.rejects(store.removeCompleted(bob,fresh.id),{code:'not_found'});assert.equal((await store.read(alice,fresh.id)).id,fresh.id);

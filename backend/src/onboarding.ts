@@ -6,7 +6,11 @@ import { completedConversation, type Conversation, type OnboardingStore } from '
 
 export function onboardingService(store:OnboardingStore,provider?:OnboardingProvider,environment=process.env.NODE_ENV) {
   if(provider?.mode==='test' && environment==='production') throw new Error('Test AI is not allowed in production.');
-  const present=(conversation:Conversation)=>({...conversation,generationEnabled:!!provider,opening,disclosure,disclosureVersion});
+  const present=(conversation:Conversation)=>({...conversation,confirmableRevision:conversation.confirmableRevision??null,generationEnabled:!!provider,opening,disclosure,disclosureVersion});
+  const completionReceipt=async(account:Account,id:string)=>{
+    if(!await store.removeCompleted(account,id))throw new OnboardingError(409,'revision_conflict');
+    return {id,deleted:true as const,summarySaved:true as const,message:completionReply};
+  };
   const presentStored=async(account:Account,conversation:Conversation)=>{
     if(!completedConversation(conversation)) return present(conversation);
     if(!await store.removeCompleted(account,conversation.id)) throw new OnboardingError(409,'revision_conflict');
@@ -21,10 +25,20 @@ export function onboardingService(store:OnboardingStore,provider?:OnboardingProv
       // Stable operation ID prevents duplicate assessment charges across lost responses/reopens.
       return this.command(account,conversation.id,{kind:'assess',operationId:conversation.id,expectedRevision:conversation.revision},authorize);
     },
-    read:async(account:Account,id:string)=>presentStored(account,await store.read(account,id)),
+    read:async(account:Account,id:string)=>{
+      try{return await presentStored(account,await store.read(account,id))}
+      catch(error){if(error instanceof OnboardingError&&error.code==='not_found')return completionReceipt(account,id);throw error}
+    },
     remove:(account:Account,id:string)=>store.remove(account,id),
     async command(account:Account,id:string,command:Command,authorize:()=>Promise<boolean>) {
-      const claimed=await store.claim(account,id,command,provider);
+      let claimed;
+      try{claimed=await store.claim(account,id,command,provider)}
+      catch(error){
+        // Only the retained summary for this exact account/conversation proves a
+        // lost confirmation completed. Never infer success from absence alone.
+        if(command.kind==='confirm'&&error instanceof OnboardingError&&error.code==='not_found')return completionReceipt(account,id);
+        throw error;
+      }
       const presentOperation=async(conversation:Conversation)=>{
         const result=await presentStored(account,conversation);
         return 'deleted' in result?result:{...result,operationResult:await store.operation(account,id,command.operationId)};

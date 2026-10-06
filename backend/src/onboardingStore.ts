@@ -10,7 +10,7 @@ import { bounded, commandDigest, disclosureVersion, emptyContext, limits, Onboar
 import { minimizeModelInput, promptVersion, schemaVersion, type OnboardingProvider } from './onboardingProvider.js';
 
 export type Turn = { id: string; sequence: number; message: string; reply: string | null; questionTopic: string | null; state: 'pending' | 'completed' | 'failed'; error: string | null };
-export type Conversation = { id: string; revision: number; state: 'collecting' | 'confirmed'; confirmedRevision: number | null; context: Context; turns: Turn[]; profileChanged: boolean };
+export type Conversation = { id: string; revision: number; state: 'collecting' | 'confirmed'; confirmedRevision: number | null; confirmableRevision?: number | null; context: Context; turns: Turn[]; profileChanged: boolean };
 export type Claim = { conversation: Conversation; work?: { attempt: string; turnId: string; revision: number; profileVersion: string; body: string; sources: Record<string,string> } };
 
 export function completedConversation(conversation: Conversation) {
@@ -61,12 +61,22 @@ export function postgresOnboardingStore(pool: Pool) {
       await c.query("UPDATE fitquest.onboarding_operations SET status='failed',error_code='interrupted' WHERE user_id=$1 AND conversation_id=$2 AND attempt_id=$3 AND status='pending'",[account.userId,id,row.attempt_id]);
     }
   }
+  async function currentRecap(c:PoolClient,account:Account,id:string,number:number) {
+    return (await c.query(`SELECT 1 FROM fitquest.onboarding_operations o JOIN fitquest.onboarding_turns t
+      ON t.user_id=o.user_id AND t.conversation_id=o.conversation_id AND t.id=o.turn_id
+      WHERE o.user_id=$1 AND o.conversation_id=$2 AND o.result_revision=$3 AND o.status='completed'
+      AND t.state='completed' AND t.question_topic=$4
+      AND t.sequence=(SELECT max(sequence) FROM fitquest.onboarding_turns WHERE user_id=$1 AND conversation_id=$2)
+      AND NOT EXISTS(SELECT 1 FROM fitquest.onboarding_turns WHERE user_id=$1 AND conversation_id=$2 AND state='pending') LIMIT 1`,
+      [account.userId,id,number,recapTopic])).rowCount===1;
+  }
   async function snapshot(c: PoolClient, account: Account, id: string): Promise<Conversation> {
     const conv = await lock(c,account,id);
     const saved = (await c.query('SELECT context,profile_version FROM fitquest.onboarding_context_revisions WHERE user_id=$1 AND conversation_id=$2 AND revision=$3',[account.userId,id,conv.revision])).rows[0];
     const p = await profile(c,account);
     const rows = await c.query('SELECT id,sequence,message,reply,question_topic,state,error_code FROM fitquest.onboarding_turns WHERE user_id=$1 AND conversation_id=$2 ORDER BY sequence',[account.userId,id]);
-    return { id, revision:conv.revision,state:conv.state,confirmedRevision:conv.confirmed_revision,context:saved.context,profileChanged:saved.profile_version!==p.version,
+    const confirmable=conv.state==='collecting'&&saved.profile_version===p.version&&readyToPlan(saved.context)&&await currentRecap(c,account,id,conv.revision);
+    return { id, revision:conv.revision,state:conv.state,confirmedRevision:conv.confirmed_revision,confirmableRevision:confirmable?conv.revision:null,context:saved.context,profileChanged:saved.profile_version!==p.version,
       turns:rows.rows.map(x=>({id:x.id,sequence:x.sequence,message:x.message,reply:x.reply,questionTopic:x.question_topic,state:x.state,error:x.error_code})) };
   }
   async function revision(c: PoolClient, account: Account, id: string, number: number, context: Context, profileVersion: string) {
@@ -175,8 +185,7 @@ export function postgresOnboardingStore(pool: Pool) {
         if (command.kind==='confirm') {
           if(command.timeZone)await c.query('UPDATE fitquest.onboarding_conversations SET time_zone=$3 WHERE user_id=$1 AND id=$2',[account.userId,id,checkTimeZone(command.timeZone)]);
           if(command.reviewedRevision!==conv.revision || old.profile_version!==p.version) throw new OnboardingError(409,'review_changed');
-          const currentRecap=(await c.query("SELECT 1 FROM fitquest.onboarding_operations o JOIN fitquest.onboarding_turns t ON t.user_id=o.user_id AND t.conversation_id=o.conversation_id AND t.id=o.turn_id WHERE o.user_id=$1 AND o.conversation_id=$2 AND o.result_revision=$3 AND o.status='completed' AND t.state='completed' AND t.question_topic=$4 LIMIT 1",[account.userId,id,conv.revision,recapTopic])).rowCount;
-          if(!readyToPlan(context)||!currentRecap)throw new OnboardingError(409,'clarification_required');
+          if(!readyToPlan(context)||!await currentRecap(c,account,id,conv.revision))throw new OnboardingError(409,'clarification_required');
           // Persist the exact reviewed document, including origin and unknowns; no model call.
           await revision(c,account,id,number,context,p.version);
           await c.query("UPDATE fitquest.onboarding_conversations SET state='confirmed',confirmed_revision=$3 WHERE user_id=$1 AND id=$2",[account.userId,id,command.reviewedRevision]);
