@@ -17,14 +17,13 @@ test('checked workbook export preserves IDs, review/source fields and excludes a
   for(const a of eligibleActivities){assert.equal(a['Review status'],'AI consistency reviewed');assert.equal(Object.keys(a).length,28);for(const key of ['Easier alternative IDs','Harder alternative IDs'])for(const id of a[key] as string[])assert.doesNotThrow(()=>activity(id))}
   assert.equal(catalogIndex.length,251);
 });
-test('local calendar plans start tomorrow and end Sunday across zones, year change and DST',()=>{
-  assert.deepEqual(planDates('Pacific/Kiritimati',new Date('2026-12-31T12:00:00Z')),['2027-01-02','2027-01-03']);
-  assert.deepEqual(planDates('America/Los_Angeles',new Date('2026-10-04T02:00:00Z')),['2026-10-04']);
-  for(const date of ['2026-03-08T04:30:00Z','2026-11-01T03:30:00Z']){const days=planDates('America/New_York',new Date(date));assert.equal(days.length,1);assert.equal(new Date(days[0]!).getUTCDay(),0)}
+test('every local weekday generates its full Monday–Sunday week across timezone, DST and year boundaries',()=>{
+  assert.deepEqual(planDates('Pacific/Kiritimati',new Date('2026-12-31T12:00:00Z')),['2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01','2027-01-02','2027-01-03']);
+  assert.deepEqual(planDates('America/Los_Angeles',new Date('2026-10-04T02:00:00Z')),['2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-03','2026-10-04']);
+  for(const [now,first,last] of [['2026-03-08T04:30:00Z','2026-03-02','2026-03-08'],['2026-03-08T08:30:00Z','2026-03-02','2026-03-08'],['2026-11-01T03:30:00Z','2026-10-26','2026-11-01'],['2026-11-01T07:30:00Z','2026-10-26','2026-11-01']]){const days=planDates('America/New_York',new Date(now!));assert.equal(days[0],first);assert.equal(days.at(-1),last);assert.equal(days.length,7);}
   for(let weekday=0;weekday<7;weekday++){
-    const now=new Date(Date.UTC(2026,9,4+weekday,12)),days=planDates('UTC',now);
-    assert.equal(days.length,7-weekday);assert.equal(new Date(days[0]!).getTime()-Date.UTC(2026,9,4+weekday),86400000);
-    assert.equal(new Date(days.at(-1)!).getUTCDay(),0);assert.equal(new Set(days).size,days.length);
+    const now=new Date(Date.UTC(2026,9,5+weekday,12)),days=planDates('UTC',now);
+    assert.equal(days.length,7);assert.equal(days[0],'2026-10-05');assert.equal(days.at(-1),'2026-10-11');assert.equal(days[weekday],now.toISOString().slice(0,10));assert.equal(new Set(days).size,7);
   }
   assert.throws(()=>planDates('not a time zone'),{code:'invalid_timezone'});
 });

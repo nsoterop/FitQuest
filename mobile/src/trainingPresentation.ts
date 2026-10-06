@@ -43,3 +43,11 @@ export function sessionRows(s:Session,names:TrainingDay['detail']['activities'])
   }
   return rows;
 }
+
+// Calendar-only projection: never shift, remove, or mark saved prescriptions completed.
+export function visibleTrainingDates(dates:readonly string[],timeZone:string,now=new Date()):string[] {
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+  const part=(key:string)=>parts.find(p=>p.type===key)!.value;
+  const today=`${part('year')}-${part('month')}-${part('day')}`;
+  return dates.filter(date=>date>=today);
+}

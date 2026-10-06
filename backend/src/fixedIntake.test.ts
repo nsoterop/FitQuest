@@ -4,6 +4,7 @@ import { intakeQuestions,intakeSummary,intakeAnswers } from './fixedIntake.js';
 import { checkedSummary,planDates } from './trainingSummary.js';
 import { initialOutlinePrompt,preparePlainOutline,parsePlainOutline } from './plainOutline.js';
 import { openAIProvider } from './onboardingProvider.js';
+import { checkOverviewReview,overviewDays } from './outlinePlanning.js';
 import { outlineInput } from './outlinePlanningFixture.js';
 const answers=['Stronger and comfortable walking. '+ 'Exact report '.repeat(45),'Walk twice weekly','Floor and walking route','No preference; coach chooses.','None'];
 const dates=['2026-10-10','2026-10-11'];
@@ -38,4 +39,21 @@ test('provider accepts plain output and retains incomplete text without JSON rep
 test('inline rest alternatives preserve optional work and original duration ranges',()=>{
  const o=parsePlainOutline('Saturday: Rest or optional easy walk (15–20 min)\nSunday: Rest',dates);
  assert.equal(o.days[0]!.sessions.length,1);assert(o.days[0]!.restText);assert(o.days[0]!.sessions[0]!.plain?.optional);assert.deepEqual(o.days[0]!.sessions[0]!.plain?.durationRange,{min:15,max:20});
+});
+
+test('comma date headings no longer strand valid plain output; normal fields, optional rest and ranges survive',()=>{
+ const input=`### Saturday, October 10\n- Session 1: Strength practice\n  - Goal: Build strength\n  - Time: 20–30 minutes\n- Session 2: Optional walk | Goal: Recover gently | Time: 15–20 min\n### Sunday, October 11\nRest day\nGoal: Recovery\nTime: 0 minutes`;
+ const outline=parsePlainOutline(input,dates);assert.equal(outline.originalResponse,input);
+ assert.equal(outline.days[0]!.sessions.length,2);assert.equal(outline.days[0]!.sessions[0]!.focus,'Session 1: Strength practice');assert.equal(outline.days[0]!.sessions[0]!.plain?.goal,'Build strength');assert.equal(outline.days[0]!.sessions[1]!.plain?.goal,'Recover gently');assert.equal(outline.days[0]!.sessions[1]!.plain?.optional,true);assert.deepEqual(outline.days[0]!.sessions[1]!.plain?.durationRange,{min:15,max:20});assert.equal(outline.days[1]!.sessions.length,0);assert.match(outline.days[1]!.restText!,/Goal: Recovery/);
+ for(const title of ['#### Strength practice','**Strength practice**','Strength practice']){
+  const parsed=parsePlainOutline(`Saturday, 2026-10-10\n${title}\nGoal: Build strength\nTime: 0.5–0.75 hours\nTiming: Afternoon\nSunday: Rest`,dates);
+  assert.equal(parsed.days[0]!.sessions[0]!.focus,'Strength practice');assert.equal(parsed.days[0]!.sessions[0]!.plain?.timingText,'Afternoon');assert.deepEqual(parsed.days[0]!.sessions[0]!.plain?.durationRange,{min:30,max:45});
+ }
+ const week=planDates('UTC',new Date('2026-10-06T12:00:00Z'));assert.match(initialOutlinePrompt(answers,week),/full Monday–Sunday calendar week, 2026-10-05 through 2026-10-11 inclusive/);
+});
+
+test('adapter improvements preserve unchanged older plain outline representations during review',()=>{
+ const old=parsePlainOutline(text,dates);old.days[0]!.sessions[0]!.focus='Morning: Strength — 20–30 minutes';
+ const input={...outlineInput(dates),review:{feedback:'Keep the entire week unchanged.',context:null,outline:old,days:overviewDays(old)}};
+ assert.deepEqual(checkOverviewReview({outlineText:text,scope:[],reply:'The entire week is unchanged.',question:null},input).week!.outline,old);
 });

@@ -1,5 +1,11 @@
 # FitQuest mobile
 
+## Structured current-day-onward plan — 2026-10-06
+
+The normal outline UI uses separate day/session cards with focus, goal, supplied timing, approximate duration/range and optional/rest labels. Raw response text stays private for recovery. The screen projects saved dates from local today onward without moving or deleting any session. **Use this plan** runs the existing explicit `confirmOutline` + all-workouts request; failed, incomplete or unparsed outlines do not receive a usable-plan action.
+
+**97 mobile tests**, TypeScript and offline Expo compatibility pass. The renderer tests use the real deterministic backend parser with synthetic text, exercise all weekdays plus timezone/DST/year boundaries, and run five answers → parsed cards → duplicate Use this plan press → one all-detail request → exercises → free reopen. Explicit failure/retry and stale-revision blocking retain the saved outline. Matching Metro/release verification is pending; physical-phone appearance, keyboard and draft cleanup remain unverified.
+
 ## Fixed intake and plain outline — 2026-10-06
 
 The five-question form reveals one question after each saved answer, supports editing earlier answers and resumes private device drafts. Generate plan appears after all five answers; unfinished edits and pending saves block submission. The input uses the existing keyboard-aware scroll coordinator. The high-level plan displays its original response faithfully, including optional sessions, purposes and duration ranges; failed conversion displays recovery text without a confirmation action. Explicit review/confirmation and saved catalog-detail reads remain available.

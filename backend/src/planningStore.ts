@@ -1,5 +1,5 @@
 import { intakeAnswers } from './fixedIntake.js';
-import { preparePlainOutline } from './plainOutline.js';
+import { preparePlainOutline,parsePlainOutline } from './plainOutline.js';
 import { prepareOverview,overviewDays } from './outlinePlanning.js';
 import { safeDiagnostic,type ProviderDiagnostic } from './providerDiagnostics.js';
 import { prepareWeek,weeklyLimits,type CheckedWeek } from './weeklyPlanning.js';
@@ -163,6 +163,17 @@ export function planningStore(pool:Pool) {
         if(!job&&r.retryAttempt)throw new OnboardingError(409,'retry_unavailable');
         if(r.target==='outline'&&plan.outline || r.target!=='outline'&&r.target!=='week'&&(await c.query('SELECT 1 FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 AND date=$3',[a.userId,r.planId,r.target])).rowCount)return;
         if(r.target!=='outline'&&r.target!=='week'&&!plan.outline)throw new OnboardingError(409,'outline_required');
+        // An explicit retry may recover a previously rejected formatting variant for free.
+        // Never reinterpret refusals/incomplete responses, stale context, or usable saved work.
+        if(r.target==='outline'&&plan.outline_first&&!plan.outline&&plan.review_revision===0&&job?.error_code==='outline_conversion'&&job.raw_response&&job.profile_version===p.version&&job.summary_revision===s.revision&&p.age>=18){
+          let recovered:Outline|undefined;
+          try{recovered=parsePlainOutline(job.raw_response,plan.dates)}catch(error){if(!(error instanceof OnboardingError&&error.code==='outline_conversion'))throw error;}
+          if(recovered){
+            await c.query("UPDATE fitquest.training_plans SET outline=$3,review_state='draft',review_revision=1,review_note=NULL,review_context=NULL,confirmed_outline_revision=NULL WHERE user_id=$1 AND id=$2",[a.userId,r.planId,JSON.stringify(recovered)]);
+            await c.query("UPDATE fitquest.training_generations SET status='completed',error_code=NULL WHERE user_id=$1 AND plan_id=$2 AND target='outline'",[a.userId,r.planId]);
+            return;
+          }
+        }
         const input:PlanningInput={outlineFirst:plan.outline_first,preferences:s.preferences,kind:r.target==='week'?'week':r.target==='outline'?'outline':'day',summary:s.document,profile:{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb)},dates:plan.dates};
         if(input.kind==='week') {
           if(plan.outline_first)input.approvedOutlineRevision=r.planRevision;

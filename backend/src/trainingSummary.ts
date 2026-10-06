@@ -47,7 +47,8 @@ export function planDates(zone:string,now=new Date()) {
   const part=(key:string)=>Number(parts.find(p=>p.type===key)!.value);
   const local=Date.UTC(part('year'),part('month')-1,part('day'));
   // Advance calendar dates, not 24 hours in the user's zone (DST can be 23/25 hours).
-  return Array.from({length:7-new Date(local).getUTCDay()},(_,i)=>new Date(local+(i+1)*86400000).toISOString().slice(0,10));
+  const monday=local-((new Date(local).getUTCDay()+6)%7)*86400000;
+  return Array.from({length:7},(_,i)=>new Date(monday+i*86400000).toISOString().slice(0,10));
 }
 export function summaryFromContext(context:Context):TrainingSummary {
   if(context.intake)return intakeSummary(context.intake);

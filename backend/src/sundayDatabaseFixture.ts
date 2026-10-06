@@ -32,15 +32,15 @@ export async function verifySundayDatabase(t:TestContext,owner:Pool,pool:Pool,pr
  const service=planningService(store,provider,'test');
  const latest=async()=>{const s=await store.read(account);return {s,p:s.plans.find(p=>p.summaryRevision===s.summary.revision)!}};
  const generate=async(target:string,retryAttempt:string|null=null)=>{const {p}=await latest();return service.generate(account,{planId:p.id,summaryRevision:p.summaryRevision,target,retryAttempt,...(target==='week'?{planRevision:p.planRevision,confirmOutline:true}:{})},async()=>true)};
- await t.test('new Sunday ranges of 1–7 dates persist outline, macro review and all details; repeat confirmation and reopen are free',async()=>{
+ await t.test('new full calendar weeks and unchanged legacy partial ranges persist outline, macro review and all details; repeat confirmation and reopen are free',async()=>{
   for(let weekday=0;weekday<7;weekday++){
    if(weekday){const {s}=await latest();await store.edit(account,s.summary.revision,summary,'America/New_York');}
    const {s}=await latest();await store.ensurePlan(account,s.summary.revision);let {p}=await latest();
    assert.deepEqual(p.dates,planDates('America/New_York'));assert.equal(new Date(p.dates.at(-1)).getUTCDay(),0);
-   const dates=planDates('UTC',new Date(Date.UTC(2026,9,4+weekday,12)));
-   // Simulate creation on each weekday without changing clocks/accounting leases.
+   const dates=planDates('UTC',new Date(Date.UTC(2026,9,5+weekday,12))).slice(weekday);
+   // Saved legacy partial ranges remain readable and unchanged through review/details.
    await owner.query('UPDATE fitquest.training_plans SET dates=$3 WHERE user_id=$1 AND id=$2',[account.userId,p.id,JSON.stringify(dates)]);
-   const before=calls;await generate('outline');p=(await latest()).p;assert.equal(calls,before+1);assert.equal(p.outline.nutrition.status,'estimate');assert.equal(p.outline.days.length,7-weekday);assert.equal(p.outline.days[0].sessions.length,2);assert.equal(p.days.length,0);
+   const before=calls;await generate('outline');p=(await latest()).p;assert.equal(calls,before+1);assert.equal(p.outline.nutrition.status,'estimate');assert.equal(p.outline.days.length,dates.length);assert.equal(p.outline.days[0].sessions.length,2);assert.equal(p.days.length,0);
    const prior=structuredClone(p.outline);invalid=true;
    const request={planId:p.id,summaryRevision:p.summaryRevision,planRevision:p.planRevision,feedback:'Increase protein; keep all training unchanged.',retryAttempt:null as string|null};
    await service.review(account,request,async()=>true);p=(await latest()).p;assert.deepEqual(p.outline,prior);assert.equal(p.jobs.find((j:any)=>j.target==='review:1').error,'invalid_plan');

@@ -1,5 +1,13 @@
 # FitQuest API
 
+## Full calendar weeks and formatting recovery — 2026-10-06
+
+`planDates` now returns the seven Monday–Sunday dates containing local today, including Sunday itself. Only the date phrase changes in the successful simple initial prompt. Saved legacy ranges are not redated; full outlines remain the input to review and all-workouts generation. No migration, model/settings change or paid evaluation.
+
+The actual missing-action state was a failed `outline_conversion` job with revision zero and no outline. A normal comma between weekday and date caused rejection. The adapter now handles that punctuation, ordinary Markdown/plain session headings and separate/inline Goal/Time fields, retaining timing, ranges and optional/rest work. An explicit matching retry may safely re-convert the stored response for free when its profile/summary revision is current; refusals, incomplete output, stale context and usable saved work cannot take that path. Unchanged older plain session representations remain unchanged during review.
+
+Validation: **210 backend tests**, isolated PostgreSQL, zero skips; exact prompt/date checks, five-question intake, full-week persistence, legacy ranges, conversion recovery without new accounting, protected reviews and all-detail confirmation. Release evidence follows verification.
+
 ## Fixed intake and plain outline — 2026-10-06
 
 New clients use `fixed-intake-v1`: five ordered, editable free-text answers (up to 4,000 characters each) persist verbatim without a provider call. Final submission retains these answers privately and removes intake revisions/operations. The initial metered request contains only the owner’s coaching template and actual tomorrow-through-Sunday dates, with existing provider/model/settings. It uses plain text, without the old coaching instructions, profile, catalog, nutrition or structured-output schema. Older conversations and plans remain readable.

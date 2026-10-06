@@ -1,5 +1,13 @@
 # FitQuest
 
+## Full calendar week and usable outline cards — 2026-10-06
+
+New plans retain the full Monday–Sunday week containing the athlete’s local today; the screen displays today onward without shifting sessions or marking past prescriptions complete. Existing saved dates stay unchanged. Structured day/session cards now show focus, goal, supplied timing, duration ranges and optional/rest labels. **Use this plan** explicitly confirms the outline and creates all detailed workouts together.
+
+Read-only owner diagnosis found an `outline_conversion` failure, no saved outline and revision zero: ordinary comma-separated Markdown day/date headings were rejected. The adapter now accepts that format plus separate Goal/Time fields and ordinary session headings. Explicit retry can re-convert a saved formatting failure without another AI request, preserving the same dates, attempt and budget. Refused/incomplete or still-invalid output remains recoverable without fabricated readiness; raw responses stay private. No additional paid evaluation or migration is needed.
+
+Validation: **210 backend tests with isolated PostgreSQL and zero skips; 97 mobile tests**, TypeScript, offline Expo compatibility and diff checks. Tests cover each weekday/timezone/DST/year boundary, unchanged legacy ranges, actual parsed response → rendered cards → Use this plan → all seven saved detailed days, retry/stale/duplicate/account isolation and free reopen. Deployment, matching Metro verification and fresh owner-only cleanup are pending; physical-phone acceptance is unverified.
+
 ## Fixed intake and plain outline — 2026-10-06
 
 Exactly five progressive questions now save the athlete’s answers verbatim; earlier answers remain editable and intake makes no AI requests. Generate plan sends the owner’s plain-language template with factual tomorrow-through-Sunday dates. A deterministic adapter retains the original response and every recognized session, duration range, timing, purpose, rest option and optional session. Failed conversion stays recoverable; explicit review and confirmation still lead to catalog-backed details.

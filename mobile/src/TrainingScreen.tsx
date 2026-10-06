@@ -1,6 +1,6 @@
 import { nutritionText } from './nutrition';
 import { useConversationScroll } from './ConversationScrollView';
-import { sessionRows } from './trainingPresentation';
+import { sessionRows,visibleTrainingDates } from './trainingPresentation';
 import type { RecoveryRequest } from './onboardingApi';
 import { privateDrafts } from './onboardingDraftStorage';
 import { useEffect,useRef,useState } from 'react';
@@ -13,7 +13,7 @@ const calendarDate=(date:string)=>`${new Intl.DateTimeFormat('en-US',{weekday:'l
 type TrainingProps={userId:string;accessToken:()=>Promise<string>;onClose:()=>void;onSessionEnded?:()=>void;onClarify?:(request:RecoveryRequest)=>void;generateOnOpen?:boolean};
 export function TrainingScreen(props:TrainingProps){return <AccountTrainingScreen key={props.userId} {...props}/>}
 function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClarify,generateOnOpen=false}:TrainingProps) {
-  const [state,setState]=useState<TrainingState|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false),[facts,setFacts]=useState<TrainingFact[]>([]),[showSummary,setShowSummary]=useState(false),[showOriginal,setShowOriginal]=useState(false),[selected,setSelected]=useState(''),[feedback,setFeedback]=useState('');
+  const [state,setState]=useState<TrainingState|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false),[facts,setFacts]=useState<TrainingFact[]>([]),[showSummary,setShowSummary]=useState(false),[selected,setSelected]=useState(''),[feedback,setFeedback]=useState('');
   const alive=useRef(true),pending=useRef<AbortController|null>(null),token=useRef(accessToken),ended=useRef(onSessionEnded);token.current=accessToken;ended.current=onSessionEnded;
   const initial=useRef(generateOnOpen);
   const composer=useRef<View|null>(null),question=useRef<View|null>(null),scroll=useConversationScroll();
@@ -32,6 +32,7 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
   }
   const current=state?.plans.find(p=>p.summaryRevision===state.summary?.revision);
   const shown=state?.plans.find(p=>p.id===selected)??current??state?.plans[0];
+  const visibleDates=shown?visibleTrainingDates(shown.dates,shown.timeZone):[];
   const overviewReady=!!shown?.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length;
   const reviewing=(shown?.reviewState==='draft'||shown?.reviewState==='accepted')&&(!shown?.outlineFirst||!weekComplete(shown));
   const reviewJob=shown?.jobs.find(j=>j.target===`review:${shown.planRevision}`);
@@ -60,14 +61,24 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
       {plan.summaryRevision===state.summary.revision&&onClarify&&button('Continue clarification',()=>onClarify({planId:plan.id,summaryRevision:state.summary!.revision,target}))}
     </View>;
   }
+  function sessionSummary(session:NonNullable<TrainingPlan['outline']>['days'][number]['sessions'][number],detail?:TrainingDay['detail']['sessions'][number]){
+    const timing=session.plain?.timingText??session.timing??detail?.timing,minutes=session.estimatedMinutes??detail?.estimatedMinutes;
+    return <View style={styles.exercise}>
+      <Text style={styles.label}>{session.focus}</Text>
+      {session.plain?.optional&&<Text style={styles.small}>Optional session</Text>}
+      {!!session.plain?.goal&&<Text style={styles.copy}>{session.plain.goal}</Text>}
+      {!!timing&&<Text style={styles.small}>{timing[0]!.toUpperCase()+timing.slice(1)}</Text>}
+      {!!session.plain?.durationText?<Text style={styles.copy}>About {session.plain.durationText}</Text>:minutes!==undefined&&<Text style={styles.copy}>About {minutes} min</Text>}
+    </View>;
+  }
   function showDay(day:TrainingDay) {
     const d=day.detail;
     if(needsClarification(d))return clarification(d,day.date);
     return <View key={day.date} style={styles.day}>
       {d.coverage.map(code=><Text key={code} style={styles.copy}>{coverageText[code]??'Catalog coverage is limited.'}</Text>)}
-      {!d.sessions.length&&!d.coverage.length&&<Text style={styles.copy}>Rest — no prescribed session.</Text>}
+      {!d.sessions.length&&!d.coverage.length&&!shown?.outline?.days.find(x=>x.date===day.date)?.restText&&<Text style={styles.copy}>Rest — no prescribed session.</Text>}
       {d.sessions.map((s,i)=><View key={i} style={styles.day}>
-        <Text style={styles.label}>{shown?.outline?.days.find(x=>x.date===day.date)?.sessions[i]?.plain?.optional?'Optional · ':''}{shown?.outline?.days.find(x=>x.date===day.date)?.sessions[i]?.focus??`Session ${i+1}`}{s.timing?` · ${s.timing[0]!.toUpperCase()}${s.timing.slice(1)}`:''}</Text>
+        {sessionSummary(shown?.outline?.days.find(x=>x.date===day.date)?.sessions[i]??{focus:`Session ${i+1}`,activityIds:[]},s)}
         {sessionRows(s,d.activities).map((row,j,rows)=><View key={j} style={styles.exercise}>
           {(j===0||rows[j-1]?.phase!==row.phase)&&row.phase!=='main'&&<Text style={styles.small}>{({warmup:'Warm-up',cooldown:'Cool-down',optional:'Optional'} as Record<string,string>)[row.phase]??row.phase}</Text>}
           {j>0&&rows[j-1]?.phase!==row.phase&&row.phase==='main'&&<Text style={styles.small}>Main</Text>}
@@ -103,7 +114,7 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
         !current.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)&&
         button(current.outlineFirst?(current.jobs.some(j=>j.target==='outline'&&j.status==='failed')?'Retry weekly outline':'Generate weekly outline'):current.jobs.some(j=>j.target==='week'&&j.status==='failed')?'Retry weekly plan':current.outline?'Complete weekly plan':'Generate weekly plan',()=>void run(request=>initialPlan(request,state,true)))}
     </>}
-    {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)||shown.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)?'Planning needs attention':`${weekComplete(shown)?`${shown.dates.length} ${shown.dates.length===1?'day':'days'}`:shown.outlineFirst&&overviewReady?'Weekly outline':'Week incomplete'} · ${shown.timeZone}`}</Text>
+    {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)||shown.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)?'Planning needs attention':`${weekComplete(shown)?`${visibleDates.length} ${visibleDates.length===1?'day':'days'}`:shown.outlineFirst&&overviewReady?'Weekly outline':'Week incomplete'} · ${shown.timeZone}`}</Text>
       {reviewing&&<Text style={styles.label}>{shown.reviewState==='accepted'?'Accepted plan':shown.outlineFirst?'Draft outline — review your week':'Draft plan — review your week'}</Text>}
       {shown.reviewState==='legacy'&&<Text style={styles.small}>Saved plan — acceptance was not recorded.</Text>}
       {shown.outline?.nutrition&&<View style={styles.exercise}><Text style={styles.copy}>{nutritionText(shown.outline.nutrition)}</Text>
@@ -114,13 +125,17 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
       {shown.outline&&needsClarification(shown.outline)?clarification(shown.outline,'outline'):shown.outline?.coverage.map(code=><Text key={code} style={styles.error}>{coverageText[code]??'Catalog coverage is limited.'} A usable outline has not been created.</Text>)}
       {shown.outline?.goalDecisions?.filter(g=>g.status!=='addressed').map((g,i)=><Text key={`goal-${i}`} style={styles.small}>{g.goal}: {g.reason}</Text>)}
       {shown.jobs.filter(j=>j.status!=='completed'&&(j.target===`review:${shown.planRevision}`||j.target==='week'||j.target===`details:${shown.planRevision}`||!shown.jobs.some(x=>x.target==='week'))).map(j=><Text key={j.target} style={styles.copy}>{j.target.startsWith('review:')?'Changes':j.target==='week'?'Week':j.target.startsWith('details:')?'Workouts':j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':trainingError(j.error??'unavailable')}</Text>)}
-      {shown.outline?.sourceFormat==='plain-v1'&&<>
-        {weekComplete(shown)&&button(showOriginal?'Hide original outline':'View original outline',()=>setShowOriginal(!showOriginal),true)}
-        {(!weekComplete(shown)||showOriginal)&&<Text selectable style={styles.copy}>{shown.outline.originalResponse}</Text>}
-      </>}
-      {!shown.outline&&shown.jobs.filter(j=>j.rawResponse&&j.status==='failed').map(j=><View key={`raw-${j.target}`} style={styles.day}><Text style={styles.label}>Response saved for recovery — not a usable plan</Text><Text selectable style={styles.copy}>{j.rawResponse}</Text></View>)}
-      {shown.outline&&(shown.outline.sourceFormat!=='plain-v1'||weekComplete(shown))&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.map(d=><View key={d.date} style={styles.day}><Text style={styles.label}>{calendarDate(d.date)} · {d.sessions.length?d.sessions.map(s=>s.focus).join(' + '):'Rest'}</Text>
-        {shown.days.some(x=>x.date===d.date)?shown.reviewState==='draft'?<View style={styles.exercise}>{shown.days.find(x=>x.date===d.date)!.detail.sessions.length?shown.days.find(x=>x.date===d.date)!.detail.sessions.map((session,i)=><Text key={i} style={styles.copy}>{session.timing?session.timing[0]!.toUpperCase()+session.timing.slice(1):'Flexible'} · {d.sessions[i]?.focus} · About {session.estimatedMinutes} min</Text>):<Text style={styles.copy}>Rest — no prescribed session.</Text>}</View>:showDay(shown.days.find(x=>x.date===d.date)!):shown.outlineFirst?<View style={styles.exercise}>{d.sessions.length?d.sessions.map((session,i)=><Text key={i} style={styles.copy}>{session.timing?session.timing[0]!.toUpperCase()+session.timing.slice(1):'Flexible'} · {session.focus} · About {session.estimatedMinutes} min</Text>):<Text style={styles.copy}>Rest — no planned session.</Text>}</View>:<Text style={styles.copy}>Details not generated.</Text>}
+      {!shown.outline&&shown.jobs.filter(j=>j.rawResponse&&j.status==='failed').map(j=><View key={`raw-${j.target}`} style={styles.day}><Text style={styles.label}>Response saved for recovery — not a usable plan</Text><Text style={styles.copy}>{j.error==='outline_conversion'?'The response could not be converted into a complete dated outline. Retry checks the saved response first; a new AI request is used only if it still cannot be converted.':'The response did not produce a usable outline. An explicit retry requests a new plan.'}</Text></View>)}
+      {shown.outline&&!visibleDates.length&&<Text style={styles.copy}>No remaining days in this saved week. Its full dated plan is still saved.</Text>}
+      {shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.filter(d=>visibleDates.includes(d.date)).map(d=><View key={d.date} accessibilityLabel={`Training day ${d.date}`} style={styles.day}>
+        <Text accessibilityRole="header" style={styles.label}>{calendarDate(d.date)}</Text>
+        {d.restText&&<Text style={styles.copy}>{d.restText}</Text>}
+        {shown.days.some(x=>x.date===d.date)&&shown.reviewState!=='draft'?showDay(shown.days.find(x=>x.date===d.date)!):<>
+          {!d.sessions.length&&!d.restText&&<Text style={styles.copy}>Rest — no planned session.</Text>}
+          {d.sessions.map((session,i)=><View key={i} accessibilityLabel={`Session ${i+1} on ${d.date}`} style={styles.session}>
+            {sessionSummary(session,shown.days.find(x=>x.date===d.date)?.detail.sessions[i])}
+          </View>)}
+        </>}
       </View>)}
       {reviewing&&(shown.outlineFirst?overviewReady:weekComplete(shown))&&shown.summaryRevision===state?.summary?.revision&&<View style={styles.day}>
         <View ref={question} collapsable={false}><Text accessibilityRole={shown.reviewQuestion?"alert":undefined} style={styles.copy}>{shown.reviewQuestion??'What would you change, and what should stay?'}</Text></View>
@@ -133,7 +148,7 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
           const next=result.plans.find(p=>p.id===shown.id);if(next?.planRevision!==shown.planRevision)setFeedback('');
         }),false,!feedback.trim()||!!inFlight)}
         {shown.reviewState==='draft'&&!shown.outlineFirst&&button('Use this plan',()=>void run(async request=>{await request('/accept','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision})}),false,!!feedback.trim()||!!inFlight||!!shown.reviewQuestion)}
-        {shown.outlineFirst&&button(shown.jobs.some(j=>j.target===`details:${shown.planRevision}`&&j.status==='failed')?'Retry creating workouts':'Confirm outline and create workouts',()=>void run(async request=>{
+        {shown.outlineFirst&&button(shown.jobs.some(j=>j.target===`details:${shown.planRevision}`&&j.status==='failed')?'Retry creating workouts':'Use this plan',()=>void run(async request=>{
           const job=shown.jobs.find(j=>j.target===`details:${shown.planRevision}`);
           await request('/generate','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision,confirmOutline:true,target:'week',retryAttempt:job?.status==='failed'?job.attemptId:null});
         }),false,!!feedback.trim()||!!inFlight||!!shown.reviewQuestion||!!error)}
@@ -144,4 +159,4 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
     {button('Back to greeting',onClose,true)}
   </View>;
 }
-const styles=StyleSheet.create({screen:{gap:14,marginTop:20},title:{fontSize:26,color:'#193B34',fontWeight:'600'},label:{fontSize:16,color:'#193B34',fontWeight:'600'},copy:{fontSize:16,lineHeight:23,color:'#52655E'},small:{fontSize:13,lineHeight:19,color:'#52655E'},day:{gap:12,paddingVertical:12,borderTopWidth:1,borderColor:'#DDE5DD'},exercise:{gap:6},button:{padding:14,borderRadius:12,backgroundColor:'#176B5B',minHeight:46},buttonText:{fontSize:16,color:'#fff',textAlign:'center'},secondary:{backgroundColor:'#EDF2ED'},input:{borderWidth:1,borderColor:'#91A69B',borderRadius:8,padding:10,color:'#193B34',fontSize:16,minHeight:65},error:{color:'#9B302C',fontSize:16}});
+const styles=StyleSheet.create({screen:{gap:14,marginTop:20},title:{fontSize:26,color:'#193B34',fontWeight:'600'},label:{fontSize:16,color:'#193B34',fontWeight:'600'},copy:{fontSize:16,lineHeight:23,color:'#52655E'},small:{fontSize:13,lineHeight:19,color:'#52655E'},day:{gap:12,paddingVertical:12,borderTopWidth:1,borderColor:'#DDE5DD'},session:{gap:6,padding:12,borderRadius:12,backgroundColor:'#EDF2ED'},exercise:{gap:6},button:{padding:14,borderRadius:12,backgroundColor:'#176B5B',minHeight:46},buttonText:{fontSize:16,color:'#fff',textAlign:'center'},secondary:{backgroundColor:'#EDF2ED'},input:{borderWidth:1,borderColor:'#91A69B',borderRadius:8,padding:10,color:'#193B34',fontSize:16,minHeight:65},error:{color:'#9B302C',fontSize:16}});
