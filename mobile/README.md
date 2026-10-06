@@ -4,7 +4,7 @@
 
 The five-question form reveals one question after each saved answer, supports editing earlier answers and resumes private device drafts. Generate plan appears after all five answers; unfinished edits and pending saves block submission. The input uses the existing keyboard-aware scroll coordinator. The high-level plan displays its original response faithfully, including optional sessions, purposes and duration ranges; failed conversion displays recovery text without a confirmation action. Explicit review/confirmation and saved catalog-detail reads remain available.
 
-Validation: **94 mobile tests**, TypeScript and offline Expo compatibility. Synthetic renderer checks cover progression, long verbatim answers, prior edits/draft resume, retry identity, account switching, raw-outline display and failure/reopen behavior. No native build. Served Metro source verification and the owner-only reset follow deployment; actual phone keyboard behavior and draft cleanup are still unverified.
+Validation: **94 mobile tests**, TypeScript and offline Expo compatibility. Synthetic renderer checks cover progression, long verbatim answers, prior edits/draft resume, retry identity, account switching, raw-outline display and failure/reopen behavior. No native build. The matching Metro iOS manifest/bundle both return 200 and all nine inspected source-map files match the published source, including `FixedIntakeForm.tsx`. Backend SHA `9f083fa69ca692bb7c82ccb080878c091aa384b1` is live and the owner-only server reset/readback is complete. Actual phone keyboard behavior and draft cleanup are still unverified.
 
 ## Sunday plans and nutrition — matching release served
 

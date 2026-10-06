@@ -6,7 +6,7 @@ New clients use `fixed-intake-v1`: five ordered, editable free-text answers (up 
 
 `plainOutline.ts` converts ordinary day/session lists deterministically, preserving original text, session order, explicit timing/purpose, optional/rest semantics and duration ranges. Missing/ambiguous/incomplete/refused output remains a failed, explicit-retry job; there is no repair/extraction call. Reviews preserve protected work and confirmation creates all catalog details in one request. Forward migration `20261006175043_fixed_intake_plain_outline.sql` only expands existing private JSON bounds and adds bounded private `raw_response` storage; it does not rewrite records, grants or accounting.
 
-Validation: **208 backend tests, isolated PostgreSQL, zero skips**, TypeScript and diff checks. Includes exact request bytes/content, zero-intake accounting, lost-response duplicates, ownership, failed response retention, protected revision failure/retry and four-session catalog details. No paid evaluation. Hosted migration/deployment/reset evidence is recorded after release completion.
+Validation: **208 backend tests, isolated PostgreSQL, zero skips**, TypeScript and diff checks. Includes exact request bytes/content, zero-intake accounting, lost-response duplicates, ownership, failed response retention, protected revision failure/retry and four-session catalog details. No paid evaluation. Hosted migration/deployment/reset verification is complete; see the current root README evidence. The live SHA is `9f083fa69ca692bb7c82ccb080878c091aa384b1`; all eight owner test-content tables are empty on the fresh 2:16:28 PM EDT readback, with 106 accounting attempts and the single allowance preserved.
 
 ## Sunday plans and nutrition — implementation and release
 
