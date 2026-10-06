@@ -16,9 +16,36 @@ Estimation references checked October 6:
 
 Product guardrails are conservative automated-scope choices, not personalized medical thresholds: maintenance adjustment 0%; explicit loss −10–0%; gain 0–5%; at most 500 kcal estimated deficit; 1,500–5,000 kcal and never below estimated resting needs; height 120–230 cm, weight 35–250 kg, BMI at least 18.5. Outside these bounds or with reported special dietary needs, defer to individual guidance. Calories round to 50 kcal; grams round to whole numbers. Carbohydrate must remain at least 130 g and at most 10 g/kg; 4/4/9 macro energy must match within 5 kcal. Invalid/nonfinite/negative/intent-inconsistent proposals fail rather than silently clamp. Activity-factor and goal/training interpretations remain model judgments; clinical suitability is not independently verified. The visible result is a daily starting estimate with rationale/assumptions, not a precision or clearance claim.
 
-Migration **`20261006151040_sunday_ending_plans.sql`** only replaces the seven-date CHECK with an array-length 1–7 CHECK. No data rewrite, new table, privilege/RLS change or accounting change. Created via Supabase CLI; applied only to the disposable test database. Legacy content/account/profile/accounting preservation and ownership/grants passed. Prompt receipts advance to `onboarding-v14` / `understanding-v4`, `outline-v2`, `outline-review-v2`, `outline-details-v2`; legacy planning/review prompt receipts also advance, with no model/settings change.
+Migration **`20261006151040_sunday_ending_plans.sql`** only replaces the seven-date CHECK with an array-length 1–7 CHECK. No data rewrite, new table, privilege/RLS change or accounting change. Created via Supabase CLI; verified in the disposable database, then applied to the existing FitQuest project with exact migration-history/source equality. Legacy content/account/profile/accounting preservation and ownership/grants passed. Prompt receipts advance to `onboarding-v14` / `understanding-v4`, `outline-v2`, `outline-review-v2`, `outline-details-v2`; legacy planning/review prompt receipts also advance, with no model/settings change.
 
-Verification: **199 backend tests / zero skips**, including every range length through stored outline, nutrition review/retry, explicit detail confirmation, acceptance and free reopen; legacy persistence; failed revisions; quote provenance; missing/sensitive inputs; numeric math and unit conversions; exact date/goal/catalog constraints. **91 mobile tests / zero skips**, both typechecks, offline Expo compatibility (offline-validation caveat), and diff checks pass. Logs: `/tmp/fitquest-sunday-backend.log`, `/tmp/fitquest-sunday-mobile.log`. Disposable local PostgreSQL is stopped after verification. No paid model evaluation or production access was used for this candidate. Fresh real-model session choice, nutrition interpretation and programming quality, physical-phone behavior, deployment remain unverified at this implementation checkpoint. Engineering now owns direct publication and release; no further HQ gate applies.
+Verification: **199 backend tests / zero skips**, including every range length through stored outline, nutrition review/retry, explicit detail confirmation, acceptance and free reopen; legacy persistence; failed revisions; quote provenance; missing/sensitive inputs; numeric math and unit conversions; exact date/goal/catalog constraints. **91 mobile tests / zero skips**, both typechecks, offline Expo compatibility (offline-validation caveat), and diff checks pass. Final repair logs: `/tmp/fitquest-sunday-release-backend.log`, `/tmp/fitquest-sunday-release-mobile.log`. Disposable local PostgreSQL is stopped after verification. No paid model evaluation was made. Deployment and reset are verified below; fresh real-model session choice, nutrition interpretation/programming quality and physical-phone behavior remain unverified.
+
+## October 6 Sunday release evidence
+
+October 6: [application SHA `6b5bae038a2c6c05bbd26dcd3ce694161b690f49` is Live on Render](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db2ifsnlot8c7399n4e0) (12:55:14 PM EDT, 37.9 seconds). Runtime instance `48pth` reports the exact SHA; nine changed compiled runtime files and the catalog match the tested build. Health and all 26 signed-out/invalid-token private-route checks pass. GPT-6 Luna, the $7 cap and existing service settings remain unchanged. The scoped Sunday-date migration is applied with exact source/history equality; all 16 inspected tables and private RLS/policies/grants were preserved.
+
+Metro at **`http://192.168.1.173:8081`** was restarted with cache cleared. Actual iOS manifest and **4,938,721-byte** bundle return 200; eight relevant source-map files match the release, and served code contains nutrition rendering, 1–7-date validation, Continue, outline confirmation and recovery. Bundle SHA-256: `d877176b6314f1d3f454cd5e07b52c12ef39d4ef294d0ca373b8e3a9db2723e5`.
+
+Required owner-only reset committed **12:57:41 PM EDT**; an independent server read at **12:57:50 PM** confirms all eight conversation/planning tables empty. Exactly one account/email matches the verified owner. Removed **one summary, two plans and three generation records**; conversation, turns, revisions, operations and day details were already empty. Fresh identity/cascade/trigger/in-flight checks and the per-user advisory lock guarded exact target fingerprints and affected counts. Account/profile/Auth/session/counter/other-user records, all **101** independent AI attempts and the single ledger match before/after/readback fingerprints. No paid call, owner regeneration, model/configuration change or native build occurred.
+
+**Physical-phone reload, matching local-draft cleanup, keyboard/layout and fresh live coaching quality remain unverified.** Reload, then Start onboarding → Continue to onboarding invokes existing scoped stale-draft cleanup. Earlier release evidence below is historical.
+
+Preserved fingerprints (deterministically ordered JSONB rows; no private contents exported):
+
+| Records | Count | Unchanged MD5 |
+| --- | ---: | --- |
+| auth.users | 1 | `0140c9132f322dee38d65bcac437fe48` |
+| auth.sessions | 2 | `30b277b06096d996a447c11132dd421e` |
+| auth.identities | 1 | `087753eb52944a5f40dc050257ef72ac` |
+| fitquest.profiles | 1 | `80b860537b6bfacc79b6690e5e73793e` |
+| fitquest.ai_budget | 1 | `b96ba50a18c9373f082475bac9f7944b` |
+| auth.refresh_tokens | 14 | `72af359c036808b2cd9ecd832ef2a182` |
+| fitquest.onboarding_attempts | 101 | `2357c2daa67f618ce8ccf7e804121967` |
+| fitquest.onboarding_request_limits | 1 | `d9cc30ef459c2844911a2c34526d9696` |
+
+All other-user content counts remain zero. Ledger: **151,995 settled / 226,518 reserved microUSD**, evaluation **53,348 / 2,308**, original lifetime/evaluation caps **7,000,000 / 250,000**. Older uncertain charges/reservations remain intact. Catalog SHA-256 remains `bb0d257db606c193fec8dfbb20b833d21c8b7aa58efdb15a61b52bafccdee561`. All 12 private tables retain enabled/forced RLS, policy MD5 `6c640224c53d05fc7e84de98acd92ca6` and grants MD5 `76bf3828a6acf2c5a4580e34ac0c6d90`. Only `20261006151040_sunday_ending_plans.sql` was applied in this release; no destructive reset migration was replayed.
+
+Local evidence: `/tmp/fitquest-6b5bae0-release-evidence.json`, `/tmp/fitquest-6b5bae0-hashes.json`, `/tmp/fitquest-6b5bae0-metro.json`, `/tmp/fitquest-sunday-release-6b5bae0.jpg`. Documentation publication does not require another application deployment/reset.
 
 ## October 6 release evidence
 

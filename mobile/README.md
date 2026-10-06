@@ -1,10 +1,19 @@
 # FitQuest mobile
 
-## Sunday plans and nutrition — release in progress
+## Sunday plans and nutrition — matching release served
 
 The client accepts 1–7 dated days and labels completed plans with their actual count; saved rolling-seven-day plans remain readable. Outline review shows a compact daily kcal/protein/carbohydrate/fat line with starting-estimate rationale/assumptions, or a deferral explanation alongside usable training. The existing feedback, explicit workout confirmation, pending/retry/revision and free-reopen flow remains. Nutrition follows the approved outline into the detailed plan. Editing nutrition summary prose clears stale structured inputs.
 
-**91 mobile tests / zero skips**, TypeScript and offline Expo compatibility (offline-validation caveat) pass. Actual React component tests inspect 1/3/7-date estimates and deferrals, unchanged training availability, and no POST on reopen; numeric client checks reject inconsistent macro energy. Backend passes **199 tests with isolated PostgreSQL / zero skips**. Engineering owns publication and release directly; live verification is in progress. Metro may serve local JavaScript against the prior deployed backend; do not describe that mixed state as this release. No native build, paid evaluation, hosted change or owner reset occurred. Fresh real AI behavior and physical-phone layout/keyboard acceptance remain unverified. Existing completed-release evidence below is unchanged.
+**91 mobile tests / zero skips**, TypeScript and offline Expo compatibility (offline-validation caveat) pass. Actual React component tests inspect 1/3/7-date estimates and deferrals, unchanged training availability, and no POST on reopen; numeric client checks reject inconsistent macro energy. Backend passes **199 tests with isolated PostgreSQL / zero skips**. Deployment, matching served JavaScript and required reset are verified below.
+
+October 6: [application SHA `6b5bae038a2c6c05bbd26dcd3ce694161b690f49` is Live on Render](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db2ifsnlot8c7399n4e0) (12:55:14 PM EDT, 37.9 seconds). Runtime instance `48pth` reports the exact SHA; nine changed compiled runtime files and the catalog match the tested build. Health and all 26 signed-out/invalid-token private-route checks pass. GPT-6 Luna, the $7 cap and existing service settings remain unchanged. The scoped Sunday-date migration is applied with exact source/history equality; all 16 inspected tables and private RLS/policies/grants were preserved.
+
+Metro at **`http://192.168.1.173:8081`** was restarted with cache cleared. Actual iOS manifest and **4,938,721-byte** bundle return 200; eight relevant source-map files match the release, and served code contains nutrition rendering, 1–7-date validation, Continue, outline confirmation and recovery. Bundle SHA-256: `d877176b6314f1d3f454cd5e07b52c12ef39d4ef294d0ca373b8e3a9db2723e5`.
+
+Required owner-only reset committed **12:57:41 PM EDT**; an independent server read at **12:57:50 PM** confirms all eight conversation/planning tables empty. Exactly one account/email matches the verified owner. Removed **one summary, two plans and three generation records**; conversation, turns, revisions, operations and day details were already empty. Fresh identity/cascade/trigger/in-flight checks and the per-user advisory lock guarded exact target fingerprints and affected counts. Account/profile/Auth/session/counter/other-user records, all **101** independent AI attempts and the single ledger match before/after/readback fingerprints. No paid call, owner regeneration, model/configuration change or native build occurred.
+
+**Physical-phone reload, matching local-draft cleanup, keyboard/layout and fresh live coaching quality remain unverified.** Reload, then Start onboarding → Continue to onboarding invokes existing scoped stale-draft cleanup. Earlier release evidence below is historical.
+
 
 ## Continue and outline-first — matching release served
 
