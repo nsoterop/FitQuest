@@ -187,16 +187,15 @@ test('explicit natural-language goal set survives intake, recap and planning inp
   assert.equal(repeated.split(facts.goals).length-1,1);assert.equal(repeated.split(facts.availability).length-1,1);
 });
 
-test('optional ideal-day question is adaptive; mocked known single/distributed/flexible preferences proceed without re-asking',()=>{
+test('known preferences and coach-chosen arrangements proceed without a preference question',()=>{
   const facts={goals:'Enjoy walking.',experience:'Walks twice weekly.',equipment:'Safe walking path.',limitations:'No limitations reported.'};
   for(const availability of ['I prefer shorter sessions spread throughout the day, 20 minutes per session.', 'One main session is my preference, even though two slots are available.', 'A mix is fine; leave the arrangement to you.', 'No preference; unknown days are fine.']){
     const result=turn(emptyContext(),{m1:Object.values(facts).join(' '),m2:availability},response({...facts,availability},null));
     assert.equal(result.displayed.nextQuestion!.topic,recapTopic);assert.ok(result.rendered.includes(availability));
   }
-  const question='What would a training day you enjoy look like—one main workout, shorter sessions spread out, or a mix?';
-  const result=turn(emptyContext(),{m1:Object.values(facts).join(' '),m2:'Morning and evening are available, 20 minutes each.'},response({...facts,availability:'Two slots available; preference unknown.'},question,'Preferred training day'));
-  assert.equal((result.rendered.match(/\?/g)??[]).length,1);assert.match(result.rendered,/one main workout/);
+  const result=turn(emptyContext(),{m1:Object.values(facts).join(' '),m2:'Morning and evening are available, 20 minutes each.'},response({...facts,availability:'Morning and evening are available, 20 minutes each.'},null));
+  assert.equal(result.displayed.nextQuestion!.topic,recapTopic);assert.match(result.rendered,/Morning and evening/);
   const input:ModelInput={context:emptyContext(),sources:{},recent:[],knownProfileFields};
   const instructions=JSON.parse(serializeInput(input,'synthetic')).instructions;
-  assert.match(instructions,/optionally ask/);assert.match(instructions,/Skip known\/declined preferences/);assert.match(instructions,/Never require program design/);
+  assert.match(instructions,/Missing distribution preference is not missing feasibility information/);assert.doesNotMatch(instructions,/optionally ask|What would a training day you enjoy/);assert.match(instructions,/Never require program design/);
 });

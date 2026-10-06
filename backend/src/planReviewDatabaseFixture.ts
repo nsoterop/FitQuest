@@ -25,7 +25,7 @@ export async function verifyPlanReviewDatabase(t:TestContext,owner:Pool,pool:Poo
   const store=planningStore(pool),service=planningService(store,provider,'test');
   const app=buildApp(false,{store:profiles,verifyAccount:async token=>token==='alice'?alice:token==='bob'?bob:null,planning:service});t.after(()=>app.close());
   // These cases exercise pre-outline-first saved-plan compatibility.
-  const latest=async()=>{await owner.query('UPDATE fitquest.training_plans SET outline_first=false WHERE user_id=$1',[alice.userId]);const s=await store.read(alice);return {s,p:s.plans.find(p=>p.summaryRevision===s.summary!.revision)!}};
+  const latest=async()=>{await owner.query("UPDATE fitquest.training_plans SET outline_first=false, dates=CASE WHEN outline IS NULL THEN $2::jsonb ELSE dates END WHERE user_id=$1",[alice.userId,JSON.stringify(Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`))]);const s=await store.read(alice);return {s,p:s.plans.find(p=>p.summaryRevision===s.summary!.revision)!}};
   const next=async()=>{
     const s=await store.read(alice);await store.edit(alice,s.summary!.revision,reviewSummary,'UTC');await store.ensurePlan(alice,s.summary!.revision+1);
     const {p}=await latest();await service.generate(alice,{summaryRevision:p.summaryRevision,planId:p.id,target:'week',retryAttempt:null},async()=>true);return latest();

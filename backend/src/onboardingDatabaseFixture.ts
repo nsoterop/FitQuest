@@ -1,3 +1,4 @@
+import { verifySundayDatabase } from './sundayDatabaseFixture.js';
 import { verifyOutlineDatabase } from './outlineDatabaseFixture.js';
 import { verifyCoachingDatabase } from './coachingDatabaseFixture.js';
 import { trainingFixture,fixtureOutline,fixtureDetail } from './planningFixture.js';
@@ -42,6 +43,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
     const before=await snapshot();
     await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261004174109_weekly_plan_review.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
     await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261004233407_outline_first_planning.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+    await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261006151040_sunday_ending_plans.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
     assert.deepEqual((await owner.query('SELECT outline_first,confirmed_outline_revision FROM fitquest.training_plans WHERE user_id=$1',[user])).rows,[{outline_first:false,confirmed_outline_revision:null}]);
     assert.equal((await owner.query("SELECT has_column_privilege('fitquest_app','fitquest.training_plans','outline_first','UPDATE') AS allowed")).rows[0].allowed,false);
     assert.deepEqual(await snapshot(),before);
@@ -100,7 +102,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
       let a=await fresh();
       const send=async(fields:object)=>{
         const result=await local.inject({method:'POST',url:`/onboarding/${a.id}/commands`,headers:{authorization:'Bearer alice'},payload:{operationId:randomUUID(),expectedRevision:a.revision,...fields}});
-        assert.equal(result.statusCode,200);a=result.json();return a;
+        assert.equal(result.statusCode,200,result.body);a=result.json();return a;
       };
       for(const text of detailedAnswers){assert.equal(text.length,3200);await send({kind:'message',text});assert.equal(a.turns.at(-1).state,'completed')}
       assert.equal(sent,2);assert.ok(bodies.every(body=>Buffer.byteLength(body)<24000));
@@ -469,6 +471,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await verifyPlanReviewDatabase(t,owner,pool,profiles);
   await verifyCoachingDatabase(t,owner,pool,profiles);
   await verifyOutlineDatabase(t,owner,pool,profiles);
+  await verifySundayDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);

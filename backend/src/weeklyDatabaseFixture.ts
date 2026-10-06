@@ -32,7 +32,7 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
   const service=planningService(store,provider,'test');
   const app=buildApp(false,{store:profiles,verifyAccount:async token=>token==='alice'?alice:null,planning:service});t.after(()=>app.close());
   // These cases exercise pre-outline-first saved-plan compatibility.
-  const latest=async()=>{await owner.query('UPDATE fitquest.training_plans SET outline_first=false WHERE user_id=$1',[alice.userId]);const s=await store.read(alice);return {s,p:s.plans.find(p=>p.summaryRevision===s.summary!.revision)!}};
+  const latest=async()=>{await owner.query("UPDATE fitquest.training_plans SET outline_first=false, dates=CASE WHEN outline IS NULL THEN $2::jsonb ELSE dates END WHERE user_id=$1",[alice.userId,JSON.stringify(Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`))]);const s=await store.read(alice);return {s,p:s.plans.find(p=>p.summaryRevision===s.summary!.revision)!}};
   const request=async()=>{const {s,p}=await latest();return {summaryRevision:s.summary.revision,planId:p.id,target:'week',retryAttempt:null as string|null}};
   const generate=async(retryAttempt:string|null=null)=>service.generate(alice,{...await request(),retryAttempt},async()=>true);
   const next=async()=>{const {s}=await latest();await store.edit(alice,s.summary.revision,trainingFixture,'America/New_York');await store.ensurePlan(alice,s.summary.revision+1);return latest()};
@@ -47,7 +47,7 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
     assert.ok('summarySaved' in done&&done.summarySaved);assert.equal(calls,0);
     const r=await request(),response=await app.inject({method:'POST',url:'/training/generate',headers:{authorization:'Bearer alice'},payload:r});assert.equal(response.statusCode,200);assert.equal(response.headers['cache-control'],'no-store');assert.equal(calls,1);
     const versions=(await owner.query('SELECT a.prompt_version,a.schema_version FROM fitquest.onboarding_attempts a JOIN fitquest.training_generations g ON g.user_id=a.user_id AND g.attempt_id=a.id WHERE g.user_id=$1 AND g.plan_id=$2 AND g.target=$3',[alice.userId,r.planId,'week'])).rows[0];
-    assert.deepEqual(versions,{prompt_version:'catalog-week-v5',schema_version:'catalog-week-v5'});
+    assert.deepEqual(versions,{prompt_version:'catalog-week-v6',schema_version:'catalog-week-v6'});
     const {p}=await latest();assert.equal(p.days.length,7);assert.equal(p.days[0].detail.sessions.length,2);assert.equal(p.days.filter((d:any)=>!d.detail.sessions.length).length,4);
     assert.equal(p.outline.qualityVersion,2);assert.equal(p.outline.units,'imperial');assert.equal(p.outline.goalDecisions.length,2);
     for(const day of p.days)assert.deepEqual(day.detail.sessions,fixtureDetail(fixtureOutline(p.dates),day.date).sessions.map(s=>({...s,estimatedMinutes:25,timing:'flexible',intervals:[],activities:s.activities.map(a=>({...a,distanceTarget:null}))})));

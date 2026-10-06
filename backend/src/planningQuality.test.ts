@@ -1,12 +1,13 @@
+const legacyDates=()=>Array.from({length:7},(_,i)=>`2026-10-${String(i+4).padStart(2,'0')}`);
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkWeek,type Week } from './weeklyPlanning.js';
 import { fixturePrescription } from './planningFixture.js';
 import type { PlanningInput } from './planningDomain.js';
-import { sevenDates } from './trainingSummary.js';
+import { planDates } from './trainingSummary.js';
 
 // Invented trained runner, unrelated to production athlete context.
-export const qualityInput:PlanningInput={kind:'week',qualityVersion:2,preferredUnits:'imperial',dates:sevenDates('UTC'),profile:{age:34,heightInches:69,weightLb:162},summary:[
+export const qualityInput:PlanningInput={kind:'week',qualityVersion:2,preferredUnits:'imperial',dates:legacyDates(),profile:{age:34,heightInches:69,weightLb:162},summary:[
   {category:'goals',goals:['Walking endurance'],text:'Maintain walking endurance.',origin:'user_report'},
   {category:'goals',goals:['Acceleration technique','Shoulder mobility'],text:'Improve acceleration technique and shoulder mobility.',origin:'user_report'},
   {category:'availability',text:'Prefer morning movement and separate evening mobility on two days; at most 35 minutes total per day, at most 25 per session. Flexible weekdays.',origin:'user_report'},

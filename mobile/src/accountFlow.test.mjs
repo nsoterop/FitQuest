@@ -738,7 +738,7 @@ test('new and legacy clarification blocks render one action, never seven coverag
   for(const legacy of [false,true]){
     const saved=trainingState(),p=saved.plans[0];p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:legacy?['limitations_need_clarification']:[],...(legacy?{}:{clarification:{question:'Does the shoulder discomfort occur only when serving overhead?',reason:'This determines which movements to avoid.'}})};
     let selected;const server=trainingServer(saved),screen=await mountTraining({onClarify:request=>{selected=request}});
-    assert.doesNotMatch(text(screen),/Coverage limited|Rest —|Correct the summary|Seven days/);assert.ok(input(screen,'Continue clarification'));assert.equal(server.requests.length,1);
+    assert.doesNotMatch(text(screen),/Coverage limited|Rest —|Correct the summary|7 days/);assert.ok(input(screen,'Continue clarification'));assert.equal(server.requests.length,1);
     if(!legacy)assert.match(text(screen),/Does the shoulder/);
     await act(async()=>press(screen,'Continue clarification'));assert.deepEqual(selected,{planId:p.id,summaryRevision:1,target:'outline'});assert.equal(server.requests.length,1);
     await act(async()=>screen.unmount());
@@ -804,7 +804,7 @@ test('replayed completion never automatically retries failed/pending work or bac
     if(kind==='partial')p.outline={coverage:[],days:p.dates.map(date=>({date,sessions:[]}))};
     else p.jobs=[{target:'week',status:kind,error:kind==='failed'?'incomplete':null,attemptId:'existing-attempt'}];
     const mock=trainingServer(saved),screen=await mountTraining({generateOnOpen:true});
-    assert.equal(mock.requests.length,1);assert.equal(mock.requests[0].method,'GET');assert.match(text(screen),/Week incomplete/);assert.doesNotMatch(text(screen),/Seven days|Generate 2026/);
+    assert.equal(mock.requests.length,1);assert.equal(mock.requests[0].method,'GET');assert.match(text(screen),/Week incomplete/);assert.doesNotMatch(text(screen),/7 days|Generate 2026/);
     if(kind==='pending')assert.doesNotMatch(text(screen),/Retry weekly plan|Complete weekly plan|Generate weekly plan/);
     await act(async()=>screen.unmount());
   }
@@ -816,7 +816,7 @@ test('weekly request double press sends once; a completed backfill hides obsolet
   globalThis.fetch=async(url,options)=>url.endsWith('/generate')?new Promise(resolve=>{finish=async()=>resolve(await original(url,options))}):original(url,options);
   const screen=await mountTraining();await act(async()=>{press(screen,'Complete weekly plan');press(screen,'Complete weekly plan');await flush()});
   await act(async()=>{await finish();await flush()});assert.equal(mock.requests.filter(r=>r.url.endsWith('/generate')).length,1);
-  assert.match(text(screen),/Seven days/);assert.doesNotMatch(text(screen),/Generation did not finish|Details not generated|Week incomplete/);await act(async()=>screen.unmount());
+  assert.match(text(screen),/7 days/);assert.doesNotMatch(text(screen),/Generation did not finish|Details not generated|Week incomplete/);await act(async()=>screen.unmount());
 });
 
 test('rendered distributed sessions retain phases, exact distances, optional work and paired recovery counts',async()=>{
@@ -856,7 +856,7 @@ test('recorded synthetic live week renders all seven days, exact miles and goal 
   p.days=w.days.map(d=>({date:d.date,detail:{date:d.date,clarification:null,coverage:[],catalogVersion:p.catalogVersion,sessions:d.sessions.map(({focus,...s})=>s),activities:Object.fromEntries(d.sessions.flatMap(s=>s.activities).map(a=>{const c=catalog.activities.find(c=>c['Activity ID']===a.id);return [a.id,{name:c['Exercise name'],instructions:c['Instructions']}]}))}}));
   const server=trainingServer(saved),screen=await mountTraining();
   const visible=screen.root.findAllByType('Text').map(n=>n.children.join('')).join('\n');
-  assert.match(visible,/Seven days/);assert.equal((visible.match(/Outdoor walking — 1 mile/g)??[]).length,3);assert.equal((visible.match(/Rest — no prescribed session/g)??[]).length,4);
+  assert.match(visible,/7 days/);assert.equal((visible.match(/Outdoor walking — 1 mile/g)??[]).length,3);assert.equal((visible.match(/Rest — no prescribed session/g)??[]).length,4);
   assert.equal((visible.match(/· Morning/g)??[]).length,3);assert.equal((visible.match(/Shoulder mobility · Evening/g)??[]).length,3);
   assert.match(visible,/Learning acceleration technique:.*run-out/);assert.doesNotMatch(visible,/Details not generated|0\.99|1\.01|Standing-start acceleration —/);
   assert.equal(server.requests.length,1);console.log('Recorded synthetic live rendering:\n'+visible);
@@ -975,4 +975,14 @@ test('ready clarification recovery offers the same Continue control; outline con
  const saved=overviewUiState();let attempts=0;globalThis.fetch=async(url)=>{if(url.endsWith('/generate')){attempts++;throw Error('lost response')}return{status:200,json:async()=>saved}};
  screen=await mountTraining();await act(async()=>{press(screen,'Confirm outline and create workouts');await flush()});assert.equal(attempts,1);assert.equal(input(screen,'Confirm outline and create workouts').props.disabled,true);
  await act(async()=>{press(screen,'Reload saved training');await flush()});assert.equal(input(screen,'Confirm outline and create workouts').props.disabled,false);await act(async()=>screen.unmount());
+});
+test('partial Sunday plans render compact nutrition beside review and preserve it on free reopen; deferral retains training',async()=>{
+ for(const count of [1,3,7])for(const status of ['estimate','deferred']){
+  const saved=overviewUiState(),p=saved.plans[0];p.dates=Array.from({length:count},(_,i)=>`2026-10-${String(12-count+i).padStart(2,'0')}`);p.outline.days=p.dates.map((date,i)=>({date,sessions:i===0?[{focus:'Easy walking',activityIds:[],timing:'morning',estimatedMinutes:12}]:[]}));
+  p.outline.nutrition={status,calories:status==='estimate'?2400:null,proteinGrams:status==='estimate'?120:null,carbohydrateGrams:status==='estimate'?318:null,fatGrams:status==='estimate'?72:null,basis:status==='estimate'?'mifflin-st-jeor-v1':null,rationale:'Supports mixed goals without prescribing meals.',assumptions:'Starting estimate with reported inputs.',reason:status==='deferred'?'Nutrition inputs remain unknown.':null};
+  const server=trainingServer(saved);let screen=await mountTraining();let visible=renderedTrainingText(screen);assert.match(visible,/Draft outline/);assert.match(visible,/Morning.*Easy walking.*About 12 min/);assert(visible.includes(p.dates.at(-1)));
+  if(status==='estimate')assert.match(visible,/Daily starting estimate.*2400 kcal.*Protein 120 g.*Carbs 318 g.*Fat 72 g/);else assert.match(visible,/Nutrition targets deferred.*unknown/);
+  assert.equal(input(screen,'Confirm outline and create workouts').props.disabled,false);
+  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert(renderedTrainingText(screen).includes(p.dates.at(-1)));await act(async()=>screen.unmount());
+ }
 });

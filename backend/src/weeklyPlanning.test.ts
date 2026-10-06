@@ -1,13 +1,14 @@
+const legacyDates=()=>Array.from({length:7},(_,i)=>`2026-10-${String(i+4).padStart(2,'0')}`);
 import { weeklyLiveFixture } from './weeklyLiveFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { eligibleActivities,selectionColumns,trackingModes } from './activityCatalog.js';
 import { fixtureDetail,fixtureOutline,trainingFixture } from './planningFixture.js';
-import { sevenDates } from './trainingSummary.js';
+import { planDates } from './trainingSummary.js';
 import { checkWeek,prepareWeek,weeklyLimits,type Week } from './weeklyPlanning.js';
 import { openAIProvider } from './onboardingProvider.js';
 import type { PlanningInput } from './planningDomain.js';
-const dates=sevenDates('UTC'),outline=fixtureOutline(dates);
+const dates=legacyDates(),outline=fixtureOutline(dates);
 const input:PlanningInput={kind:'week',summary:trainingFixture,profile:{age:30,heightInches:68,weightLb:155},dates};
 export function weekFixture():Week {return {clarification:null,coverage:[],days:outline.days.map(d=>({date:d.date,sessions:fixtureDetail(outline,d.date).sessions.map((s,i)=>({...s,focus:d.sessions[i]!.focus}))}))}}
 const config={key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5};

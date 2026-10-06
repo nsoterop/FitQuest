@@ -1,3 +1,4 @@
+import { nutritionText } from './nutrition';
 import { useConversationScroll } from './ConversationScrollView';
 import { sessionRows } from './trainingPresentation';
 import type { RecoveryRequest } from './onboardingApi';
@@ -87,7 +88,7 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
       {!!state.summary.preferences?.length&&<Text style={styles.small}>Saved future preferences: {state.summary.preferences.join(" ")}</Text>}
       {showSummary&&<View style={styles.day}><Text style={styles.small}>Concise saved context; AI inferences and unknowns have not been confirmed by you.</Text>
         {(editing?facts:state.summary.document).map((f,i)=><View key={i} style={styles.exercise}><Text style={styles.label}>{f.category} · {originText[f.origin]}</Text>
-          {editing?<TextInput accessibilityLabel={`${f.category} ${i+1}`} value={f.text} multiline maxLength={350} editable={!busy} style={styles.input} onChangeText={text=>setFacts(old=>old.map((x,j)=>j===i?{...x,text,origin:'user_report',...(x.category==='goals'?{goals:undefined}:{})}:x))}/>:<Text style={styles.copy}>{f.text}</Text>}
+          {editing?<TextInput accessibilityLabel={`${f.category} ${i+1}`} value={f.text} multiline maxLength={350} editable={!busy} style={styles.input} onChangeText={text=>setFacts(old=>old.map((x,j)=>j===i?{...x,text,origin:'user_report',nutritionInput:undefined,...(x.category==='goals'?{goals:undefined}:{})}:x))}/>:<Text style={styles.copy}>{f.text}</Text>}
         </View>)}
         {editing?<>
           <Text style={styles.small}>Corrections apply to future generation. Existing outlines and sessions remain saved; create a new week explicitly after saving.</Text>
@@ -102,9 +103,11 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
         !current.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)&&
         button(current.outlineFirst?(current.jobs.some(j=>j.target==='outline'&&j.status==='failed')?'Retry weekly outline':'Generate weekly outline'):current.jobs.some(j=>j.target==='week'&&j.status==='failed')?'Retry weekly plan':current.outline?'Complete weekly plan':'Generate weekly plan',()=>void run(request=>initialPlan(request,state,true)))}
     </>}
-    {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)||shown.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)?'Planning needs attention':`${weekComplete(shown)?'Seven days':shown.outlineFirst&&overviewReady?'Weekly outline':'Week incomplete'} · ${shown.timeZone}`}</Text>
+    {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)||shown.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)?'Planning needs attention':`${weekComplete(shown)?`${shown.dates.length} ${shown.dates.length===1?'day':'days'}`:shown.outlineFirst&&overviewReady?'Weekly outline':'Week incomplete'} · ${shown.timeZone}`}</Text>
       {reviewing&&<Text style={styles.label}>{shown.reviewState==='accepted'?'Accepted plan':shown.outlineFirst?'Draft outline — review your week':'Draft plan — review your week'}</Text>}
       {shown.reviewState==='legacy'&&<Text style={styles.small}>Saved plan — acceptance was not recorded.</Text>}
+      {shown.outline?.nutrition&&<View style={styles.exercise}><Text style={styles.copy}>{nutritionText(shown.outline.nutrition)}</Text>
+        <Text style={styles.small}>{shown.outline.nutrition.rationale} {shown.outline.nutrition.status==='estimate'?shown.outline.nutrition.assumptions:''}</Text></View>}
       {!!shown.outline?.arrangementNote&&<Text style={styles.copy}>{shown.outline.arrangementNote}</Text>}
       {!!shown.reviewNote&&<Text style={styles.copy}>{shown.reviewNote}</Text>}
       {shown.summaryRevision!==state?.summary?.revision&&<Text style={styles.small}>Saved before your summary correction. Its existing sessions remain unchanged. Create a new week for future generation.</Text>}

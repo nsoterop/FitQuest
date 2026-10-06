@@ -1,7 +1,8 @@
+const legacyDates=()=>Array.from({length:7},(_,i)=>`2026-10-${String(i+4).padStart(2,'0')}`);
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { catalog,eligibleActivities,activity,catalogIndex } from './activityCatalog.js';
-import { sevenDates,checkedSummary,summaryFromContext } from './trainingSummary.js';
+import { planDates,checkedSummary,summaryFromContext } from './trainingSummary.js';
 import { checkOutline,checkDetail,preparePlanning,savedDetail,checkGeneratableOutline } from './planningDomain.js';
 import { trainingFixture,fixtureOutline,fixtureDetail,fixturePrescription } from './planningFixture.js';
 import { openAIProvider } from './onboardingProvider.js';
@@ -16,11 +17,16 @@ test('checked workbook export preserves IDs, review/source fields and excludes a
   for(const a of eligibleActivities){assert.equal(a['Review status'],'AI consistency reviewed');assert.equal(Object.keys(a).length,28);for(const key of ['Easier alternative IDs','Harder alternative IDs'])for(const id of a[key] as string[])assert.doesNotThrow(()=>activity(id))}
   assert.equal(catalogIndex.length,251);
 });
-test('seven local calendar dates start tomorrow across midnight, year change and both DST boundaries',()=>{
-  assert.deepEqual(sevenDates('Pacific/Kiritimati',new Date('2026-12-31T12:00:00Z')),['2027-01-02','2027-01-03','2027-01-04','2027-01-05','2027-01-06','2027-01-07','2027-01-08']);
-  assert.equal(sevenDates('America/Los_Angeles',new Date('2026-10-04T02:00:00Z'))[0],'2026-10-04');
-  for(const date of ['2026-03-08T04:30:00Z','2026-11-01T03:30:00Z']){const days=sevenDates('America/New_York',new Date(date));assert.equal(new Set(days).size,7);assert.equal(new Date(days[6]!).getTime()-new Date(days[0]!).getTime(),6*86400000)}
-  assert.throws(()=>sevenDates('not a time zone'),{code:'invalid_timezone'});
+test('local calendar plans start tomorrow and end Sunday across zones, year change and DST',()=>{
+  assert.deepEqual(planDates('Pacific/Kiritimati',new Date('2026-12-31T12:00:00Z')),['2027-01-02','2027-01-03']);
+  assert.deepEqual(planDates('America/Los_Angeles',new Date('2026-10-04T02:00:00Z')),['2026-10-04']);
+  for(const date of ['2026-03-08T04:30:00Z','2026-11-01T03:30:00Z']){const days=planDates('America/New_York',new Date(date));assert.equal(days.length,1);assert.equal(new Date(days[0]!).getUTCDay(),0)}
+  for(let weekday=0;weekday<7;weekday++){
+    const now=new Date(Date.UTC(2026,9,4+weekday,12)),days=planDates('UTC',now);
+    assert.equal(days.length,7-weekday);assert.equal(new Date(days[0]!).getTime()-Date.UTC(2026,9,4+weekday),86400000);
+    assert.equal(new Date(days.at(-1)!).getUTCDay(),0);assert.equal(new Set(days).size,days.length);
+  }
+  assert.throws(()=>planDates('not a time zone'),{code:'invalid_timezone'});
 });
 test('summary is concise and provenance-preserving; no raw transcript fallback or fabricated report',()=>{
   assert.deepEqual(checkedSummary(trainingFixture),trainingFixture);
@@ -32,7 +38,7 @@ test('summary is concise and provenance-preserving; no raw transcript fallback o
   const sources=Object.fromEntries(trainingFixture.map((f,i)=>['m'+i,f.text]));assert.deepEqual(applyProposal(context,proposal,sources,'').trainingSummary,trainingFixture);
 });
 test('outline and details allow multiple modalities, rest and measured work, reject invented IDs and hidden prose',()=>{
-  const dates=sevenDates('UTC',new Date('2026-10-03'));const outline=fixtureOutline(dates);
+  const dates=legacyDates();const outline=fixtureOutline(dates);
   assert.deepEqual(checkOutline(outline,dates),outline);const first=fixtureDetail(outline,dates[0]!);assert.equal(checkDetail(first,outline.days[0]!).sessions.length,2);
   assert.deepEqual(checkDetail(fixtureDetail(outline,dates[1]!),outline.days[1]!).sessions,[]);
   const bad=structuredClone(outline);bad.days[0]!.date=dates[1]!;assert.throws(()=>checkOutline(bad,dates));
@@ -45,13 +51,13 @@ test('outline and details allow multiple modalities, rest and measured work, rej
 });
 test('bounded planning requests share the existing model adapter and reserve every possible output token',()=>{
   const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5});
-  const dates=sevenDates('UTC'),outline=fixtureOutline(dates);
+  const dates=legacyDates(),outline=fixtureOutline(dates);
   for(const kind of ['outline','day'] as const){const p=preparePlanning(provider,{kind,summary:trainingFixture,profile:{age:30,heightInches:68,weightLb:155},dates,...(kind==='day'?{outline,date:dates[0]}:{})});
     const body=JSON.parse(p.body);assert.equal(body.model,'gpt-6-luna');assert.equal(body.store,false);assert.equal(body.max_output_tokens,2000);assert.ok(Buffer.byteLength(p.body)<48000);assert.equal(p.reserveMicro,Math.ceil(Buffer.byteLength(p.body)*.125+1000));assert.match(body.instructions,/PRESCRIPTIONS only/)}
 });
 test('recorded live summary, dated mixed outline and walking phases still meet catalog contracts',()=>{
   checkedSummary(planningLiveFixture['compact-summary'].trainingSummary);
-  const outline=checkOutline(planningLiveFixture['seven-day-outline'],sevenDates('America/New_York',new Date('2026-10-03T20:00:00Z')));
+  const outline=checkOutline(planningLiveFixture['seven-day-outline'],planningLiveFixture['seven-day-outline'].days.map(d=>d.date));
   assert.equal(outline.days.filter(d=>d.sessions.length).length,3);
   const detail=checkDetail(planningLiveFixture['tomorrow-details'],outline.days[0]!);
   assert.deepEqual(detail.sessions[0]!.activities.map(a=>a.phase),['warmup','main','cooldown']);
@@ -59,7 +65,7 @@ test('recorded live summary, dated mixed outline and walking phases still meet c
 });
 
 test('descriptive weekly labels preserve athlete-selected intent without relaxing activity validation',()=>{
-  const dates=sevenDates('UTC'),outline=fixtureOutline(dates);
+  const dates=legacyDates(),outline=fixtureOutline(dates);
   const labels=['Upper body','Lower body','Mobility','Easy cardio','Tennis practice'];
   labels.forEach((focus,i)=>outline.days[i]!.sessions=[{focus,activityIds:['FQ-ACT-00008']}]);
   assert.deepEqual(checkOutline(outline,dates).days.slice(0,5).map(d=>d.sessions[0]!.focus),labels);
@@ -69,7 +75,7 @@ test('descriptive weekly labels preserve athlete-selected intent without relaxin
 
 test('oversized multi-session outlines are rejected before publication, with all catalog constraints retained',()=>{
   const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5});
-  const dates=sevenDates('UTC'),ids=eligibleActivities.slice(0,25).map(a=>String(a['Activity ID']));
+  const dates=legacyDates(),ids=eligibleActivities.slice(0,25).map(a=>String(a['Activity ID']));
   const outline={coverage:[],days:dates.map((date,i)=>({date,sessions:i===0?[ids.slice(0,9),ids.slice(9,17),ids.slice(17)].map(activityIds=>({focus:'Mixed practice',activityIds})):[]}))};
   const input={kind:'outline' as const,summary:trainingFixture,profile:{age:30,heightInches:68,weightLb:155},dates};
   checkOutline(outline,dates);
@@ -82,7 +88,7 @@ test('oversized multi-session outlines are rejected before publication, with all
 
 test('late-week admission covers maximum saved prescriptions and rejects the first oversized candidate',()=>{
   const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5});
-  const dates=sevenDates('UTC'),summary=trainingFixture.map(f=>({...f,text:'a'.repeat(350)}));
+  const dates=legacyDates(),summary=trainingFixture.map(f=>({...f,text:'a'.repeat(350)}));
   const input={kind:'outline' as const,summary,profile:{age:30,heightInches:68,weightLb:155},dates};
   const previous=dates.slice(0,6).map(date=>({date,sessions:[{activities:Array.from({length:15},(_,i)=>({...fixturePrescription('FQ-ACT-00008','repetitions'),phase:i===0?'main' as const:'cooldown' as const,sets:20,amount:100,effort:'challenging',restSeconds:600,load:'kg',loadKg:0.0000012345678901234567,side:'each'}))}]}));
   let accepted=0,rejected=0,lastSize=0;

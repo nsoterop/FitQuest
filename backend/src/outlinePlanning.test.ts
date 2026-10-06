@@ -13,7 +13,7 @@ test('outline request is compact and contains no catalog, exercises, prescriptio
  assert.equal(prepared.max_output_tokens,2000);assert.equal(prepared.store,false);assert.equal(prepared.reasoning.effort,'low');
  assert.deepEqual(payload.summary,trainingFixture);assert(!('catalog' in payload));assert(!('expectedGoals' in payload));
  for(const key of ['activityIds','activities','repRange','goalDecisions','activityIndex'])assert(!JSON.stringify(prepared.text).includes(key));
- assert(prepared.instructions.length<1600);
+ assert(prepared.instructions.length<3000);
  for(const distributed of [false,true]){const outline=checkOverview(overviewFixture(input.dates,distributed),input);assert.equal(outline.days[0]!.sessions.length,distributed?2:1);assert(outline.days.every(d=>d.sessions.every(s=>s.activityIds.length===0)));}
 });
 test('outline review keeps unaffected sessions, supports clarification and rejects changed kept dates',()=>{

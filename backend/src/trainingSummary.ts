@@ -1,3 +1,4 @@
+import { nutritionInputSchema,type NutritionInput } from './nutrition.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { catalog } from './activityCatalog.js';
 import { Ajv } from 'ajv';
@@ -7,11 +8,12 @@ import type { Context, RecoveryRequest } from './onboardingDomain.js';
 import { OnboardingError } from './onboardingError.js';
 
 export const summaryCategories=['goals','availability','equipment','experience','limitations'] as const;
-export type SummaryFact={category:typeof summaryCategories[number];text:string;origin:'user_report'|'model_inference'|'assumption'|'unknown';goals?:string[]|null};
+export type SummaryFact={category:typeof summaryCategories[number]|'nutrition';text:string;origin:'user_report'|'model_inference'|'assumption'|'unknown';goals?:string[]|null;nutritionInput?:NutritionInput|null};
 export type TrainingSummary=SummaryFact[];
 export const summarySchema={type:'array',minItems:5,maxItems:12,items:{type:'object',additionalProperties:false,required:['category','text','origin'],properties:{
-  category:{type:'string',enum:summaryCategories},text:{type:'string',minLength:1,maxLength:350,pattern:'\\S'},
+  category:{type:'string',enum:[...summaryCategories,'nutrition']},text:{type:'string',minLength:1,maxLength:350,pattern:'\\S'},
   origin:{type:'string',enum:['user_report','model_inference','assumption','unknown']},
+  nutritionInput:nutritionInputSchema,
   goals:{anyOf:[{type:'null'},{type:'array',minItems:1,maxItems:24,items:{type:'string',minLength:1,maxLength:150,pattern:'\\S'}}]},
 }}} as const;
 // The provider wire contract always includes goals; saved older summaries may omit it.
@@ -20,6 +22,7 @@ const validate=new Ajv().compile<TrainingSummary>(summarySchema);
 export function checkedSummary(value:unknown):TrainingSummary {
   if(!validate(value)||summaryCategories.some(c=>!value.some(f=>f.category===c)))throw new OnboardingError(422,'invalid_summary');
   if(value.some(f=>f.category!=='goals'||f.origin==='unknown'?f.goals!=null:Object.hasOwn(f,'goals')&&!f.goals?.length))throw new OnboardingError(422,'invalid_summary');
+  if(value.some(f=>f.nutritionInput!=null&&(f.category!=='nutrition'||f.origin!=='user_report')))throw new OnboardingError(422,'invalid_summary');
   const goals=value.flatMap(f=>f.goals??[]),keys=goals.map(g=>g.trim().toLowerCase());
   if(goals.length>24||new Set(keys).size!==keys.length)throw new OnboardingError(422,'invalid_summary');
   return value;
@@ -34,13 +37,13 @@ export function checkTimeZone(zone:string) {
   try {if(zone.length>80)throw Error();new Intl.DateTimeFormat('en-US',{timeZone:zone}).format();return zone;}
   catch{throw new OnboardingError(422,'invalid_timezone')}
 }
-export function sevenDates(zone:string,now=new Date()) {
+export function planDates(zone:string,now=new Date()) {
   checkTimeZone(zone);
   const parts=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
   const part=(key:string)=>Number(parts.find(p=>p.type===key)!.value);
   const local=Date.UTC(part('year'),part('month')-1,part('day'));
   // Advance calendar dates, not 24 hours in the user's zone (DST can be 23/25 hours).
-  return Array.from({length:7},(_,i)=>new Date(local+(i+1)*86400000).toISOString().slice(0,10));
+  return Array.from({length:7-new Date(local).getUTCDay()},(_,i)=>new Date(local+(i+1)*86400000).toISOString().slice(0,10));
 }
 export function summaryFromContext(context:Context):TrainingSummary {
   if(context.trainingSummary)return checkedSummary(context.trainingSummary);
@@ -73,5 +76,5 @@ export async function retainTrainingSummary(c:PoolClient,account:Account,context
     document=EXCLUDED.document,preferences='[]',time_zone=EXCLUDED.time_zone,source_conversation=EXCLUDED.source_conversation,updated_at=now() RETURNING revision`,
     [account.userId,JSON.stringify(summary),checkTimeZone(timeZone),conversationId]);
   await c.query(`INSERT INTO fitquest.training_plans(user_id,id,summary_revision,summary,time_zone,dates,catalog_version,outline_first)
-    VALUES($1,$2,$3,$4,$5,$6,$7,true)`,[account.userId,context.recovery?recoveryPlanId(account.userId,context.recovery):randomUUID(),saved.rows[0].revision,JSON.stringify(summary),timeZone,JSON.stringify(sevenDates(timeZone)),catalog.version]);
+    VALUES($1,$2,$3,$4,$5,$6,$7,true)`,[account.userId,context.recovery?recoveryPlanId(account.userId,context.recovery):randomUUID(),saved.rows[0].revision,JSON.stringify(summary),timeZone,JSON.stringify(planDates(timeZone)),catalog.version]);
 }

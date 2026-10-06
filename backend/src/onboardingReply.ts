@@ -36,7 +36,7 @@ export function renderOnboardingReply(proposal: ModelProposal) {
   const facts=parts.map(recapFacts);
   const normalize=(text:string)=>text.replace(/\s+/g,' ').trim().toLowerCase();
   let visible=normalize(facts.join(' '));
-  for(const [category,label] of [['goals','Goals'],['availability','Schedule understood as']] as const){
+  for(const [category,label] of [['goals','Goals'],['availability','Schedule understood as'],['nutrition','Nutrition context']] as const){
     // Exact retained facts are the fallback for generic acknowledgments. New goal
     // lists are also shown, so agreement covers the identities planning will use.
     const retained=proposal.trainingSummary?.filter(f=>f.category===category)??[];

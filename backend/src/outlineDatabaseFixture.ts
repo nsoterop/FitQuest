@@ -44,7 +44,7 @@ export async function verifyOutlineDatabase(t:TestContext,owner:Pool,pool:Pool,p
    await assert.rejects(service.generate(account,{...confirm(p),target:p.dates[0]},async()=>true),{code:'outline_confirmation_required'});
    const approved=structuredClone(p.outline);
    await Promise.all([service.generate(account,confirm(p),async()=>true),service.generate(account,confirm(p),async()=>true)]);
-   p=await latest();assert.equal(calls,before+2);assert.equal(p.days.length,7);assert.equal(p.reviewState,'accepted');assert.equal(p.confirmedOutlineRevision,1);assert.deepEqual(p.outline.days,approved.days);
+   p=await latest();assert.equal(calls,before+2);assert.equal(p.days.length,p.dates.length);assert.equal(p.reviewState,'accepted');assert.equal(p.confirmedOutlineRevision,1);assert.deepEqual(p.outline.days,approved.days);
    const budget=(await owner.query('SELECT * FROM fitquest.ai_budget')).rows;
    await generate('week');await store.read(account);await service.accept(account,{planId:p.id,summaryRevision:p.summaryRevision,planRevision:1});assert.equal(calls,before+2);assert.deepEqual((await owner.query('SELECT * FROM fitquest.ai_budget')).rows,budget);
    const wire=wireInputs.at(-1);assert.deepEqual(JSON.parse(wire.input).outline,approved);assert.equal(JSON.parse(wire.input).approvedOutlineRevision,1);assert.equal(wire.text.format.name,'training_week');
@@ -60,7 +60,7 @@ export async function verifyOutlineDatabase(t:TestContext,owner:Pool,pool:Pool,p
   respond=async()=>({failure:'provider_error'});await generate('week');assert.equal((await latest()).jobs.find((j:any)=>j.target==='details:3').status,'failed');
   respond=async body=>{const input=JSON.parse(JSON.parse(body).input),outline=overviewFixture(input.dates);outline.days[0]!.sessions[0]!.estimatedMinutes=15;outline.days[3]!.sessions[0]!.estimatedMinutes=15;return {proposal:{outline,scope:[{date:input.dates[3],changeSessions:[0],evidence:'Shorten the fourth day'}],reply:'The fourth day is shorter; the rest remains unchanged.'},usage:{input:100,output:200,cached:0,cacheWrite:0}}};
   await service.review(account,{planId:p.id,summaryRevision:p.summaryRevision,planRevision:3,feedback:'Shorten the fourth day.',retryAttempt:null},async()=>true);p=await latest();assert.equal(p.planRevision,4);assert.equal(p.confirmedOutlineRevision,null);assert(!p.jobs.some((j:any)=>j.target==='details:3'));
-  respond=normal;await generate('week');assert.equal((await latest()).days.length,7);
+  respond=normal;await generate('week');assert.equal((await latest()).days.length,(await latest()).dates.length);
  });
  await t.test('detail timeout and late usage preserve the approved outline and independent uncertain accounting',async()=>{
   respond=normal;await fresh();await generate();const p=await latest(),before=calls;
@@ -80,7 +80,7 @@ export async function verifyOutlineDatabase(t:TestContext,owner:Pool,pool:Pool,p
   try{await assert.rejects(generate('week'),/synthetic commit failure/)}finally{await owner.query('DROP TRIGGER test_outline_commit ON fitquest.training_days; DROP FUNCTION fitquest.test_outline_commit()');}
   const failed=await latest();assert.equal(failed.days.length,0);assert.deepEqual(failed.outline,p.outline);assert.equal(failed.reviewState,'draft');
   await owner.query("UPDATE fitquest.training_generations SET deadline=now()-interval '1 second' WHERE user_id=$1 AND plan_id=$2",[account.userId,p.id]);
-  const job=(await latest()).jobs.find((j:any)=>j.target==='details:1');await generate('week',job.attemptId);assert.equal((await latest()).days.length,7);
+  const job=(await latest()).jobs.find((j:any)=>j.target==='details:1');await generate('week',job.attemptId);assert.equal((await latest()).days.length,(await latest()).dates.length);
   await fresh();await generate();const current=await latest(),work=(await store.claim(account,confirm(current),provider))!;
   await owner.query('UPDATE fitquest.profiles SET updated_at=now() WHERE user_id=$1',[account.userId]);await store.settle(account,work.attempt,100);await store.finish(account,work,checkWeek(overviewWorkouts(work.input),work.input));
   assert.equal((await latest()).days.length,0);assert.equal((await owner.query('SELECT actual_micro FROM fitquest.onboarding_attempts WHERE id=$1',[work.attempt])).rows[0].actual_micro,'100');
@@ -92,7 +92,7 @@ export async function verifyOutlineDatabase(t:TestContext,owner:Pool,pool:Pool,p
   const req={planId:old.id,summaryRevision:old.summaryRevision,planRevision:old.planRevision,feedback,retryAttempt:null};
   await service.review(account,req,async()=>true);await service.review(account,req,async()=>true);const revised=await latest();assert.equal(calls,count+1);assert.equal(revised.days.length,0);assert.equal(revised.planRevision,2);assert.deepEqual(revised.outline.days[0],old.outline.days[0]);
   await assert.rejects(service.generate(account,confirm(old),async()=>true),{code:'plan_changed'});
-  respond=normal;await generate('week');assert.equal(calls,count+2);assert.equal((await latest()).days.length,7);
+  respond=normal;await generate('week');assert.equal(calls,count+2);assert.equal((await latest()).days.length,(await latest()).dates.length);
  });
  await t.test('failed/partial/conflicting details retain approved outline; only exact explicit retry spends again',async()=>{
   for(const kind of ['failure','partial','conflict']){
@@ -101,7 +101,7 @@ export async function verifyOutlineDatabase(t:TestContext,owner:Pool,pool:Pool,p
    await generate('week');let failed=await latest();assert.deepEqual(failed.outline,p.outline);assert.equal(failed.days.length,0);assert.equal(failed.reviewState,'draft');assert.equal(failed.confirmedOutlineRevision,1);
    if(kind==='conflict')assert.match(failed.reviewNote,/equipment/);
    await generate('week');await store.read(account);assert.equal(calls,count+1);
-   const job=failed.jobs.find((j:any)=>j.target==='details:1');respond=normal;await generate('week',job.attemptId);assert.equal(calls,count+2);assert.equal((await latest()).days.length,7);
+   const job=failed.jobs.find((j:any)=>j.target==='details:1');respond=normal;await generate('week',job.attemptId);assert.equal(calls,count+2);assert.equal((await latest()).days.length,(await latest()).dates.length);
   }
  });
  await t.test('interrupted details preserve reservation; late results cannot overwrite retry or changed outline',async()=>{

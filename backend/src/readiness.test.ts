@@ -1,3 +1,4 @@
+const legacyDates=()=>Array.from({length:7},(_,i)=>`2026-10-${String(i+4).padStart(2,'0')}`);
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyProposal,consistentReply,emptyContext,readyToPlan,recapTopic,type ModelProposal } from './onboardingDomain.js';
@@ -5,7 +6,7 @@ import { validateProposal } from './onboardingProvider.js';
 import { renderOnboardingReply } from './onboardingReply.js';
 import { trainingFixture,fixtureOutline,fixtureDetail } from './planningFixture.js';
 import { checkOutline,checkDetail } from './planningDomain.js';
-import { sevenDates } from './trainingSummary.js';
+import { planDates } from './trainingSummary.js';
 
 const summary=trainingFixture.map(f=>({...f,origin:'model_inference' as const}));
 const proposal:ModelProposal={trainingSummary:summary,planningCheck:{status:'ready',question:null,reason:null},reply:'A factual recap.',additions:[],nextQuestion:{topic:recapTopic,text:'Ready?',decision:'Practical context is sufficient.'},readiness:'ready_with_limits',limitations:['Reports are not medical clearance.']};
@@ -32,7 +33,7 @@ test('declining an indispensable answer offers an exit without repeated question
   assert.match(display.reply,/Back to greeting/);assert.match(display.reply,/usable plan is not ready/);assert.doesNotMatch(display.reply,/choose Continue/);
 });
 test('clarification is distinct from catalog failure and cannot coexist with prescribed work',()=>{
-  const dates=sevenDates('UTC'),outline=fixtureOutline(dates),clarification={question:'Is a stable wall available where you train?',reason:'The selected support exercise requires a stable wall.'};
+  const dates=legacyDates(),outline=fixtureOutline(dates),clarification={question:'Is a stable wall available where you train?',reason:'The selected support exercise requires a stable wall.'};
   assert.throws(()=>checkOutline({...outline,clarification},dates),{code:'invalid_plan'});
   const blocked={...outline,clarification,days:dates.map(date=>({date,sessions:[]}))};
   assert.deepEqual(checkOutline(blocked,dates),blocked);
