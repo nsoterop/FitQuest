@@ -6,7 +6,7 @@
 
 The actual missing-action state was a failed `outline_conversion` job with revision zero and no outline. A normal comma between weekday and date caused rejection. The adapter now handles that punctuation, ordinary Markdown/plain session headings and separate/inline Goal/Time fields, retaining timing, ranges and optional/rest work. An explicit matching retry may safely re-convert the stored response for free when its profile/summary revision is current; refusals, incomplete output, stale context and usable saved work cannot take that path. Unchanged older plain session representations remain unchanged during review.
 
-Validation: **210 backend tests**, isolated PostgreSQL, zero skips; exact prompt/date checks, five-question intake, full-week persistence, legacy ranges, conversion recovery without new accounting, protected reviews and all-detail confirmation. Release evidence follows verification.
+Validation: **210 backend tests**, isolated PostgreSQL, zero skips; exact prompt/date checks, five-question intake, full-week persistence, legacy ranges, conversion recovery without new accounting, protected reviews and all-detail confirmation. Live application SHA `95b9a2d27748a1703352e9eb809407482132b057` and all 14 inspected runtime/catalog hashes match. Health and 26 private-route authentication checks pass. The fresh 3:03:38 PM EDT server readback confirms exactly one account/email and all eight owner content tables empty, with account/profile/Auth data, 107 AI attempts and the single unchanged budget preserved. One summary, one plan and one generation record were removed; see root release evidence. No migration or paid call occurred.
 
 ## Fixed intake and plain outline — 2026-10-06
 
