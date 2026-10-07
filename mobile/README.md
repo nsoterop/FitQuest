@@ -1,5 +1,9 @@
 # FitQuest mobile
 
+## Matching prompt-trial release — 2026-10-07
+
+Backend `91a8472` is Live; the unchanged mobile code passes all 100 tests and TypeScript. The 4,965,419-byte Metro bundle and all 11 inspected source-map files match; SHA-256 remains `2c65480cc1499a70dbb94de5c9621e275f64ea5b8a91d264a0b61a9194867672`. The fresh 1:42:40 PM EDT owner-only reset/readback is complete. Reload → Start onboarding → Continue to onboarding; overview first and free Use this plan/reopen remain unchanged. Physical-phone cleanup and live coaching improvement remain unverified. Full release evidence is in the root README.
+
 ## Progressive reveal of saved exercises — 2026-10-07
 
 New complete drafts show only session title, goal, timing, duration range, optional/rest labels and catalog gaps. Use this plan calls acceptance and displays the same saved revision; no workout generation occurs on acceptance or reopen. Revisions return to the overview. Shared contract checks reject leaked draft details. Minimal exercise rows preserve ranges, practical units, per-side/load/effort and explicit between-round/after-each recovery. Metro watches the pure backend contract source without a workspace reorganization or native build. **100 mobile tests**, TypeScript and offline Expo compatibility pass. Physical-phone behavior and fresh live coaching quality remain unverified. Matching backend `2f42994` is live and the owner-only server reset is verified. Metro serves the 4,965,419-byte iOS bundle, SHA-256 `2c65480cc1499a70dbb94de5c9621e275f64ea5b8a91d264a0b61a9194867672`, with all 11 inspected source-map files matching. Reload → Start onboarding → Continue to onboarding invokes existing unmatched-device-draft cleanup; actual phone cleanup remains unverified. See root release evidence.

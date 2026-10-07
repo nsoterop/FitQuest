@@ -1,5 +1,9 @@
 # FitQuest API
 
+## One-request workflow trial — 2026-10-07
+
+Prompt-only release `91a84721fbaedd3d44baf39df21b968658ed73eb` is verified Live with all 20 runtime/catalog hashes and 26 authentication checks. The initial prompt requests outline → per-session workouts → final formatting within one request; catalog bytes, schema, settings, revision suffix and free acceptance remain unchanged. Independent exact-prompt/provider assertions and all 226 isolated backend tests pass. No migration or paid evaluation. Fresh owner-only reset/readback preserves all 117 AI attempts and account/profile/Auth/accounting data. See root README for evidence and unverified phone/coaching limits.
+
 ## Complete canonical week — 2026-10-07
 
 New fixed-intake plans use `complete-week-v1`: a complete structured response is validated and saved in one transaction on the existing plan row. Draft reads return only the derived overview. Acceptance changes only server state/timestamp; duplicate acceptance and free reopening preserve the ledger. Complete revisions use one accounted request and reset acceptance. The real provider adapter recognizes the full-week output limit for this version. The shared canonical contract is in `src/completePlanContract.ts`; one bidirectional wire mapping keeps schema depth at ten including arrays. Legacy parsing/reads remain separate. Additive migration `20261007163020_complete_week_draft.sql` preserves existing data and private grants/RLS. **226 backend tests / zero skips** and TypeScript pass. Live SHA `2f42994c615fa856c3fc956bcbfc9fd8d3299ca1` and all 20 runtime/catalog hashes match; health and 26 private-route checks pass. The additive migration is verified exactly. The owner-only reset and independent 1:10:10 PM EDT readback preserve all 116 AI attempts, accounting, account/profile and Auth data. Full release evidence is in the root README.
