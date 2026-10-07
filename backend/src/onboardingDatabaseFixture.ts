@@ -56,6 +56,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261006175043_fixed_intake_plain_outline.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   const beforeComplete=(await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.training_plans p ORDER BY user_id,id')).rows;
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261007163020_complete_week_draft.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261007180022_plan_validation_diagnostics.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   assert.deepEqual((await owner.query("SELECT to_jsonb(p)-'schema_version'-'complete_plan'-'accepted_at' AS value FROM fitquest.training_plans p ORDER BY user_id,id")).rows,beforeComplete);
   for(const role of ['anon','authenticated','service_role'])assert.equal((await owner.query("SELECT has_column_privilege($1,'fitquest.training_plans','complete_plan','SELECT') AS permitted",[role])).rows[0].permitted,false);
 

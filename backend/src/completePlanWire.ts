@@ -1,3 +1,4 @@
+import { invalidComplete,type DiagnosticPosition } from './planDiagnostics.js';
 import type { Exercise,PlanResponse,Range,Target,WeeklyPlan } from './completePlanContract.js';
 // Wire-only flattening keeps the deepest active-recovery target below the
 // provider's ten-container limit. One explicit lossless mapping owns both directions.
@@ -17,19 +18,20 @@ export const completeResponseSchema={...obj({result:{anyOf:[obj({kind:en('plan')
 type WireExercise={activityId:string;targetKind:Target['kind'];targetMin:number;targetMax:number;distanceUnit:'mi'|'km'|'m'|'yd'|null;perSide:boolean;loadValue:number|null;loadUnit:'lb'|'kg'|null;loadInstruction:string|null;rpeMin:number|null;rpeMax:number|null;rirMin:number|null;rirMax:number|null;effortCue:string|null};
 type WireBlock={phase:'warmup'|'main'|'cooldown';optional:boolean;rounds:number;exercises:WireExercise[];recoveryPlacement:'between_rounds'|'after_each_round'|null;recoveryActivity:WireExercise|null;recoveryRestMin:number|null;recoveryRestMax:number|null;recoveryInstruction:string|null};
 export type WireResponse={result:{kind:'unavailable';reason:string}|{kind:'plan';days:{date:string;sessions:(Omit<WeeklyPlan['days'][number]['sessions'][number],'blocks'>&{blocks:WireBlock[]})[]}[];catalogGaps:WeeklyPlan['catalogGaps']}};
-function pair(min:number|null,max:number|null):Range|null {if((min===null)!==(max===null))throw Error('wire_pair');return min===null?null:{min,max:max!};}
-function decodeExercise(e:WireExercise):Exercise{
- const r={min:e.targetMin,max:e.targetMax};if((e.targetKind==='distance')!==(e.distanceUnit!==null)||(e.loadValue===null)!==(e.loadUnit===null))throw Error('wire_unit');
+function pair(min:number|null,max:number|null,position:DiagnosticPosition={}):Range|null {if((min===null)!==(max===null))invalidComplete('invalid_plan:week_schema','conversion','pair',position);return min===null?null:{min,max:max!};}
+function decodeExercise(e:WireExercise,position:DiagnosticPosition):Exercise{
+ const r={min:e.targetMin,max:e.targetMax};if((e.targetKind==='distance')!==(e.distanceUnit!==null)||(e.loadValue===null)!==(e.loadUnit===null))invalidComplete('invalid_plan:week_schema','conversion','unit',position,{activityId:e.activityId,target:{kind:e.targetKind}});
  const target:Target=e.targetKind==='repetitions'?{kind:e.targetKind,reps:r}:e.targetKind==='duration'?{kind:e.targetKind,seconds:r}:e.targetKind==='count'?{kind:e.targetKind,count:r}:{kind:e.targetKind,distance:r,unit:e.distanceUnit!};
- const rpe=pair(e.rpeMin,e.rpeMax),rir=pair(e.rirMin,e.rirMax);
+ let rpe:Range|null,rir:Range|null;try{rpe=pair(e.rpeMin,e.rpeMax,position);rir=pair(e.rirMin,e.rirMax,position)}catch{invalidComplete('invalid_plan:week_schema','conversion','pair',position,{activityId:e.activityId,target:{kind:e.targetKind}})}
  return {activityId:e.activityId,target,perSide:e.perSide,load:e.loadValue===null?null:{value:e.loadValue,unit:e.loadUnit!},loadInstruction:e.loadInstruction,effort:rpe===null&&rir===null&&e.effortCue===null?null:{rpe,rir,cue:e.effortCue}};
 }
 export function decodeCompleteWire(w:WireResponse):PlanResponse{
  if(w.result.kind==='unavailable')return {result:w.result};
- return {result:{kind:'plan',plan:{catalogGaps:w.result.catalogGaps,days:w.result.days.map(d=>({...d,sessions:d.sessions.map(s=>({...s,blocks:s.blocks.map(b=>{
-  const restSeconds=pair(b.recoveryRestMin,b.recoveryRestMax);
-  if(b.recoveryPlacement===null&&(b.recoveryActivity!==null||restSeconds!==null||b.recoveryInstruction!==null))throw Error('wire_recovery');
-  return {phase:b.phase,optional:b.optional,rounds:b.rounds,exercises:b.exercises.map(decodeExercise),recovery:b.recoveryPlacement===null?null:{placement:b.recoveryPlacement,activity:b.recoveryActivity===null?null:decodeExercise(b.recoveryActivity),restSeconds,instruction:b.recoveryInstruction}};
+ return {result:{kind:'plan',plan:{catalogGaps:w.result.catalogGaps,days:w.result.days.map((d,day)=>({...d,sessions:d.sessions.map((s,session)=>({...s,blocks:s.blocks.map((b,block)=>{
+  const position={day,session,block,recovery:true as const};
+  const restSeconds=pair(b.recoveryRestMin,b.recoveryRestMax,position);
+  if(b.recoveryPlacement===null&&(b.recoveryActivity!==null||restSeconds!==null||b.recoveryInstruction!==null))invalidComplete('invalid_plan:week_schema','conversion','recovery',position);
+  return {phase:b.phase,optional:b.optional,rounds:b.rounds,exercises:b.exercises.map((e,exercise)=>decodeExercise(e,{day,session,block,exercise})),recovery:b.recoveryPlacement===null?null:{placement:b.recoveryPlacement,activity:b.recoveryActivity===null?null:decodeExercise(b.recoveryActivity,position),restSeconds,instruction:b.recoveryInstruction}};
  })}))}))}}};
 }
 function encodeExercise(e:Exercise):WireExercise{const t=e.target,r=t.kind==='repetitions'?t.reps:t.kind==='duration'?t.seconds:t.kind==='distance'?t.distance:t.count;return {activityId:e.activityId,targetKind:t.kind,targetMin:r.min,targetMax:r.max,distanceUnit:t.kind==='distance'?t.unit:null,perSide:e.perSide,loadValue:e.load?.value??null,loadUnit:e.load?.unit??null,loadInstruction:e.loadInstruction,rpeMin:e.effort?.rpe?.min??null,rpeMax:e.effort?.rpe?.max??null,rirMin:e.effort?.rir?.min??null,rirMax:e.effort?.rir?.max??null,effortCue:e.effort?.cue??null};}

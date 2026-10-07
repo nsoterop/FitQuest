@@ -1,4 +1,5 @@
 import { prepareComplete,completeActivities,completePlanVersion } from './completePlanning.js';
+import { recordPlanDiagnostic } from './planDiagnosticStore.js';
 import { planOverview,type PlanResponse } from './completePlanContract.js';
 import { intakeAnswers } from './fixedIntake.js';
 import { preparePlainOutline,parsePlainOutline } from './plainOutline.js';
@@ -274,6 +275,7 @@ export function planningStore(pool:Pool) {
         if(!failure&&prepared)return {attempt,planId:r.planId,target:generationTarget,revision:s.revision,planRevision:plan.review_revision,profileVersion:p.version,body:prepared.body,input:outbound};
       });
     },
+    recordValidation:(a:Account,w:PlanningWork,diagnostic:unknown)=>recordPlanDiagnostic(pool,a,w,diagnostic),
     settle:async(a:Account,attempt:string,cost:number|null,diagnostic?:ProviderDiagnostic)=>{
       await tx(a,c=>c.query('SELECT fitquest.settle_onboarding($1,$2)',[attempt,cost]),false);
       // Diagnostics are best-effort and independent of charge settlement.

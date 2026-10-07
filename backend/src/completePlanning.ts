@@ -1,3 +1,4 @@
+import { CompleteValidationError,invalidComplete,schemaPosition,type DiagnosticPosition,type TargetKind } from './planDiagnostics.js';
 import { Ajv } from 'ajv';
 import { activity,catalog,selectionCatalog,trackingModes } from './activityCatalog.js';
 import { intakeAnswers } from './fixedIntake.js';
@@ -5,7 +6,7 @@ import { OnboardingError } from './onboardingError.js';
 import type { OnboardingProvider } from './onboardingProvider.js';
 import type { PlanningInput,Detail,Outline } from './planningDomain.js';
 import { weeklyLimits } from './weeklyPlanning.js';
-import { completePlanVersion,validCompletePlan,type WeeklyPlan,type PlanResponse,type Exercise } from './completePlanContract.js';
+import { completePlanVersion,validCompletePlan,validOverview,validExercise,type WeeklyPlan,type PlanResponse,type Exercise } from './completePlanContract.js';
 import { completeResponseSchema,decodeCompleteWire,encodeCompleteWire,type WireResponse } from './completePlanWire.js';
 import { checkReviewProtections,reviewProtections } from './reviewProtection.js';
 const validate=new Ajv({strict:true}).compile<WireResponse>(completeResponseSchema);
@@ -67,25 +68,49 @@ export function prepareComplete(provider:OnboardingProvider,input:PlanningInput)
  if(Buffer.byteLength(body)>weeklyLimits.inputBytes)throw new OnboardingError(422,'planning_context_limit');
  return {body,reserveMicro:provider.cost({input:Buffer.byteLength(body),output:weeklyLimits.outputTokens,cached:0,cacheWrite:0})};
 }
-function checkActivity(e:Exercise,input:PlanningInput){
- const a=activity(e.activityId),m=trackingModes(a),mode={repetitions:'repetitions',duration:'seconds',distance:'meters',count:'count'}[e.target.kind] as keyof typeof m;
- if(!m[mode])throw new OnboardingError(422,'catalog_coverage');
+function checkActivity(e:Exercise,input:PlanningInput,position:DiagnosticPosition){
+ let a;try{a=activity(e.activityId)}catch{invalidComplete('catalog_coverage','catalog','lookup',position,e)}
+ const m=trackingModes(a),mode={repetitions:'repetitions',duration:'seconds',distance:'meters',count:'count'}[e.target.kind] as keyof typeof m;
+ if(!m[mode])invalidComplete('catalog_coverage','catalog','tracking',position,e,(['repetitions','duration','distance','count'] as TargetKind[]).filter(k=>m[({repetitions:'repetitions',duration:'seconds',distance:'meters',count:'count'} as const)[k]]));
  const load=String(a['Load convention']).toLowerCase();
- if(e.load&&(!/(?:\blb\b|\bkg\b|mass.*unit|pack mass|ball mass|sled mass)/.test(load)||/band|no external|no added|water resistance/.test(load)))throw new OnboardingError(422,'invalid_plan:load');
+ if(e.load&&(!/(?:\blb\b|\bkg\b|mass.*unit|pack mass|ball mass|sled mass)/.test(load)||/band|no external|no added|water resistance/.test(load)))invalidComplete('invalid_plan:load','catalog','load',position,e);
  // Known explicit exclusions are enforceable; free-text feasibility remains model judgment.
  const equipment=intakeAnswers(input.summary)?.[2].toLowerCase()??'';
  const requirements=String(a['Equipment']).toLowerCase();
- if(/^(?:none|no equipment|bodyweight only|floor only)[.!]?$/i.test(equipment.trim())&&/dumbbell|barbell|kettlebell|band|machine|pool|bench/.test(requirements))throw new OnboardingError(422,'catalog_coverage');
- for(const item of ['dumbbells','barbell','bench','bands','kettlebell','pool','treadmill','machine','partner'])if(new RegExp(`\\b(?:no|without) ${item}\\b`).test(equipment)&&requirements.includes(item))throw new OnboardingError(422,'catalog_coverage');
+ if(/^(?:none|no equipment|bodyweight only|floor only)[.!]?$/i.test(equipment.trim())&&/dumbbell|barbell|kettlebell|band|machine|pool|bench/.test(requirements))invalidComplete('catalog_coverage','catalog','equipment',position,e);
+ for(const item of ['dumbbells','barbell','bench','bands','kettlebell','pool','treadmill','machine','partner'])if(new RegExp(`\\b(?:no|without) ${item}\\b`).test(equipment)&&requirements.includes(item))invalidComplete('catalog_coverage','catalog','equipment',position,e);
+}
+function diagnoseStructure(plan:WeeklyPlan,dates:string[]):never{
+ const base:WeeklyPlan={days:dates.map(date=>({date,sessions:[]})),catalogGaps:[{goal:'diagnostic',reason:'diagnostic'}]};
+ if(!Boolean(validOverview(plan,dates))){
+  for(const [day,d] of plan.days.entries()){
+   if(d.date!==dates[day])invalidComplete('invalid_plan:week_schema','structure','overview',{day});
+   for(const [session,s] of d.sessions.entries()){const probe=structuredClone(base);probe.days[day]!.sessions=[s];if(!validOverview(probe,dates))invalidComplete('invalid_plan:week_schema','structure','overview',{day,session});}
+  }
+  invalidComplete('invalid_plan:week_schema','structure','overview');
+ }
+ for(const [day,d] of plan.days.entries())for(const [session,s] of d.sessions.entries())for(const [block,b] of s.blocks.entries()){
+  for(const [exercise,e] of b.exercises.entries())if(!validExercise(e))invalidComplete('invalid_plan:week_schema','structure','exercise',{day,session,block,exercise},e);
+  if(b.recovery?.activity&&!validExercise(b.recovery.activity))invalidComplete('invalid_plan:week_schema','structure','exercise',{day,session,block,recovery:true},b.recovery.activity);
+  const probe=structuredClone(base);probe.days[day]!.sessions=[{...s,blocks:[b]}];
+  if(!Boolean(validCompletePlan(probe,dates))){const withoutRecovery=structuredClone(probe);withoutRecovery.days[day]!.sessions[0]!.blocks[0]!.recovery=null;
+   invalidComplete('invalid_plan:week_schema','structure',validCompletePlan(withoutRecovery,dates)?'recovery':'block',{day,session,block,...(validCompletePlan(withoutRecovery,dates)?{recovery:true as const}:{})});}
+ }
+ invalidComplete('invalid_plan:week_schema','structure','empty_plan');
 }
 export function checkComplete(raw:unknown,input:PlanningInput):PlanResponse{
- if(!validate(raw))throw new OnboardingError(422,'invalid_plan:week_schema');
- let result:PlanResponse;try{result=decodeCompleteWire(raw)}catch{throw new OnboardingError(422,'invalid_plan:week_schema')}
+ if(!validate(raw)){
+  const position=schemaPosition(validate.errors),candidate=raw as WireResponse;
+  const b=candidate?.result?.kind==='plan'&&position.day!==undefined&&position.session!==undefined&&position.block!==undefined?candidate.result.days?.[position.day]?.sessions?.[position.session]?.blocks?.[position.block]:undefined;
+  const e=b?(position.recovery?b.recoveryActivity:position.exercise!==undefined?b.exercises?.[position.exercise]:undefined):undefined;
+  invalidComplete('invalid_plan:week_schema','schema','shape',position,e?{activityId:e.activityId,target:{kind:e.targetKind}}:undefined);
+ }
+ let result:PlanResponse;try{result=decodeCompleteWire(raw)}catch(error){if(error instanceof CompleteValidationError)throw error;invalidComplete('invalid_plan:week_schema','conversion','decode')}
  if(result.result.kind==='unavailable')return result;
  const plan=result.result.plan;
- if(!validCompletePlan(plan,input.dates))throw new OnboardingError(422,'invalid_plan:week_schema');
- if(Buffer.byteLength(JSON.stringify(plan))>400000)throw new OnboardingError(422,'planning_context_limit');
- for(const d of plan.days)for(const s of d.sessions)for(const b of s.blocks){b.exercises.forEach(e=>checkActivity(e,input));if(b.recovery?.activity)checkActivity(b.recovery.activity,input);}
+ if(!validCompletePlan(plan,input.dates))diagnoseStructure(plan,input.dates);
+ if(Buffer.byteLength(JSON.stringify(plan))>400000)invalidComplete('planning_context_limit','integrity','size');
+ plan.days.forEach((d,day)=>d.sessions.forEach((s,session)=>s.blocks.forEach((b,block)=>{b.exercises.forEach((e,exercise)=>checkActivity(e,input,{day,session,block,exercise}));if(b.recovery?.activity)checkActivity(b.recovery.activity,input,{day,session,block,recovery:true});})));
  if(input.completeReview){const old=protectionView(input.completeReview.plan),next=protectionView(plan);checkReviewProtections({...old,feedback:input.completeReview.feedback,context:null},input.dates,next.days,next.outline);}
  return result;
 }
