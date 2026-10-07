@@ -1,5 +1,9 @@
 # FitQuest API
 
+## Private per-attempt validation diagnostics — 2026-10-07
+
+Released `0117343f86efcb36673e923e3d296fb5b0ec491b` adds bounded private complete-week rejection diagnostics without changing the prompt, schema, catalog, model/settings or validation acceptance. The additive diagnostics migration is verified; all 22 runtime hashes, health and 26 private-route checks pass. **232 backend tests with isolated PostgreSQL and zero skips** pass; the temporary test server was stopped afterward. The owner-only reset and fresh readback preserve account/profile/Auth and all 119 independent AI attempts/accounting records. Historical rejection cause and live coaching quality remain unverified. See [private retrieval and retention](docs/plan-validation-diagnostics.md) and the root README for release evidence.
+
 ## One-request workflow trial — 2026-10-07
 
 Prompt-only release `91a84721fbaedd3d44baf39df21b968658ed73eb` is verified Live with all 20 runtime/catalog hashes and 26 authentication checks. The initial prompt requests outline → per-session workouts → final formatting within one request; catalog bytes, schema, settings, revision suffix and free acceptance remain unchanged. Independent exact-prompt/provider assertions and all 226 isolated backend tests pass. No migration or paid evaluation. Fresh owner-only reset/readback preserves all 117 AI attempts and account/profile/Auth/accounting data. See root README for evidence and unverified phone/coaching limits.
