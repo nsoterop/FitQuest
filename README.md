@@ -1,6 +1,6 @@
 # FitQuest
 
-## Explicit prescription units and counted actions — 2026-10-07 (release pending)
+## Explicit prescription units and counted actions — 2026-10-07
 
 New complete-week provider requests use `complete_week_units_v2`. Activity targets (including active recovery) explicitly select `durationUnit: seconds | minutes`; passive recovery explicitly selects `recoveryRestUnit`. Non-time targets/no passive rest require null units. The adapter converts supported minutes to canonical seconds once, preserving exact/ranged doses, side/round semantics and all sessions. Missing, unsupported or inconsistent units are rejected; small values never imply minutes. Canonical storage remains `complete-week-v1`, and old saved seconds are never silently rescaled. No migration or mobile runtime change is needed.
 
@@ -8,7 +8,13 @@ The complete-plan catalog projection adds supported target kinds and an explicit
 
 **238 backend tests with isolated PostgreSQL and zero skips; 101 mobile tests**, both TypeScript checks, five diagnostic-harness mock tests and diff checks pass. Checks include strict provider-schema compatibility, minutes/seconds/ranges, active/passive recovery, count aliases/RIR, catalog consistency, actual adapter → validator behavior, persistence/revisions/free acceptance/reopen, old saved seconds and rendered doses. The temporary test database was stopped after testing. These are synthetic checks, not fresh live AI/coaching or physical-phone acceptance. No additional paid call occurred, and the private reusable answer baseline is preserved.
 
-The coaching prompt's substance, verbatim answers, model/settings, single generation, full week, session distribution, overview-first reveal and free acceptance remain unchanged. This fixes representation defects; it does not guarantee multi-session coaching. Hosted deployment and the standing owner-only reset/readback are pending.
+The coaching prompt's substance, verbatim answers, model/settings, single generation, full week, session distribution, overview-first reveal and free acceptance remain unchanged. This fixes representation defects; it does not guarantee multi-session coaching. Release **`7c594f21b696fcbc5748e3b8ce6d58f9b0b4c092`** is [Live on the existing Render service](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db39tdp42hec73924p6g), October 7, **3:34:15 PM EDT** dashboard timestamp, 34.3-second deployment. Runtime instance `5zmr5` reports the exact SHA and matches all **22 compiled-module/catalog hashes**. Only the four intended representation/provider modules changed among those artifacts. Health and all **26 private-route authentication/no-store checks** pass. No migration was required.
+
+Read-only inspection of owner-started Metro confirms the unchanged **4,965,419-byte** iOS bundle, SHA-256 `2c65480cc1499a70dbb94de5c9621e275f64ea5b8a91d264a0b61a9194867672`, at `192.168.1.173:8081`. Manifest/bundle return 200 and all 11 inspected source-map files match. No owner-started process was managed; the temporary test database is stopped.
+
+The owner-only reset committed at **3:36:22 PM EDT**, deleting **one plan, one generation job and one retained summary**. Independent **3:36:29 PM EDT** readback confirms all nine scoped content tables empty, **one account/one distinct email**, zero active work and identical preservation fingerprints for Auth/account/sessions, profile, request limits, all **122 independent AI attempts**, accounting/budget/reservations/caps and other-user content. Foreign keys/triggers, source catalog and the access-restricted reusable answer baseline remain unchanged. No paid AI call occurred for these fixes.
+
+Reload → **Start onboarding → Continue to onboarding** invokes existing server revalidation and mismatched-device-draft cleanup. Physical-phone reload/draft cleanup and new live coaching output remain unverified; the synthetic representation checks do not establish coaching quality.
 
 ## Private validation diagnostics — 2026-10-07
 

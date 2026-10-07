@@ -1,5 +1,9 @@
 # FitQuest API
 
+## Explicit prescription units and event counts — 2026-10-07
+
+Release `7c594f21b696fcbc5748e3b8ce6d58f9b0b4c092` is Live with all 22 runtime hashes, health and 26 private-route checks verified. `complete_week_units_v2` makes activity/recovery duration units explicit and deterministically converts minutes to canonical seconds. The catalog projection and validation share justified discrete-event repetition/count aliases; genuine mismatches, RIR, equipment and eligibility protections remain enforced. Canonical storage and legacy seconds are unchanged; no migration. All **238 isolated backend tests, zero skips**, TypeScript and five diagnostic-harness mock tests pass. The temporary database was stopped. Fresh owner-only reset/readback preserves account/profile/Auth, all 122 AI attempts/accounting and the private answer baseline. No paid evaluation; see root README for release evidence and phone/coaching limits.
+
 ## Private per-attempt validation diagnostics — 2026-10-07
 
 Released `0117343f86efcb36673e923e3d296fb5b0ec491b` adds bounded private complete-week rejection diagnostics without changing the prompt, schema, catalog, model/settings or validation acceptance. The additive diagnostics migration is verified; all 22 runtime hashes, health and 26 private-route checks pass. **232 backend tests with isolated PostgreSQL and zero skips** pass; the temporary test server was stopped afterward. The owner-only reset and fresh readback preserve account/profile/Auth and all 119 independent AI attempts/accounting records. Historical rejection cause and live coaching quality remain unverified. See [private retrieval and retention](docs/plan-validation-diagnostics.md) and the root README for release evidence.

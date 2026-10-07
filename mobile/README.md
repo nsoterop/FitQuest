@@ -1,5 +1,9 @@
 # FitQuest mobile
 
+## Matching prescription-unit release — 2026-10-07
+
+Backend `7c594f2` is Live. Mobile runtime and native build are unchanged; **101 tests** and TypeScript pass, including actual provider-format conversion → rendered minute/second ranges, active/passive recovery, counted actions, free acceptance/reopen and legacy seconds. Read-only owner Metro verification matches all 11 inspected source-map files and the 4,965,419-byte bundle, SHA-256 `2c65480cc1499a70dbb94de5c9621e275f64ea5b8a91d264a0b61a9194867672`. The 3:36:29 PM EDT owner reset/readback confirms empty test content and preserved account/profile/accounting. Reload → Start onboarding → Continue to onboarding invokes existing server revalidation/device-draft cleanup; actual phone cleanup and live coaching remain unverified. Temporary test servers are stopped; owner Metro was left alone. See root README for evidence.
+
 ## Matching diagnostics release — 2026-10-07
 
 Backend `0117343` is Live. Mobile code and native build are unchanged; 100 tests and TypeScript pass. Read-only inspection of owner-started Metro verifies the 4,965,419-byte bundle, all 11 inspected source-map files and unchanged SHA-256 `2c65480cc1499a70dbb94de5c9621e275f64ea5b8a91d264a0b61a9194867672`. The fresh 2:35:38 PM EDT owner reset/readback confirms empty test content and preserved profile/accounting. Reload → Start onboarding → Continue to onboarding for existing server revalidation/device-draft cleanup; actual phone behavior remains unverified. Temporary test servers started by Engineering are stopped after testing; owner-started Metro was left alone. See root README for release evidence.
