@@ -1,5 +1,13 @@
 # FitQuest
 
+## Workout validation contracts — 2026-10-07
+
+Read-only diagnosis confirmed the live calendar-week SHA `95b9a2d27748a1703352e9eb809407482132b057`, an approved `plain-v1` outline at revision 1, and a settled detail attempt rejected as `invalid_plan`, with zero saved detail days. The failed structured response and validation category were not retained; its exact historical rejection cannot be proven or recovered without another model request. No owner retry, regeneration or paid evaluation was performed.
+
+Confirmed producer/consumer conflicts are corrected: approved unspecified timing stays null; cooldown and non-repetition RIR, fractional repetition/count/time amounts and excessive quantities are excluded by the detail request schema in agreement with runtime rules. Detail instructions now match those rules and clarify load labels and optional-session main work. The initial simple outline prompt, five-question intake, full-week storage, display projection and existing validators remain intact. Future validation failures retain a closed check category and numeric positions on the private job; the UI shows a brief explanation without personal values. Successful provider responses now retain only the existing bounded HTTP/request-ID metadata too.
+
+Self-review and **214 backend tests with isolated PostgreSQL and zero skips; 98 mobile tests**, both TypeScript checks, offline Expo compatibility and diff checks pass. Regressions exercise the actual request schema/provider adapter, plain adapter, response validators, atomic seven-day persistence, failed-attempt accounting, explicit/duplicate retry, free reopen and rendered cards/exercises. These are synthetic checks, not verified live-model generation success. Deployment, matching Metro and required fresh owner-only reset/readback are pending.
+
 ## Full calendar week and usable outline cards — 2026-10-06
 
 New plans retain the full Monday–Sunday week containing the athlete’s local today; the screen displays today onward without shifting sessions or marking past prescriptions complete. Existing saved dates stay unchanged. Structured day/session cards now show focus, goal, supplied timing, duration ranges and optional/rest labels. **Use this plan** explicitly confirms the outline and creates all detailed workouts together.

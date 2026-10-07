@@ -72,7 +72,7 @@ export async function verifyWeeklyDatabase(t:TestContext,owner:Pool,pool:Pool,pr
       respond=failure==='incomplete'?async()=>({failure:'incomplete',usage:{input:100,output:48000,cached:0,cacheWrite:0}}):failure==='invalid'?async body=>{const week=makeWeek(body);week.days.pop();return {proposal:week,usage:{input:100,output:5000,cached:0,cacheWrite:0}}}:normal;
       if(failure==='budget')await owner.query('UPDATE fitquest.ai_budget SET cap_micro=spent_micro+reserved_micro');
       await generate();const failed=await latest();assert.equal(failed.p.outline,null);assert.deepEqual(failed.p.days,[]);assert.equal(failed.s.summary.revision,s.summary.revision);
-      assert.equal(failed.p.jobs[0].error,failure==='invalid'?'invalid_plan':failure==='budget'?'budget_exhausted':'incomplete');
+      assert.equal(failed.p.jobs[0].error,failure==='invalid'?'invalid_plan:week_dates':failure==='budget'?'budget_exhausted':'incomplete');
       await generate();await store.read(alice);assert.equal(calls,before+(failure==='budget'?0:1));
       await owner.query('UPDATE fitquest.ai_budget SET cap_micro=7000000');respond=normal;
       await generate(failed.p.jobs[0].attemptId);assert.equal((await latest()).p.days.length,7);assert.equal((await latest()).p.id,p.id);

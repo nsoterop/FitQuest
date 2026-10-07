@@ -1,5 +1,11 @@
 # FitQuest API
 
+## Detail-generation contract and diagnostics — 2026-10-07
+
+Approved detail requests now encode existing runtime quantity/RIR constraints in the wire schema; instructions preserve null timing and explain catalog load labels and optional-session main work. No validator is bypassed, response repaired, initial outline prompt changed or schema migration needed. `PlanValidationError` keeps `invalid_plan` for domain callers while the service records `invalid_plan:<closed-category>:<numeric-positions>` on the private generation job. No Ajv messages, arbitrary property names, private values or raw structured responses are logged or retained. Existing provider diagnostics also survive successful HTTP responses, independently of settlement.
+
+The owner's failed response was absent and its diagnostic null; the original exact rejection is unknown. Contract conflicts were reproduced synthetically, not attributed conclusively to that attempt. **214 backend tests**, isolated PostgreSQL, zero skips, pass; includes actual wire validation, successful-response metadata, strict rejection, atomic persistence, outline preservation and independent failed-attempt accounting. No paid calls. Release evidence is in the root README.
+
 ## Full calendar weeks and formatting recovery — 2026-10-06
 
 `planDates` now returns the seven Monday–Sunday dates containing local today, including Sunday itself. Only the date phrase changes in the successful simple initial prompt. Saved legacy ranges are not redated; full outlines remain the input to review and all-workouts generation. No migration, model/settings change or paid evaluation.

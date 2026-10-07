@@ -127,14 +127,14 @@ export function openAIProvider(config: { key: string; model: string; capMicro: n
           ? { input: numbers[0], output: numbers[1], cached: numbers[2], cacheWrite: numbers[3] } : undefined;
         const rawText=(Array.isArray(data.output)?data.output:[]).filter((x:any)=>x.type==='message').flatMap((x:any)=>x.content??[]).flatMap((x:any)=>x.type==='output_text'&&typeof x.text==='string'?[x.text]:x.type==='refusal'&&typeof x.refusal==='string'?[x.refusal]:[]).join('\n');
         const plain=!request.text?.format;
-        if (data.status !== 'completed') return { failure: 'incomplete', usage,...(plain?{rawText}:{}) };
+        if (data.status !== 'completed') return { failure: 'incomplete', usage,diagnostic,...(plain?{rawText}:{}) };
         const content = (Array.isArray(data.output) ? data.output : []).filter((x: { type?: string }) => x.type === 'message').flatMap((x: { content?: unknown[] }) => x.content ?? []);
-        if (content.some((x: { type?: string }) => x.type === 'refusal')) return { failure: 'refused', usage,...(plain?{rawText}:{} ) };
+        if (content.some((x: { type?: string }) => x.type === 'refusal')) return { failure: 'refused', usage,diagnostic,...(plain?{rawText}:{} ) };
         const texts = content.filter((x: { type?: string }) => x.type === 'output_text');
-        if (texts.length !== 1 || typeof texts[0].text !== 'string') return { failure: 'incomplete', usage,...(plain?{rawText}:{}) };
-        if(plain)return {rawText:texts[0].text,usage};
-        try { return { proposal: JSON.parse(texts[0].text), usage }; }
-        catch { return { failure: 'incomplete', usage }; }
+        if (texts.length !== 1 || typeof texts[0].text !== 'string') return { failure: 'incomplete', usage,diagnostic,...(plain?{rawText}:{}) };
+        if(plain)return {rawText:texts[0].text,usage,diagnostic};
+        try { return { proposal: JSON.parse(texts[0].text), usage,diagnostic }; }
+        catch { return { failure: 'incomplete', usage,diagnostic }; }
       } catch { return { failure:'provider_error',diagnostic:{...diagnostic,transport:signal.aborted?'aborted':diagnostic.httpStatus?'invalid_response':'network'} }; }
     },
   };

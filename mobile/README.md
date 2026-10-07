@@ -1,5 +1,11 @@
 # FitQuest mobile
 
+## Workout validation feedback — 2026-10-07
+
+Recognized validation categories now explain which workout check failed while retaining the approved outline and explicit retry control. Unknown codes cannot echo private strings. The rendered integration regression uses the real backend plain adapter, detail request schema, validator and catalog display projection through rejection → reopen → explicit retry → all seven days → free reopen. Existing today-onward display, duration ranges, optional/rest labels and Use this plan remain unchanged.
+
+**98 mobile tests**, TypeScript and offline Expo compatibility pass. These are synthetic rendering checks; physical-phone and live-provider acceptance remain unverified. Release/Metro/reset evidence is recorded in the root README.
+
 ## Structured current-day-onward plan — 2026-10-06
 
 The normal outline UI uses separate day/session cards with focus, goal, supplied timing, approximate duration/range and optional/rest labels. Raw response text stays private for recovery. The screen projects saved dates from local today onward without moving or deleting any session. **Use this plan** runs the existing explicit `confirmOutline` + all-workouts request; failed, incomplete or unparsed outlines do not receive a usable-plan action.

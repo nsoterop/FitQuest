@@ -63,6 +63,7 @@ registerHooks({
     if (url === 'fitquest-test:safe') return { format: 'module', source: "export const SafeAreaProvider='SafeAreaProvider', SafeAreaView='SafeAreaView'; export const useSafeAreaInsets=()=>({top:62,bottom:34,left:0,right:0});", shortCircuit: true };
     if (url === 'fitquest-test:auth') return { format: 'module', source: 'export const supabase=globalThis.__fitquestTestClient;', shortCircuit: true };
     if (url.endsWith('.tsx')||url.includes('/backend/src/')&&url.endsWith('.ts')) return { format: 'module', source: ts.transpileModule(readFileSync(fileURLToPath(url), 'utf8'), {
+      fileName:fileURLToPath(url),
       compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     }).outputText, shortCircuit: true };
     return next(url, context);
@@ -1074,4 +1075,38 @@ test('plain outline workouts fail recoverably, retry the same dated week explici
  let screen=await mountTraining();await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(calls,1);assert.deepEqual(p.outline,original);assert.equal(p.days.length,0);assert.equal(input(screen,'Retry creating workouts').props.disabled,false);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —/);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,1);await act(async()=>{press(screen,'Retry creating workouts');press(screen,'Retry creating workouts');await flush()});assert.equal(calls,2);assert.equal(p.days.length,7);assert.deepEqual(p.outline,original);assert.match(renderedTrainingText(screen),/Outdoor walking —/);assert.equal(requests[1].planId,requests[0].planId);assert.equal(requests[1].planRevision,requests[0].planRevision);await act(async()=>screen.unmount());
  p.days=[];p.reviewState='draft';p.confirmedOutlineRevision=null;p.jobs=p.jobs.filter(j=>j.target==='outline');stale=true;screen=await mountTraining();await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(input(screen,'Use this plan').props.disabled,true);assert.match(renderedTrainingText(screen),/This plan changed/);assert.deepEqual(p.outline,original);await act(async()=>screen.unmount());
+});
+
+test('actual detail wire and validators feed mobile exercises; safe validation failure preserves cards until explicit retry',async t=>{
+ t.mock.timers.setTime(new Date('2026-10-06T12:00:00Z').getTime());
+ const {prepareWeek,checkWeek}=await import('../../backend/src/weeklyPlanning.ts');
+ const {plainDetailReply,checkSyntheticWire}=await import('../../backend/src/plainDetailFixture.ts');
+ const {savedDetail}=await import('../../backend/src/planningDomain.ts');
+ const {intakeSummary}=await import('../../backend/src/fixedIntake.ts');
+ const {validationFailureCode}=await import('../../backend/src/planningValidation.ts');
+ const {trainingError}=await import('./trainingApi.ts');
+ const saved=calendarState(),p=saved.plans[0],original=structuredClone(p.outline);let calls=0;
+ saved.summary.document=intakeSummary({version:1,answers:['Strength and walking','Walking weekly','Clear floor, firm raised support and a route','Coach chooses; several sessions can fit','None']});
+ const provider={model:'synthetic',cost:()=>10};
+ globalThis.fetch=async(url,options)=>{
+  if(url.endsWith('/generate')){
+   calls++;const request=JSON.parse(options.body);assert.equal(request.confirmOutline,true);assert.equal(request.planRevision,1);
+   const i={kind:'week',outlineFirst:true,draftReview:true,qualityVersion:2,dates:p.dates,outline:p.outline,summary:saved.summary.document,profile:{age:30,heightInches:68,weightLb:155}};
+   const body=prepareWeek(provider,i).body,raw=plainDetailReply(JSON.parse(JSON.parse(body).input));checkSyntheticWire(body,raw);
+   if(calls===1)raw.days[0].sessions[0].activities[2].rir=3;
+   else assert.equal(request.retryAttempt,'detail-validation-1');
+   try{const checked=checkWeek(raw,i);p.outline=checked.outline;p.days=checked.details.map(d=>({date:d.date,detail:savedDetail(d)}));p.reviewState='accepted';p.jobs=[{target:'details:1',status:'completed',error:null,attemptId:'detail-validation-2'}]}
+   catch(error){p.jobs=[{target:'details:1',status:'failed',error:validationFailureCode(error),attemptId:'detail-validation-1'}]}
+   p.confirmedOutlineRevision=1;
+  }
+  return{status:200,json:async()=>structuredClone(saved)};
+ };
+ let screen=await mountTraining();await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});
+ assert.equal(calls,1);assert.equal(p.jobs[0].error,'invalid_plan:rir:0:0:2');assert.deepEqual(p.outline,original);assert.equal(p.days.length,0);
+ assert.match(renderedTrainingText(screen),/repetitions-in-reserve target check/);assert.doesNotMatch(renderedTrainingText(screen),/invalid_plan|:0:0:2/);
+ await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,1);
+ await act(async()=>{press(screen,'Retry creating workouts');press(screen,'Retry creating workouts');await flush()});assert.equal(calls,2);assert.equal(p.days.length,7);assert.equal(p.reviewState,'accepted');
+ assert.deepEqual(p.outline.days,original.days);assert.match(renderedTrainingText(screen),/Standing arm circles/);assert.match(renderedTrainingText(screen),/3 RIR/);assert.match(renderedTrainingText(screen),/Optional/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);
+ await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,2);assert.match(renderedTrainingText(screen),/Standing arm circles/);await act(async()=>screen.unmount());
+ assert(!trainingError('invalid_plan:private_health_text:0').includes('private_health_text'));
 });

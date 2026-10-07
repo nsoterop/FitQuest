@@ -1,3 +1,4 @@
+import { invalidPlan,atPlanPosition } from './planningValidation.js';
 import type { PlainSession } from './plainOutline.js';
 import type { Nutrition } from './nutrition.js';
 import { clarificationSchema, planningReadinessInstructions, type Clarification } from './planningReadiness.js';
@@ -43,22 +44,22 @@ export function checkOutline(value:unknown,dates:string[]):Outline {
 const plainDetailSchema=structuredClone(compatibleDetail);delete (plainDetailSchema.properties.sessions as any).maxItems;delete ((plainDetailSchema.properties.sessions.items as any).properties.estimatedMinutes).maximum;
 const validPlainDetail=ajv.compile<Detail>(plainDetailSchema);
 export function checkDetail(raw:unknown,day:Outline['days'][number],plain=false):Detail {
-  if(!(plain?validPlainDetail(raw):validDetail(raw)))throw new OnboardingError(422,'invalid_plan');
+  if(!(plain?validPlainDetail(raw):validDetail(raw)))invalidPlan('detail_schema');
   const value=raw as Detail;
-  if(value.date!==day.date)throw new OnboardingError(422,'invalid_plan');
-  if(value.clarification&&value.coverage.length)throw new OnboardingError(422,'invalid_plan');
-  if(value.clarification||value.coverage.length){if(value.sessions.length)throw new OnboardingError(422,'invalid_plan');return value}
-  if(value.sessions.length!==day.sessions.length)throw new OnboardingError(422,'invalid_plan');
+  if(value.date!==day.date)invalidPlan('detail_date');
+  if(value.clarification&&value.coverage.length)invalidPlan('blocked_response');
+  if(value.clarification||value.coverage.length){if(value.sessions.length)invalidPlan('blocked_response');return value}
+  if(value.sessions.length!==day.sessions.length)invalidPlan('session_count');
   for(const [i,session] of value.sessions.entries()) {
-    checkSessionQuality(session);
-    if(!session.activities.some(p=>p.phase==='main'))throw new OnboardingError(422,'invalid_plan');
-    for(const p of session.activities) {
+    atPlanPosition([i],()=>checkSessionQuality(session));
+    if(!session.activities.some(p=>p.phase==='main'))invalidPlan('main_work',i);
+    for(const [j,p] of session.activities.entries()) {
       const a=activity(p.id), modes=trackingModes(a), load=String(a['Load convention']).toLowerCase();
       if(!day.sessions[i]!.activityIds.includes(p.id)||!modes[p.measure])throw new OnboardingError(422,'catalog_coverage');
-      if((p.measure==='repetitions'||p.measure==='count')&&p.amount>100 || p.measure==='seconds'&&p.amount>7200)throw new OnboardingError(422,'invalid_plan');
-      if(p.load==='kg' ? p.loadKg===null||!/\bkg\b/.test(load)||/assistance|band|no external|bodyweight/.test(load) : p.loadKg!==null)throw new OnboardingError(422,'invalid_plan');
-      if(p.load==='assistance'&&!/assistance/.test(load)||p.load==='band_setting'&&!/band/.test(load))throw new OnboardingError(422,'invalid_plan');
-      if(p.load==='self_selected'&&/no external|no added|water resistance|bodyweight|band|assistance/.test(load))throw new OnboardingError(422,'invalid_plan');
+      if((p.measure==='repetitions'||p.measure==='count')&&p.amount>100 || p.measure==='seconds'&&p.amount>7200)invalidPlan('quantity',i,j);
+      if(p.load==='kg' ? p.loadKg===null||!/\bkg\b/.test(load)||/assistance|band|no external|bodyweight/.test(load) : p.loadKg!==null)invalidPlan('load',i,j);
+      if(p.load==='assistance'&&!/assistance/.test(load)||p.load==='band_setting'&&!/band/.test(load))invalidPlan('load',i,j);
+      if(p.load==='self_selected'&&/no external|no added|water resistance|bodyweight|band|assistance/.test(load))invalidPlan('load',i,j);
     }
   }
   return value;
