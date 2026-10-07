@@ -22,13 +22,16 @@ Build a complete plan for Monday ${dates[0]} through Sunday ${dates[6]}
 to help me achieve my goals. Plan the entire week, even if some
 of those days have already passed.
 
-For each day, include:
-- Each session’s name, goal and approximate duration.
-- The exercises or activities for that session, with appropriate
-  sets, repetitions, time, distance, recovery and effort targets.
-
+First, create the high-level weekly outline: each day's session(s),
+with each session's name, goal, timing and approximate duration.
 Choose the training structure and session distribution that best
 fit my goals, availability and limitations.
+
+Next, create the workout for every session in that outline,
+including exercises or activities with appropriate sets,
+repetitions, time, distance, recovery and effort targets.
+Preserve the outline's days and separate sessions when adding
+the workouts.
 
 Select exercises and activities only from the supplied catalog.
 Reference each selected activity by its exact catalog ID and
@@ -39,8 +42,10 @@ activities, not predetermined routines.
 If the catalog cannot support part of the plan, identify the
 specific gap rather than inventing an exercise or catalog ID.
 
-Return the complete week, including all session details, in the
-provided response schema.
+Finally, format the complete plan using the provided response
+schema. Formatting must preserve the sessions and prescriptions,
+not merge, drop, move or rewrite them. Return only the final
+complete week, including all session details.
 
 Exercise catalog:
 ${JSON.stringify({encoding:'Rows align with columns. Numeric cells index strings; string and array cells are literal.',...selectionCatalog})}`;

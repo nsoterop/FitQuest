@@ -1,5 +1,11 @@
 # FitQuest
 
+## One-request workflow prompt trial — 2026-10-07
+
+The initial complete-week request now asks for the high-level session outline first, each session's workout next, and final response-schema formatting last, preserving separate sessions and prescriptions throughout. This is one response with the final schema active throughout; it neither exposes intermediate objects/reasoning nor guarantees an internal processing order or improved coaching. The current model/settings, eligible catalog bytes, schema, revision suffix, five-answer intake and overview → free Use this plan/reopen flow are unchanged. No migration, mobile feature change, paid evaluation or owner regeneration is needed.
+
+An independent full-template assertion checks verbatim synthetic answers (including newlines and per-session limits), date grounding and the exact actual-provider request. Pre-trial SHA-256 fingerprints pin catalog bytes and response schema; all request settings remain identical. Existing synthetic tests cover multi-session fidelity, atomic save, one dispatch and zero calls/charges on acceptance/reopen. Release evidence follows after deployment and the standing owner-only reset; live phone/coaching quality remains unverified.
+
 ## Single generation, outline first — 2026-10-07
 
 Five faithful non-AI answers now lead to one complete current Monday–Sunday draft. The server atomically saves its sessions, blocks, exercises and recovery; the initial response exposes only a concise overview. **Use this plan** accepts the exact saved revision and reveals its existing exercises with no provider call, reservation or charge. Explicit feedback makes one complete revision request; failed results preserve usable work and successful revised drafts require acceptance again. Today-onward filtering never removes or completes stored past prescriptions.

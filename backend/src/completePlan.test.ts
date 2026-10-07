@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Ajv } from 'ajv';
+import { createHash } from 'node:crypto';
+import { selectionCatalog } from './activityCatalog.js';
 import { completeFixture,syntheticAnswers } from './completePlanFixture.js';
 import { completeResponseSchema,encodeCompleteWire,decodeCompleteWire } from './completePlanWire.js';
 import { checkComplete,completePrompt,prepareComplete } from './completePlanning.js';
@@ -22,9 +24,65 @@ test('strict complete wire uses required object properties, compatible keywords 
  visit(root);assert.equal(max,10);assert.equal(root.type,'object');assert.equal(root.anyOf,undefined);
  const valid=new Ajv({strict:true}).compile(root);assert(valid(wire()));const bad=wire() as any;bad.result.days[0].sessions[0].blocks[0].exercises[0].extra='private';assert(!valid(bad));
 });
-test('complete prompt faithfully contains only the approved answers, dates and eligible catalog; full-week reservation',()=>{
- const body=JSON.parse(prepareComplete(provider,input).body);assert.equal(body.input,completePrompt(syntheticAnswers,dates));assert.equal(body.instructions,undefined);assert.equal(body.max_output_tokens,48000);assert.equal(body.reasoning.effort,'low');assert.equal(body.text.format.name,'complete_week');
- assert.match(body.input,/Monday 2026-10-05 through Sunday 2026-10-11/);assert(!body.input.includes('goalDecisions'));for(const a of syntheticAnswers)assert(body.input.includes(a));assert(!body.input.includes('FQ-ACT-00161'));
+// Independently specified synthetic answers/template; never derived from completePrompt.
+const workflowAnswers=['General strength & comfortable walking','Two easy walks; no lifting currently','Dumbbells, floor & a safe outdoor route','I prefer separate sessions.\nEach session: 20–40 minutes; three days available.','None'];
+const workflowInput={...input,summary:intakeSummary({version:1,answers:workflowAnswers})};
+const expectedWorkflow=`I want you to come up with an exercise plan for me.
+
+My goals are: General strength & comfortable walking.
+My current activity is: Two easy walks; no lifting currently.
+My available equipment is: Dumbbells, floor & a safe outdoor route.
+My training preferences are: I prefer separate sessions.
+Each session: 20–40 minutes; three days available..
+My limitations are: None.
+
+Build a complete plan for Monday 2026-10-05 through Sunday 2026-10-11
+to help me achieve my goals. Plan the entire week, even if some
+of those days have already passed.
+
+First, create the high-level weekly outline: each day's session(s),
+with each session's name, goal, timing and approximate duration.
+Choose the training structure and session distribution that best
+fit my goals, availability and limitations.
+
+Next, create the workout for every session in that outline,
+including exercises or activities with appropriate sets,
+repetitions, time, distance, recovery and effort targets.
+Preserve the outline's days and separate sessions when adding
+the workouts.
+
+Select exercises and activities only from the supplied catalog.
+Reference each selected activity by its exact catalog ID and
+respect its equipment, setup and tracking requirements. You
+choose the programming; the catalog supplies the available
+activities, not predetermined routines.
+
+If the catalog cannot support part of the plan, identify the
+specific gap rather than inventing an exercise or catalog ID.
+
+Finally, format the complete plan using the provided response
+schema. Formatting must preserve the sessions and prescriptions,
+not merge, drop, move or rewrite them. Return only the final
+complete week, including all session details.
+
+Exercise catalog:
+`;
+const catalogBytes=JSON.stringify({encoding:'Rows align with columns. Numeric cells index strings; string and array cells are literal.',...selectionCatalog});
+const sha=(value:string)=>createHash('sha256').update(value).digest('hex');
+function assertWorkflowRequest(body:any){
+ assert.equal(body.input,expectedWorkflow+catalogBytes);
+ // Fingerprints captured from the previously released request before this trial.
+ assert.equal(sha(body.input.slice(expectedWorkflow.length)),'a65adad4dafec9c7867c3b170b4a7bcb29aeab7c7fa60f7ec9871fe5c467a49a');
+ assert.equal(sha(JSON.stringify(body.text.format.schema)),'62054b3e9ae61558e15882d6af98096bf03431842f562083935b4bc0ac4079ca');
+ const {input:prompt,text,...settings}=body;
+ assert.deepEqual(settings,{model:'gpt-6-luna',store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:48000});
+ assert.deepEqual({...text.format,schema:undefined},{type:'json_schema',name:'complete_week',strict:true,schema:undefined});
+ assert.deepEqual(Object.keys(text),['format']);
+ assert(prompt.indexOf('First, create')<prompt.indexOf('Next, create')&&prompt.indexOf('Next, create')<prompt.indexOf('Finally, format'));
+}
+test('workflow request exactly matches independent template and verbatim answers; catalog, schema and settings stay unchanged',()=>{
+ assertWorkflowRequest(JSON.parse(prepareComplete({...provider,model:'gpt-6-luna'},workflowInput).body));
+ assert.equal(completePrompt(workflowAnswers,dates),expectedWorkflow+catalogBytes);
 });
 test('mixed multi-session, ranges, distance, per-side lifting, circuits and active/passive/instruction recovery round-trip exactly',()=>{
  const p=completeFixture(dates),s=p.days[0]!.sessions[0]!;
@@ -62,10 +120,10 @@ test('complete revisions preserve explicit kept sessions and exact block recover
 test('actual OpenAI adapter allows the complete-week limits and distinguishes refusal/truncation without a second dispatch',async()=>{
  const {openAIProvider}=await import('./onboardingProvider.js');let calls=0,status='completed',refusal=false;
  const p=openAIProvider({key:'synthetic-not-a-secret',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5},async(_url,init)=>{
-  calls++;const request=JSON.parse(String(init!.body));assert.equal(request.max_output_tokens,48000);assert(new Ajv().compile(request.text.format.schema)(wire()));
+  calls++;const request=JSON.parse(String(init!.body));assertWorkflowRequest(request);assert(new Ajv().compile(request.text.format.schema)(wire()));
   return new Response(JSON.stringify({status,usage:{input_tokens:100,output_tokens:2500},output:[{type:'message',content:[refusal?{type:'refusal',refusal:'Synthetic refusal'}:{type:'output_text',text:JSON.stringify(wire())}]}]}),{headers:{'x-request-id':'req_complete_synthetic'}});
  });
- const prepared=prepareComplete(p,input);let reply=await p.call(prepared.body,new AbortController().signal);assert.equal(calls,1);assert.equal(reply.failure,undefined);assert.equal(reply.usage!.output,2500);assert.equal(checkComplete(reply.proposal,input).result.kind,'plan');assert.equal(reply.rawText,undefined);
+ const prepared=prepareComplete(p,workflowInput);let reply=await p.call(prepared.body,new AbortController().signal);assert.equal(calls,1);assert.equal(reply.failure,undefined);assert.equal(reply.usage!.output,2500);assert.equal(checkComplete(reply.proposal,input).result.kind,'plan');assert.equal(reply.rawText,undefined);
  status='incomplete';reply=await p.call(prepared.body,new AbortController().signal);assert.equal(reply.failure,'incomplete');assert.equal(reply.usage!.output,2500);refusal=true;status='completed';reply=await p.call(prepared.body,new AbortController().signal);assert.equal(reply.failure,'refused');assert.equal(calls,3);
 });
 
