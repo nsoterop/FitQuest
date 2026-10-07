@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Ajv } from 'ajv';
 import { createHash } from 'node:crypto';
-import { selectionCatalog } from './activityCatalog.js';
+import { completeSelectionCatalog as selectionCatalog } from './activityCatalog.js';
 import { completeFixture,syntheticAnswers } from './completePlanFixture.js';
 import { completeResponseSchema,encodeCompleteWire,decodeCompleteWire } from './completePlanWire.js';
 import { checkComplete,completePrompt,prepareComplete } from './completePlanning.js';
@@ -71,16 +71,17 @@ const catalogBytes=JSON.stringify({encoding:'Rows align with columns. Numeric ce
 const sha=(value:string)=>createHash('sha256').update(value).digest('hex');
 function assertWorkflowRequest(body:any){
  assert.equal(body.input,expectedWorkflow+catalogBytes);
- // Fingerprints captured from the previously released request before this trial.
- assert.equal(sha(body.input.slice(expectedWorkflow.length)),'a65adad4dafec9c7867c3b170b4a7bcb29aeab7c7fa60f7ec9871fe5c467a49a');
- assert.equal(sha(JSON.stringify(body.text.format.schema)),'62054b3e9ae61558e15882d6af98096bf03431842f562083935b4bc0ac4079ca');
+ // Representation fingerprints updated for explicit units and derived tracking metadata;
+ // the independently written coaching template and settings above remain unchanged.
+ assert.equal(sha(body.input.slice(expectedWorkflow.length)),'2462711bea940228298fd6d526571542bbfb5c7f8732046ec969236dfdf1dabd');
+ assert.equal(sha(JSON.stringify(body.text.format.schema)),'263b2911112487c20c34a1af56bfa57ff946d763843dbdaa22306ebaf1f21bb3');
  const {input:prompt,text,...settings}=body;
  assert.deepEqual(settings,{model:'gpt-6-luna',store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:48000});
- assert.deepEqual({...text.format,schema:undefined},{type:'json_schema',name:'complete_week',strict:true,schema:undefined});
+ assert.deepEqual({...text.format,schema:undefined},{type:'json_schema',name:'complete_week_units_v2',strict:true,schema:undefined});
  assert.deepEqual(Object.keys(text),['format']);
  assert(prompt.indexOf('First, create')<prompt.indexOf('Next, create')&&prompt.indexOf('Next, create')<prompt.indexOf('Finally, format'));
 }
-test('workflow request exactly matches independent template and verbatim answers; catalog, schema and settings stay unchanged',()=>{
+test('workflow request exactly matches independent template and verbatim answers; coaching substance and settings stay unchanged',()=>{
  assertWorkflowRequest(JSON.parse(prepareComplete({...provider,model:'gpt-6-luna'},workflowInput).body));
  assert.equal(completePrompt(workflowAnswers,dates),expectedWorkflow+catalogBytes);
 });

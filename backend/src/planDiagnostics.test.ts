@@ -18,10 +18,10 @@ function failure(value:any,context=input){try{checkComplete(value,context);asser
 test('lookup, tracking, equipment and load preserve public codes with bounded activity locations',()=>{
  let w=raw();w.result.days[1].sessions[0].blocks[0].exercises[0].activityId='FQ-ACT-99999';
  let e=failure(w);assert.equal(e.code,'catalog_coverage');assert.deepEqual(e.diagnostic,{version:1,stage:'catalog',rule:'lookup',day:1,session:0,block:0,exercise:0,activityId:'FQ-ACT-99999',actualKind:'duration'});
- w=raw();Object.assign(w.result.days[0].sessions[0].blocks[0].exercises[0],{activityId:'FQ-ACT-00167',targetKind:'repetitions',targetMin:5,targetMax:5});
- e=failure(w);assert.equal(e.code,'catalog_coverage');assert.equal(e.diagnostic.rule,'tracking');assert.equal(e.diagnostic.actualKind,'repetitions');assert(e.diagnostic.allowedKinds?.includes('count'));assert(!e.diagnostic.allowedKinds?.includes('repetitions'));
- w.result.days[0].sessions[0].blocks[0].exercises[0].targetKind='count';assert.equal(checkComplete(w,input).result.kind,'plan');
- w=raw();Object.assign(w.result.days[0].sessions[0].blocks[0].exercises[0],{activityId:'FQ-ACT-00046',targetKind:'repetitions',targetMin:8,targetMax:12});
+ w=raw();Object.assign(w.result.days[0].sessions[0].blocks[0].exercises[0],{activityId:'FQ-ACT-00148',targetKind:'repetitions',targetMin:5,targetMax:5,durationUnit:null});
+ e=failure(w);assert.equal(e.code,'catalog_coverage');assert.equal(e.diagnostic.rule,'tracking');assert.equal(e.diagnostic.actualKind,'repetitions');assert(e.diagnostic.allowedKinds?.includes('duration'));assert(!e.diagnostic.allowedKinds?.includes('repetitions'));
+ w.result.days[0].sessions[0].blocks[0].exercises[0].targetKind='duration';w.result.days[0].sessions[0].blocks[0].exercises[0].durationUnit='seconds';assert.equal(checkComplete(w,input).result.kind,'plan');
+ w=raw();Object.assign(w.result.days[0].sessions[0].blocks[0].exercises[0],{activityId:'FQ-ACT-00046',targetKind:'repetitions',targetMin:8,targetMax:12,durationUnit:null});
  e=failure(w,{...input,summary:intakeSummary({version:1,answers:syntheticAnswers.map((v,i)=>i===2?'No equipment':v)})});assert.equal(e.diagnostic.rule,'equipment');assert.equal(e.code,'catalog_coverage');
  w=raw();Object.assign(w.result.days[0].sessions[0].blocks[0].exercises[0],{loadValue:10,loadUnit:'kg'});e=failure(w);assert.equal(e.diagnostic.rule,'load');assert.equal(e.code,'invalid_plan:load');
 });
@@ -47,7 +47,7 @@ test('sanitization rejects hostile values and drops arbitrary keys, paths and va
 });
 test('diagnostic failure never masks validation, changes settlement or dispatches twice; provider failures stay distinct',async()=>{
  const a={userId:'synthetic-owner',sessionId:'synthetic-session'},events:string[]=[];let proposal=raw(),providerFailure=false,diagnostics=0;
- Object.assign(proposal.result.days[0].sessions[0].blocks[0].exercises[0],{activityId:'FQ-ACT-00167',targetKind:'repetitions',targetMin:5,targetMax:5});
+ Object.assign(proposal.result.days[0].sessions[0].blocks[0].exercises[0],{activityId:'FQ-ACT-00148',targetKind:'repetitions',targetMin:5,targetMax:5,durationUnit:null});
  const work={attempt:'attempt-one',input,body:'{}'} as PlanningWork;
  const store={claim:async()=>work,settle:async()=>{events.push('settle')},recordValidation:async(_a:any,w:PlanningWork,d:any)=>{diagnostics++;assert.equal(w.attempt,'attempt-one');assert.equal(d.rule,'tracking');events.push('diagnostic');throw Error('private database failure')},finish:async(_a:any,_w:any,value:any,error:any)=>{events.push('finish');assert.equal(value,undefined);assert.equal(error,providerFailure?'provider_error':'catalog_coverage')},read:async()=>({summary:null,plans:[]})} as unknown as PlanningStore;
  const provider={mode:'test',capMicro:7000000,prepare(){throw Error('unused')},model:'mock',cost:()=>10,call:async()=>{events.push('dispatch');return {proposal,usage:{input:1,output:1,cached:0,cacheWrite:0},...(providerFailure?{failure:'provider_error'}:{})}}} as OnboardingProvider;

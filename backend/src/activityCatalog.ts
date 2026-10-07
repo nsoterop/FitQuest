@@ -35,3 +35,18 @@ export const selectionCatalog=(()=>{
   const strings=[...counts].filter(([,count])=>count>1).map(([v])=>v),lookup=new Map(strings.map((v,i)=>[v,i]));
   return {columns:selectionColumns,strings,rows:eligibleActivities.map(a=>selectionColumns.map(k=>typeof a[k]==='string'&&lookup.has(a[k] as string)?lookup.get(a[k] as string):a[k]))};
 })();
+
+// Complete-plan target names derive from the same catalog tracking rules as validation.
+// Only a primary discrete event supports the repetitions -> count alias. Secondary
+// error/support-contact counts on a timed balance hold are not repetition targets.
+export function repetitionCountAlias(a:Activity):boolean {
+ const modes=trackingModes(a),primary=String(a['Tracking measures']).toLowerCase().split(';')[0]!.trim();
+ return !modes.repetitions&&modes.count&&/^(?:steps|reaches|successful (?:jumps|turns)|contacts|passes|throws|taps|(?:forehands|backhands|volleys|returns|layups|putts) attempted|route completions|rebounds received|feeds received|rally contacts|swings|touches|routes)\b/.test(primary);
+}
+export function supportedTargetKinds(a:Activity) {
+ const m=trackingModes(a);return (['repetitions','duration','distance','count'] as const).filter(k=>k==='repetitions'?m.repetitions||repetitionCountAlias(a):k==='duration'?m.seconds:k==='distance'?m.meters:m.count);
+}
+export const completeSelectionCatalog={...selectionCatalog,
+ columns:[...selectionCatalog.columns,'Supported target kinds','Repetition count alias'],
+ rows:selectionCatalog.rows.map((row,i)=>[...row,supportedTargetKinds(eligibleActivities[i]!),repetitionCountAlias(eligibleActivities[i]!)?'repetitions=count of the primary event; no RIR':'none']),
+};

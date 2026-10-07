@@ -1,13 +1,13 @@
-import { CompleteValidationError,invalidComplete,schemaPosition,type DiagnosticPosition,type TargetKind } from './planDiagnostics.js';
+import { CompleteValidationError,invalidComplete,schemaPosition,type DiagnosticPosition } from './planDiagnostics.js';
 import { Ajv } from 'ajv';
-import { activity,catalog,selectionCatalog,trackingModes } from './activityCatalog.js';
+import { activity,catalog,completeSelectionCatalog,trackingModes,repetitionCountAlias,supportedTargetKinds } from './activityCatalog.js';
 import { intakeAnswers } from './fixedIntake.js';
 import { OnboardingError } from './onboardingError.js';
 import type { OnboardingProvider } from './onboardingProvider.js';
 import type { PlanningInput,Detail,Outline } from './planningDomain.js';
 import { weeklyLimits } from './weeklyPlanning.js';
 import { completePlanVersion,validCompletePlan,validOverview,validExercise,type WeeklyPlan,type PlanResponse,type Exercise } from './completePlanContract.js';
-import { completeResponseSchema,decodeCompleteWire,encodeCompleteWire,type WireResponse } from './completePlanWire.js';
+import { completeResponseSchema,completeWireName,decodeCompleteWire,encodeCompleteWire,type WireResponse } from './completePlanWire.js';
 import { checkReviewProtections,reviewProtections } from './reviewProtection.js';
 const validate=new Ajv({strict:true}).compile<WireResponse>(completeResponseSchema);
 export function completePrompt(answers:string[],dates:string[]):string{
@@ -49,7 +49,7 @@ not merge, drop, move or rewrite them. Return only the final
 complete week, including all session details.
 
 Exercise catalog:
-${JSON.stringify({encoding:'Rows align with columns. Numeric cells index strings; string and array cells are literal.',...selectionCatalog})}`;
+${JSON.stringify({encoding:'Rows align with columns. Numeric cells index strings; string and array cells are literal.',...completeSelectionCatalog})}`;
 }
 // Recognition adapter only: no conversion to old prescriptions for storage or display.
 // Block/recovery context remains attached to every row so a keep protects its dose.
@@ -64,14 +64,14 @@ export function prepareComplete(provider:OnboardingProvider,input:PlanningInput)
  if(input.completeReview){const old=protectionView(input.completeReview.plan),review={...old,feedback:input.completeReview.feedback,context:null};
   prompt+=`\n\nUpdate the same saved week according to this explicit feedback. Preserve unchanged and explicitly kept work, exact ranges, order and recovery. Do not infer completed workouts. If the requested change conflicts with kept work or cannot be supported, return unavailable with the specific reason; the saved plan will remain unchanged. The revised complete draft requires acceptance again.\nFeedback:\n${input.completeReview.feedback}\nSaved week:\n${JSON.stringify(encodeCompleteWire({result:{kind:'plan',plan:input.completeReview.plan}}))}\nProtected work (original positions, not extra prescriptions):\n${JSON.stringify(reviewProtections(review,input.dates))}`;
  }
- const body=JSON.stringify({model:provider.model,store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:weeklyLimits.outputTokens,input:prompt,text:{format:{type:'json_schema',name:'complete_week',strict:true,schema:completeResponseSchema}}});
+ const body=JSON.stringify({model:provider.model,store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:weeklyLimits.outputTokens,input:prompt,text:{format:{type:'json_schema',name:completeWireName,strict:true,schema:completeResponseSchema}}});
  if(Buffer.byteLength(body)>weeklyLimits.inputBytes)throw new OnboardingError(422,'planning_context_limit');
  return {body,reserveMicro:provider.cost({input:Buffer.byteLength(body),output:weeklyLimits.outputTokens,cached:0,cacheWrite:0})};
 }
 function checkActivity(e:Exercise,input:PlanningInput,position:DiagnosticPosition){
  let a;try{a=activity(e.activityId)}catch{invalidComplete('catalog_coverage','catalog','lookup',position,e)}
  const m=trackingModes(a),mode={repetitions:'repetitions',duration:'seconds',distance:'meters',count:'count'}[e.target.kind] as keyof typeof m;
- if(!m[mode])invalidComplete('catalog_coverage','catalog','tracking',position,e,(['repetitions','duration','distance','count'] as TargetKind[]).filter(k=>m[({repetitions:'repetitions',duration:'seconds',distance:'meters',count:'count'} as const)[k]]));
+ if(!m[mode])invalidComplete('catalog_coverage','catalog','tracking',position,e,supportedTargetKinds(a));
  const load=String(a['Load convention']).toLowerCase();
  if(e.load&&(!/(?:\blb\b|\bkg\b|mass.*unit|pack mass|ball mass|sled mass)/.test(load)||/band|no external|no added|water resistance/.test(load)))invalidComplete('invalid_plan:load','catalog','load',position,e);
  // Known explicit exclusions are enforceable; free-text feasibility remains model judgment.
@@ -108,6 +108,11 @@ export function checkComplete(raw:unknown,input:PlanningInput):PlanResponse{
  let result:PlanResponse;try{result=decodeCompleteWire(raw)}catch(error){if(error instanceof CompleteValidationError)throw error;invalidComplete('invalid_plan:week_schema','conversion','decode')}
  if(result.result.kind==='unavailable')return result;
  const plan=result.result.plan;
+ // Fresh decoded output only. Saved canonical records are never rewritten or rescaled.
+ for(const d of plan.days)for(const s of d.sessions)for(const b of s.blocks)for(const e of [...b.exercises,...(b.recovery?.activity?[b.recovery.activity]:[])]){
+  let a;try{a=activity(e.activityId)}catch{continue;}
+  if(e.target.kind==='repetitions'&&repetitionCountAlias(a))e.target={kind:'count',count:{...e.target.reps}};
+ }
  if(!validCompletePlan(plan,input.dates))diagnoseStructure(plan,input.dates);
  if(Buffer.byteLength(JSON.stringify(plan))>400000)invalidComplete('planning_context_limit','integrity','size');
  plan.days.forEach((d,day)=>d.sessions.forEach((s,session)=>s.blocks.forEach((b,block)=>{b.exercises.forEach((e,exercise)=>checkActivity(e,input,{day,session,block,exercise}));if(b.recovery?.activity)checkActivity(b.recovery.activity,input,{day,session,block,recovery:true});})));

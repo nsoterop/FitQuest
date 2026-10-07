@@ -1128,7 +1128,7 @@ test('complete canonical draft renders only overview through reload; one generat
   if(url.endsWith('/generate')){
    assert.equal(body.target,'week');assert.equal(body.confirmOutline,undefined);dispatches++;
    const planning={kind:'week',schemaVersion:p.schemaVersion,summary:saved.summary.document,dates,profile:{age:30,heightInches:68,weightLb:155}};
-   const request=JSON.parse(prepareComplete({model:'mock',cost:()=>10},planning).body);assert.equal(request.text.format.name,'complete_week');
+   const request=JSON.parse(prepareComplete({model:'mock',cost:()=>10},planning).body);assert.equal(request.text.format.name,'complete_week_units_v2');
    const result=checkComplete(encodeCompleteWire({result:{kind:'plan',plan:completeFixture(dates)}}),planning);canonical=result.result.plan;
    p.overview=planOverview(canonical);p.completeReady=true;p.planRevision=1;p.jobs=[{target:'week',status:'completed',attemptId:'complete-attempt',error:null}];
   }
@@ -1155,4 +1155,30 @@ test('complete exercise rows preserve per-side ranges, loads and effort without 
  const e={activityId:'FQ-ACT-00046',target:{kind:'repetitions',reps:{min:8,max:12}},perSide:true,load:{value:10,unit:'lb'},loadInstruction:null,effort:{rpe:null,rir:{min:2,max:3},cue:null}};
  assert.equal(exerciseText(e,{'FQ-ACT-00046':{name:'Standing dumbbell biceps curl',loadConvention:'Load per dumbbell (lb or kg)'}}),'Standing dumbbell biceps curl · 8–12 reps · each side · 10 lb per dumbbell · 2–3 RIR');
  e.target={kind:'distance',distance:{min:.1,max:.25},unit:'mi'};e.effort=null;e.load=null;e.perSide=false;assert.match(exerciseText(e,{}),/0.1–0.25 mi/);
+});
+
+test('explicit wire minutes and event-count aliases render canonical doses after acceptance and free reopen',async t=>{
+ t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
+ const {unitWireFixture,syntheticAnswers}=await import('../../backend/src/completePlanFixture.ts');
+ const {checkComplete,prepareComplete,completeActivities}=await import('../../backend/src/completePlanning.ts');
+ const {planOverview}=await import('../../backend/src/completePlanContract.ts');
+ const {intakeSummary}=await import('../../backend/src/fixedIntake.ts');
+ const dates=Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`),saved=trainingState(),p=saved.plans[0];
+ saved.summary.document=intakeSummary({version:1,answers:syntheticAnswers});
+ Object.assign(p,{dates,schemaVersion:'complete-week-v1',outlineFirst:false,reviewState:'draft',planRevision:0,completeReady:false,completePlan:null,overview:null,activityNames:{},acceptedAt:null});
+ let dispatches=0,accepts=0,canonical;
+ globalThis.fetch=async(url,options)=>{
+  if(url.endsWith('/generate')){dispatches++;const context={kind:'week',summary:saved.summary.document,dates,profile:{age:30,heightInches:68,weightLb:155}};
+   assert.equal(JSON.parse(prepareComplete({model:'mock',cost:()=>10},context).body).text.format.name,'complete_week_units_v2');
+   const fixture=unitWireFixture(dates);canonical=checkComplete(fixture.wire,context).result.plan;assert.deepEqual(canonical,fixture.expected);
+   p.overview=planOverview(canonical);p.completeReady=true;p.planRevision=1;p.jobs=[{target:'week',status:'completed',attemptId:'unit-attempt',error:null}];}
+  if(url.endsWith('/accept')){accepts++;p.reviewState='accepted';p.completePlan=structuredClone(canonical);p.activityNames=completeActivities(canonical);p.acceptedAt='2026-10-05T16:00:00Z';}
+  return{status:200,json:async()=>structuredClone(saved)};
+ };
+ let screen=await mountTraining({generateOnOpen:true});assert.equal(dispatches,1);assert.doesNotMatch(renderedTrainingText(screen),/120–180 sec|5–8 count|Medicine-ball/);
+ await act(async()=>{press(screen,'Use this plan');await flush()});let rendered=renderedTrainingText(screen);
+ assert.match(rendered,/Outdoor walking · 120–180 sec/);assert.match(rendered,/Between rounds \(2 recoveries\): Outdoor walking · 30–60 sec/);assert.match(rendered,/Rest 30–45 sec/);assert.match(rendered,/5–8 count · each side · 4 kg/);assert.match(rendered,/Optional session/);assert.match(rendered,/Evening/);assert.match(rendered,/Rest — no planned session/);assert.deepEqual(p.completePlan,canonical);
+ await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(dispatches,1);assert.equal(accepts,1);assert.match(renderedTrainingText(screen),/120–180 sec/);await act(async()=>screen.unmount());
+ // A saved pre-change 2-second target remains 2 seconds; no value-based guessing.
+ p.completePlan.days[1].sessions[0].blocks[0].exercises[0].target.seconds={min:2,max:2};screen=await mountTraining();assert.match(renderedTrainingText(screen),/Outdoor walking · 2 sec/);assert.equal(dispatches,1);await act(async()=>screen.unmount());
 });
