@@ -1,3 +1,4 @@
+import { CompleteWeekView } from './CompleteWeekView';
 import { nutritionText } from './nutrition';
 import { useConversationScroll } from './ConversationScrollView';
 import { sessionRows,visibleTrainingDates } from './trainingPresentation';
@@ -33,8 +34,8 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
   const current=state?.plans.find(p=>p.summaryRevision===state.summary?.revision);
   const shown=state?.plans.find(p=>p.id===selected)??current??state?.plans[0];
   const visibleDates=shown?visibleTrainingDates(shown.dates,shown.timeZone):[];
-  const overviewReady=!!shown?.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length;
-  const reviewing=(shown?.reviewState==='draft'||shown?.reviewState==='accepted')&&(!shown?.outlineFirst||!weekComplete(shown));
+  const overviewReady=shown?.schemaVersion==='complete-week-v1'?!!shown.completeReady:!!shown?.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length;
+  const reviewing=(shown?.reviewState==='draft'||shown?.reviewState==='accepted')&&(shown?.schemaVersion==='complete-week-v1'||!shown?.outlineFirst||!weekComplete(shown));
   const reviewJob=shown?.jobs.find(j=>j.target===`review:${shown.planRevision}`);
   const inFlight=shown?.jobs.some(j=>j.status==='pending');
   type Request=Parameters<Parameters<typeof run>[0]>[0];
@@ -46,8 +47,8 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
     setSelected(p.id);
     // A completion callback may be replayed after a lost response. Only a pristine
     // plan auto-generates; saved/failed/pending work needs an explicit weekly action.
-    if(!retry&&(p.outline||p.days.length||p.jobs.length))return;
-    const target=p.outlineFirst?'outline':'week';
+    if(!retry&&(p.completeReady||p.outline||p.days.length||p.jobs.length))return;
+    const target=p.schemaVersion==='complete-week-v1'?'week':p.outlineFirst?'outline':'week';
     const job=p.jobs.find(j=>j.target===target);
     await request('/generate','POST',{summaryRevision:s.summary!.revision,planId:p.id,target,retryAttempt:retry&&job?.status==='failed'?job.attemptId:null});
   }
@@ -126,6 +127,7 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
       {shown.outline?.goalDecisions?.filter(g=>g.status!=='addressed').map((g,i)=><Text key={`goal-${i}`} style={styles.small}>{g.goal}: {g.reason}</Text>)}
       {shown.jobs.filter(j=>j.status!=='completed'&&(j.target===`review:${shown.planRevision}`||j.target==='week'||j.target===`details:${shown.planRevision}`||!shown.jobs.some(x=>x.target==='week'))).map(j=><Text key={j.target} style={styles.copy}>{j.target.startsWith('review:')?'Changes':j.target==='week'?'Week':j.target.startsWith('details:')?'Workouts':j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':trainingError(j.error??'unavailable')}</Text>)}
       {!shown.outline&&shown.jobs.filter(j=>j.rawResponse&&j.status==='failed').map(j=><View key={`raw-${j.target}`} style={styles.day}><Text style={styles.label}>Response saved for recovery — not a usable plan</Text><Text style={styles.copy}>{j.error==='outline_conversion'?'The response could not be converted into a complete dated outline. Retry checks the saved response first; a new AI request is used only if it still cannot be converted.':'The response did not produce a usable outline. An explicit retry requests a new plan.'}</Text></View>)}
+      {shown.schemaVersion==='complete-week-v1'&&<CompleteWeekView plan={shown} dates={visibleDates}/> }
       {shown.outline&&!visibleDates.length&&<Text style={styles.copy}>No remaining days in this saved week. Its full dated plan is still saved.</Text>}
       {shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.filter(d=>visibleDates.includes(d.date)).map(d=><View key={d.date} accessibilityLabel={`Training day ${d.date}`} style={styles.day}>
         <Text accessibilityRole="header" style={styles.label}>{calendarDate(d.date)}</Text>
@@ -141,14 +143,15 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
         <View ref={question} collapsable={false}><Text accessibilityRole={shown.reviewQuestion?"alert":undefined} style={styles.copy}>{shown.reviewQuestion??'What would you change, and what should stay?'}</Text></View>
         <View ref={composer} collapsable={false} style={styles.exercise} onLayout={()=>reveal()}>
         <TextInput onFocus={()=>reveal(true)} onContentSizeChange={()=>reveal()} accessibilityLabel="Plan feedback" value={feedback} multiline maxLength={2000} editable={!busy&&!inFlight} style={[styles.input,{maxHeight:140}]} onChangeText={setFeedback} placeholder="Tell me what to change or keep" />
-        <Text style={styles.small}>Feedback and the saved plan are shared with OpenAI for a revision. Only context needed for review and recovery is retained. {shown.outlineFirst?'Confirming the outline sends it, your saved context and the exercise catalog to OpenAI to create all workouts together.':'Acceptance makes no AI request.'}</Text>
+        <Text style={styles.small}>Feedback and the saved plan are shared with OpenAI for a revision. Only context needed for review and recovery is retained. {shown.schemaVersion==='complete-week-v1'?'Use this plan reveals the saved exercises without another AI request.':shown.outlineFirst?'Confirming the outline sends it, your saved context and the exercise catalog to OpenAI to create all workouts together.':'Acceptance makes no AI request.'}</Text>
         {button(reviewJob?.status==='failed'?'Retry changes':'Update this week',()=>void run(async request=>{
           submitted.current={planId:shown.id,planRevision:shown.planRevision!,feedback};
           const result=await request('/review','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision,feedback,retryAttempt:reviewJob?.status==='failed'?reviewJob.attemptId:null});
           const next=result.plans.find(p=>p.id===shown.id);if(next?.planRevision!==shown.planRevision)setFeedback('');
         }),false,!feedback.trim()||!!inFlight)}
         {shown.reviewState==='draft'&&!shown.outlineFirst&&button('Use this plan',()=>void run(async request=>{await request('/accept','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision})}),false,!!feedback.trim()||!!inFlight||!!shown.reviewQuestion)}
-        {shown.outlineFirst&&button(shown.jobs.some(j=>j.target===`details:${shown.planRevision}`&&j.status==='failed')?'Retry creating workouts':'Use this plan',()=>void run(async request=>{
+        {shown.outlineFirst&&<Text style={styles.small}>This older outline has no saved exercises yet. Creating its workouts makes a new AI request.</Text>}
+        {shown.outlineFirst&&button(shown.jobs.some(j=>j.target===`details:${shown.planRevision}`&&j.status==='failed')?'Retry creating workouts':'Create workouts from this older outline',()=>void run(async request=>{
           const job=shown.jobs.find(j=>j.target===`details:${shown.planRevision}`);
           await request('/generate','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision,confirmOutline:true,target:'week',retryAttempt:job?.status==='failed'?job.attemptId:null});
         }),false,!!feedback.trim()||!!inFlight||!!shown.reviewQuestion||!!error)}

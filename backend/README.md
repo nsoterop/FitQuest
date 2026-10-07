@@ -1,5 +1,9 @@
 # FitQuest API
 
+## Complete canonical week — 2026-10-07
+
+New fixed-intake plans use `complete-week-v1`: a complete structured response is validated and saved in one transaction on the existing plan row. Draft reads return only the derived overview. Acceptance changes only server state/timestamp; duplicate acceptance and free reopening preserve the ledger. Complete revisions use one accounted request and reset acceptance. The real provider adapter recognizes the full-week output limit for this version. The shared canonical contract is in `src/completePlanContract.ts`; one bidirectional wire mapping keeps schema depth at ten including arrays. Legacy parsing/reads remain separate. Additive migration `20261007163020_complete_week_draft.sql` preserves existing data and private grants/RLS. **226 backend tests / zero skips** and TypeScript pass. Full release evidence is in the root README.
+
 ## Detail-generation contract and diagnostics — 2026-10-07
 
 Approved detail requests now encode existing runtime quantity/RIR constraints in the wire schema; instructions preserve null timing and explain catalog load labels and optional-session main work. No validator is bypassed, response repaired, initial outline prompt changed or schema migration needed. `PlanValidationError` keeps `invalid_plan` for domain callers while the service records `invalid_plan:<closed-category>:<numeric-positions>` on the private generation job. No Ajv messages, arbitrary property names, private values or raw structured responses are logged or retained. Existing provider diagnostics also survive successful HTTP responses, independently of settlement.

@@ -512,7 +512,7 @@ test('outline-first renders no exercises until explicit confirmation; two genera
  let screen=await mountTraining({generateOnOpen:true});assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,1);
  assert.match(renderedTrainingText(screen),/Draft outline/);assert.match(renderedTrainingText(screen),/Easy walking[\s\S]*Morning[\s\S]*About 12 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —|Complete weekly plan/);
  const rendered={overview:screen.toJSON(),overviewText:renderedTrainingText(screen)};
- await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});
+ await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});
  assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,2);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);assert.doesNotMatch(renderedTrainingText(screen),/Use this plan/);
  rendered.details=screen.toJSON();rendered.detailsText=renderedTrainingText(screen);if(process.env.FITQUEST_RENDER_CAPTURE)writeFileSync(process.env.FITQUEST_RENDER_CAPTURE,JSON.stringify(rendered,null,2));
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,2);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);await act(async()=>screen.unmount());
@@ -521,15 +521,15 @@ test('outline feedback is reviewed before confirmation and cannot silently creat
  const saved=overviewUiState(),p=saved.plans[0],requests=[];
  globalThis.fetch=async(url,options)=>{const body=options.body?JSON.parse(options.body):null;requests.push({url,body});if(url.endsWith('/review')){p.planRevision=2;p.outline.days[0].sessions[0].estimatedMinutes=10;p.reviewNote='The first session is shorter.'}return{status:200,json:async()=>structuredClone(saved)}};
  const screen=await mountTraining();await act(async()=>input(screen,'Plan feedback').props.onChangeText('Make the first day shorter.'));
- assert.equal(input(screen,'Use this plan').props.disabled,true);await act(async()=>{press(screen,'Update this week');await flush()});
- assert.match(renderedTrainingText(screen),/About 10 min/);assert.equal(input(screen,'Use this plan').props.disabled,false);assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,0);assert.equal(p.days.length,0);await act(async()=>screen.unmount());
+ assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);await act(async()=>{press(screen,'Update this week');await flush()});
+ assert.match(renderedTrainingText(screen),/About 10 min/);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,0);assert.equal(p.days.length,0);await act(async()=>screen.unmount());
 });
 test('failed or pending workout creation resumes the outline, with explicit retry and no automatic dispatch',async()=>{
  for(const status of ['failed','pending']){
   const saved=overviewUiState(),p=saved.plans[0];p.confirmedOutlineRevision=1;p.jobs.push({target:'details:1',status,error:status==='failed'?'outline_conflict':null,attemptId:'detail-failed'});p.reviewNote='The catalog cannot support this equipment requirement.';
   const server=trainingServer(saved),screen=await mountTraining({generateOnOpen:true});assert.equal(server.requests.length,1);assert.match(renderedTrainingText(screen),/About 12 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —/);
   if(status==='failed'){assert.match(renderedTrainingText(screen),/equipment requirement/);await act(async()=>{press(screen,'Retry creating workouts');await flush()});const sent=server.requests.find(r=>r.url.endsWith('/generate'));assert.equal(sent.body.retryAttempt,'detail-failed');assert.equal(sent.body.confirmOutline,true)}
-  else assert.equal(input(screen,'Use this plan').props.disabled,true);
+  else assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);
   await act(async()=>screen.unmount());
  }
 });
@@ -971,15 +971,15 @@ test('Continue completion opens existing outline generation once after saved-sum
   return{status:200,json:async()=>saved};
  };
  const screen=await mount();await act(async()=>{press(screen,'Start onboarding');await flush()});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
- await act(async()=>{press(screen,'Continue');press(screen,'Continue');await flush();await flush()});assert.equal(confirmations,1);assert.equal(generations,1);assert.ok(input(screen,'Use this plan'));
+ await act(async()=>{press(screen,'Continue');press(screen,'Continue');await flush();await flush()});assert.equal(confirmations,1);assert.equal(generations,1);assert.ok(input(screen,'Create workouts from this older outline'));
  await act(async()=>{press(screen,'Back to greeting');await flush()});await act(async()=>{press(screen,'View training');await flush()});assert.equal(generations,1);await act(async()=>screen.unmount());
 });
 test('ready clarification recovery offers the same Continue control; outline confirmation stays blocked after an uncertain request until reload',async()=>{
  globalThis.__fitquestSecure.clear();const ready=readyRecapFixture();globalThis.fetch=async()=>({status:200,json:async()=>ready});let screen;
  await act(async()=>{screen=TestRenderer.create(React.createElement(OnboardingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},recovery:{summaryRevision:1,planId:'synthetic',target:'outline'}}));await flush()});assert.equal(input(screen,'Continue').props.disabled,false);await act(async()=>screen.unmount());
  const saved=overviewUiState();let attempts=0;globalThis.fetch=async(url)=>{if(url.endsWith('/generate')){attempts++;throw Error('lost response')}return{status:200,json:async()=>saved}};
- screen=await mountTraining();await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(attempts,1);assert.equal(input(screen,'Use this plan').props.disabled,true);
- await act(async()=>{press(screen,'Reload saved training');await flush()});assert.equal(input(screen,'Use this plan').props.disabled,false);await act(async()=>screen.unmount());
+ screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});assert.equal(attempts,1);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);
+ await act(async()=>{press(screen,'Reload saved training');await flush()});assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);await act(async()=>screen.unmount());
 });
 test('partial Sunday plans render compact nutrition beside review and preserve it on free reopen; deferral retains training',async()=>{
  for(const count of [1,3,7])for(const status of ['estimate','deferred']){
@@ -987,7 +987,7 @@ test('partial Sunday plans render compact nutrition beside review and preserve i
   p.outline.nutrition={status,calories:status==='estimate'?2400:null,proteinGrams:status==='estimate'?120:null,carbohydrateGrams:status==='estimate'?318:null,fatGrams:status==='estimate'?72:null,basis:status==='estimate'?'mifflin-st-jeor-v1':null,rationale:'Supports mixed goals without prescribing meals.',assumptions:'Starting estimate with reported inputs.',reason:status==='deferred'?'Nutrition inputs remain unknown.':null};
   const server=trainingServer(saved);let screen=await mountTraining();let visible=renderedTrainingText(screen);assert.match(visible,/Draft outline/);assert.match(visible,/Easy walking[\s\S]*Morning[\s\S]*About 12 min/);assert(visible.includes(p.dates.at(-1)));
   if(status==='estimate')assert.match(visible,/Daily starting estimate.*2400 kcal.*Protein 120 g.*Carbs 318 g.*Fat 72 g/);else assert.match(visible,/Nutrition targets deferred.*unknown/);
-  assert.equal(input(screen,'Use this plan').props.disabled,false);
+  assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);
   await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert(renderedTrainingText(screen).includes(p.dates.at(-1)));await act(async()=>screen.unmount());
  }
 });
@@ -1026,8 +1026,8 @@ test('plain outlines render separate cards and failed-response recovery stays ex
  const saved=overviewUiState(),p=saved.plans[0];p.dates=['2026-10-11'];const raw='Sunday\nFour optional practice sessions, each about 15–25 minutes.';
  p.outline={sourceFormat:'plain-v1',originalResponse:raw,coverage:[],clarification:null,days:[{date:p.dates[0],sessions:Array.from({length:4},(_,i)=>({focus:`Session ${i+1}`,activityIds:[],timing:null,plain:{sourceText:`Optional session ${i+1} · 15–25 minutes`,goal:`Goal ${i+1}`,durationText:'15–25 minutes',durationRange:{min:15,max:25},timingText:null,optional:true}}))}]};
  saved.summary.document=saved.summary.document.slice(0,5).map((f,i)=>({...f,intakeIndex:i,text:i===0?'Faithful answer '.repeat(40):f.text,goals:undefined}));
- const server=trainingServer(saved);let screen=await mountTraining();assert(!renderedTrainingText(screen).includes(raw));assert.match(renderedTrainingText(screen),/Goal 1/);assert.match(renderedTrainingText(screen),/About 15–25 minutes/);assert.equal(screen.root.findAll(n=>n.props.accessibilityLabel?.startsWith('Session ')&&n.type==='View').length,4);assert(!renderedTrainingText(screen).includes('About undefined'));assert.equal(input(screen,'Use this plan').props.disabled,false);await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(server.requests.filter(r=>r.method==='POST').length,0);await act(async()=>screen.unmount());
- p.outline=null;p.planRevision=0;p.jobs=[{target:'outline',status:'failed',error:'outline_conversion',attemptId:'synthetic-failure',rawResponse:'Synthetic unparseable response'}];trainingServer(saved);screen=await mountTraining();assert.match(renderedTrainingText(screen),/Response saved for recovery — not a usable plan/);assert.doesNotMatch(renderedTrainingText(screen),/Synthetic unparseable response/);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Use this plan'}).length,0);await act(async()=>screen.unmount());
+ const server=trainingServer(saved);let screen=await mountTraining();assert(!renderedTrainingText(screen).includes(raw));assert.match(renderedTrainingText(screen),/Goal 1/);assert.match(renderedTrainingText(screen),/About 15–25 minutes/);assert.equal(screen.root.findAll(n=>n.props.accessibilityLabel?.startsWith('Session ')&&n.type==='View').length,4);assert(!renderedTrainingText(screen).includes('About undefined'));assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(server.requests.filter(r=>r.method==='POST').length,0);await act(async()=>screen.unmount());
+ p.outline=null;p.planRevision=0;p.jobs=[{target:'outline',status:'failed',error:'outline_conversion',attemptId:'synthetic-failure',rawResponse:'Synthetic unparseable response'}];trainingServer(saved);screen=await mountTraining();assert.match(renderedTrainingText(screen),/Response saved for recovery — not a usable plan/);assert.doesNotMatch(renderedTrainingText(screen),/Synthetic unparseable response/);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Create workouts from this older outline'}).length,0);await act(async()=>screen.unmount());
 });
 
 const calendarDates=Array.from({length:7},(_,i)=>`2026-10-${String(5+i).padStart(2,'0')}`);
@@ -1044,7 +1044,7 @@ test('full saved week projects every weekday without shifting sessions; Tuesday/
   t.mock.timers.setTime(new Date(`2026-10-${String(5+weekday).padStart(2,'0')}T12:00:00Z`).getTime());
   const server=trainingServer(saved),screen=await mountTraining();const labels=screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Training day ')).map(n=>n.props.accessibilityLabel.slice(13));assert.deepEqual(labels,calendarDates.slice(weekday));
   const visible=renderedTrainingText(screen);assert(!visible.includes(calendarResponse));assert.match(visible,/About 20–30 minutes/);assert.match(visible,/Build steady capacity/);assert.match(visible,/Optional session/);if(weekday<5)assert.match(visible,/Rest day/);
-  assert.equal(input(screen,'Use this plan').props.disabled,false);assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert.deepEqual(saved.plans[0],original);await act(async()=>screen.unmount());
+  assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert.deepEqual(saved.plans[0],original);await act(async()=>screen.unmount());
  }
  for(const [zone,now,expected] of [['America/Los_Angeles','2026-10-06T02:00:00Z',calendarDates],['Pacific/Kiritimati','2026-10-10T12:00:00Z',[calendarDates[6]]]])assert.deepEqual(visibleTrainingDates(calendarDates,zone,new Date(now)),expected);
  assert.deepEqual(visibleTrainingDates(['2026-10-26','2026-10-27','2026-10-28','2026-10-29','2026-10-30','2026-10-31','2026-11-01'],'America/New_York',new Date('2026-11-01T07:30:00Z')),['2026-11-01']);
@@ -1064,17 +1064,17 @@ test('five answers to actual parsed cards, Use this plan creates all seven saved
  };
  let screen=await mount();await act(async()=>{press(screen,'Start onboarding');await flush()});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
  for(const [i,answer]of ['Stronger','Walk weekly','Floor and route','Five days; coach chooses','None'].entries()){await act(async()=>input(screen,`Answer ${i+1}`).props.onChangeText(answer));await act(async()=>{press(screen,'Send');await flush()});}
- assert.equal(answers,5);assert.equal(outlines,0);await act(async()=>{press(screen,'Generate plan');await flush();await flush()});assert.equal(outlines,1);assert.equal(details,0);assert.equal(input(screen,'Use this plan').props.disabled,false);assert.match(renderedTrainingText(screen),/Tuesday/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);
- await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});assert.equal(details,1);assert.equal(plan.days.length,7);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);
+ assert.equal(answers,5);assert.equal(outlines,0);await act(async()=>{press(screen,'Generate plan');await flush();await flush()});assert.equal(outlines,1);assert.equal(details,0);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);assert.match(renderedTrainingText(screen),/Tuesday/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);
+ await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});assert.equal(details,1);assert.equal(plan.days.length,7);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);
  await act(async()=>{press(screen,'Back to greeting');await flush()});await act(async()=>{press(screen,'View training');await flush()});assert.equal(outlines,1);assert.equal(details,1);assert.match(renderedTrainingText(screen),/Outdoor walking/);await act(async()=>screen.unmount());
 });
 
 test('plain outline workouts fail recoverably, retry the same dated week explicitly, and stale revision needs reload',async t=>{
  t.mock.timers.setTime(new Date('2026-10-06T12:00:00Z').getTime());const saved=calendarState(),p=saved.plans[0],original=structuredClone(p.outline);let calls=0,stale=false;const requests=[];
  globalThis.fetch=async(url,options)=>{if(url.endsWith('/generate')){const body=JSON.parse(options.body);requests.push(body);calls++;if(stale)return{status:409,json:async()=>({code:'plan_changed'})};if(calls===1){p.jobs.push({target:'details:1',status:'failed',error:'incomplete',attemptId:'failed-detail'});p.confirmedOutlineRevision=1;}else {assert.equal(body.retryAttempt,'failed-detail');p.jobs=p.jobs.filter(j=>j.target!=='details:1');calendarDetails(p);}}return{status:200,json:async()=>structuredClone(saved)}};
- let screen=await mountTraining();await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(calls,1);assert.deepEqual(p.outline,original);assert.equal(p.days.length,0);assert.equal(input(screen,'Retry creating workouts').props.disabled,false);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —/);
+ let screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});assert.equal(calls,1);assert.deepEqual(p.outline,original);assert.equal(p.days.length,0);assert.equal(input(screen,'Retry creating workouts').props.disabled,false);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —/);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,1);await act(async()=>{press(screen,'Retry creating workouts');press(screen,'Retry creating workouts');await flush()});assert.equal(calls,2);assert.equal(p.days.length,7);assert.deepEqual(p.outline,original);assert.match(renderedTrainingText(screen),/Outdoor walking —/);assert.equal(requests[1].planId,requests[0].planId);assert.equal(requests[1].planRevision,requests[0].planRevision);await act(async()=>screen.unmount());
- p.days=[];p.reviewState='draft';p.confirmedOutlineRevision=null;p.jobs=p.jobs.filter(j=>j.target==='outline');stale=true;screen=await mountTraining();await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(input(screen,'Use this plan').props.disabled,true);assert.match(renderedTrainingText(screen),/This plan changed/);assert.deepEqual(p.outline,original);await act(async()=>screen.unmount());
+ p.days=[];p.reviewState='draft';p.confirmedOutlineRevision=null;p.jobs=p.jobs.filter(j=>j.target==='outline');stale=true;screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);assert.match(renderedTrainingText(screen),/This plan changed/);assert.deepEqual(p.outline,original);await act(async()=>screen.unmount());
 });
 
 test('actual detail wire and validators feed mobile exercises; safe validation failure preserves cards until explicit retry',async t=>{
@@ -1101,7 +1101,7 @@ test('actual detail wire and validators feed mobile exercises; safe validation f
   }
   return{status:200,json:async()=>structuredClone(saved)};
  };
- let screen=await mountTraining();await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});
+ let screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});
  assert.equal(calls,1);assert.equal(p.jobs[0].error,'invalid_plan:rir:0:0:2');assert.deepEqual(p.outline,original);assert.equal(p.days.length,0);
  assert.match(renderedTrainingText(screen),/repetitions-in-reserve target check/);assert.doesNotMatch(renderedTrainingText(screen),/invalid_plan|:0:0:2/);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,1);
@@ -1109,4 +1109,50 @@ test('actual detail wire and validators feed mobile exercises; safe validation f
  assert.deepEqual(p.outline.days,original.days);assert.match(renderedTrainingText(screen),/Standing arm circles/);assert.match(renderedTrainingText(screen),/3 RIR/);assert.match(renderedTrainingText(screen),/Optional/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,2);assert.match(renderedTrainingText(screen),/Standing arm circles/);await act(async()=>screen.unmount());
  assert(!trainingError('invalid_plan:private_health_text:0').includes('private_health_text'));
+});
+
+test('complete canonical draft renders only overview through reload; one generation, free acceptance reveals exact saved revision',async t=>{
+ t.mock.timers.setTime(new Date('2026-10-06T16:00:00Z').getTime());
+ const {completeFixture,syntheticAnswers}=await import('../../backend/src/completePlanFixture.ts');
+ const {checkComplete,prepareComplete,completeActivities}=await import('../../backend/src/completePlanning.ts');
+ const {encodeCompleteWire}=await import('../../backend/src/completePlanWire.ts');
+ const {planOverview}=await import('../../backend/src/completePlanContract.ts');
+ const {intakeSummary}=await import('../../backend/src/fixedIntake.ts');
+ const {planDates}=await import('../../backend/src/trainingSummary.ts');
+ const dates=planDates('America/New_York',new Date()),saved=trainingState(),p=saved.plans[0];
+ saved.summary.document=intakeSummary({version:1,answers:syntheticAnswers});
+ Object.assign(p,{dates,schemaVersion:'complete-week-v1',outlineFirst:false,reviewState:'draft',planRevision:0,completeReady:false,completePlan:null,overview:null,activityNames:{},acceptedAt:null});
+ let canonical,dispatches=0,accepts=0,revisionRequests=0;
+ const requests=[];
+ globalThis.fetch=async(url,options)=>{const body=options.body?JSON.parse(options.body):null;requests.push({url,body,method:options.method});
+  if(url.endsWith('/generate')){
+   assert.equal(body.target,'week');assert.equal(body.confirmOutline,undefined);dispatches++;
+   const planning={kind:'week',schemaVersion:p.schemaVersion,summary:saved.summary.document,dates,profile:{age:30,heightInches:68,weightLb:155}};
+   const request=JSON.parse(prepareComplete({model:'mock',cost:()=>10},planning).body);assert.equal(request.text.format.name,'complete_week');
+   const result=checkComplete(encodeCompleteWire({result:{kind:'plan',plan:completeFixture(dates)}}),planning);canonical=result.result.plan;
+   p.overview=planOverview(canonical);p.completeReady=true;p.planRevision=1;p.jobs=[{target:'week',status:'completed',attemptId:'complete-attempt',error:null}];
+  }
+  if(url.endsWith('/accept')){accepts++;assert.equal(body.planRevision,p.planRevision);p.reviewState='accepted';p.completePlan=structuredClone(canonical);p.activityNames=completeActivities(canonical);p.acceptedAt='2026-10-06T16:00:00Z';}
+  if(url.endsWith('/review')){revisionRequests++;canonical.days[1].sessions[0].durationMinutes={min:10,max:15};p.planRevision++;p.overview=planOverview(canonical);p.reviewState='draft';p.completePlan=null;p.activityNames={};p.acceptedAt=null;}
+  return {status:200,json:async()=>structuredClone(saved)};
+ };
+ let screen=await mountTraining({generateOnOpen:true});assert.equal(dispatches,1);assert.equal(accepts,0);assert.match(renderedTrainingText(screen),/Steady practice/);assert.match(renderedTrainingText(screen),/About 20–30 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round|recoveries|Monday/);
+ assert.equal(input(screen,'Use this plan').props.disabled,false);
+ await act(async()=>{input(screen,'Plan feedback').props.onChangeText('Unsent correction');await flush()});assert.equal(input(screen,'Use this plan').props.disabled,true);
+ await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(dispatches,1);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round/);
+ await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});assert.equal(accepts,1);assert.equal(dispatches,1);assert.match(renderedTrainingText(screen),/Outdoor walking · 60–90 sec/);assert.match(renderedTrainingText(screen),/Between rounds \(2 recoveries\): Rest 30–45 sec/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);assert.deepEqual(p.completePlan,canonical);
+ await act(async()=>screen.unmount());screen=await mountTraining();assert.match(renderedTrainingText(screen),/Outdoor walking/);assert.equal(dispatches,1);assert.equal(accepts,1);
+ await act(async()=>input(screen,'Plan feedback').props.onChangeText('Shorten Tuesday; keep the other days unchanged.'));await act(async()=>{press(screen,'Update this week');await flush()});assert.equal(revisionRequests,1);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round/);assert.match(renderedTrainingText(screen),/About 10–15 min/);assert.equal(input(screen,'Use this plan').props.disabled,false);
+ await act(async()=>screen.unmount());screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking/);await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(dispatches,1);assert.equal(accepts,2);assert.equal(revisionRequests,1);assert.match(renderedTrainingText(screen),/Outdoor walking/);
+ assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,1);assert(!requests.some(r=>r.body?.target==='outline'||r.body?.confirmOutline));
+ await act(async()=>screen.unmount());
+ // A malformed draft response carrying exercises is rejected, never rendered.
+ p.reviewState='draft';p.acceptedAt=null;screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|Steady practice/);await act(async()=>screen.unmount());
+});
+
+test('complete exercise rows preserve per-side ranges, loads and effort without verbose catalog descriptions',async()=>{
+ const {exerciseText}=await import('./CompleteWeekView.tsx');
+ const e={activityId:'FQ-ACT-00046',target:{kind:'repetitions',reps:{min:8,max:12}},perSide:true,load:{value:10,unit:'lb'},loadInstruction:null,effort:{rpe:null,rir:{min:2,max:3},cue:null}};
+ assert.equal(exerciseText(e,{'FQ-ACT-00046':{name:'Standing dumbbell biceps curl',loadConvention:'Load per dumbbell (lb or kg)'}}),'Standing dumbbell biceps curl · 8–12 reps · each side · 10 lb per dumbbell · 2–3 RIR');
+ e.target={kind:'distance',distance:{min:.1,max:.25},unit:'mi'};e.effort=null;e.load=null;e.perSide=false;assert.match(exerciseText(e,{}),/0.1–0.25 mi/);
 });

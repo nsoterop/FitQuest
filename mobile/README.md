@@ -1,5 +1,9 @@
 # FitQuest mobile
 
+## Progressive reveal of saved exercises — 2026-10-07
+
+New complete drafts show only session title, goal, timing, duration range, optional/rest labels and catalog gaps. Use this plan calls acceptance and displays the same saved revision; no workout generation occurs on acceptance or reopen. Revisions return to the overview. Shared contract checks reject leaked draft details. Minimal exercise rows preserve ranges, practical units, per-side/load/effort and explicit between-round/after-each recovery. Metro watches the pure backend contract source without a workspace reorganization or native build. **100 mobile tests**, TypeScript and offline Expo compatibility pass. Physical-phone behavior and fresh live coaching quality remain unverified. See root release evidence.
+
 ## Workout validation feedback — 2026-10-07
 
 Recognized validation categories now explain which workout check failed while retaining the approved outline and explicit retry control. Unknown codes cannot echo private strings. The rendered integration regression uses the real backend plain adapter, detail request schema, validator and catalog display projection through rejection → reopen → explicit retry → all seven days → free reopen. Existing today-onward display, duration ranges, optional/rest labels and Use this plan remain unchanged.

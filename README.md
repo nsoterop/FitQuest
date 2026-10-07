@@ -1,5 +1,16 @@
 # FitQuest
 
+## Single generation, outline first — 2026-10-07
+
+Five faithful non-AI answers now lead to one complete current Monday–Sunday draft. The server atomically saves its sessions, blocks, exercises and recovery; the initial response exposes only a concise overview. **Use this plan** accepts the exact saved revision and reveals its existing exercises with no provider call, reservation or charge. Explicit feedback makes one complete revision request; failed results preserve usable work and successful revised drafts require acceptance again. Today-onward filtering never removes or completes stored past prescriptions.
+
+The pure `complete-week-v1` contract is shared with mobile. A tested lossless wire mapping flattens exercise/recovery fields and the result's plan envelope to fit ten containers at maximum nesting, including arrays; there are no parallel generated overview/detail objects. Ranged targets, per-round/per-side meaning, explicit recovery placement, optional sessions/blocks, catalog gaps and true unavailability retain their distinct meanings. Wire objects have all properties required and no additional properties, following [official Structured Outputs guidance](https://developers.openai.com/api/docs/guides/structured-outputs). The new prompt is the approved template plus eligible catalog, without the older goal-evidence/readiness/nutrition instructions. Catalog/target/load and known explicit equipment exclusions are validated; broader free-text feasibility and coaching quality remain model judgments.
+
+Self-review passed **226 backend tests with isolated PostgreSQL and zero skips; 100 mobile tests**, both TypeScript checks and offline Expo compatibility (offline validation caveat). Tests exercise the actual provider adapter and strict schema, canonical round trips, atomic persistence/rollback, independent charge settlement, revision/retry/ownership protections, free acceptance/reopen and actual rendered exercise hiding through reload/revision. Legacy outlines and detailed/nutrition plans remain readable; older incomplete outlines explicitly disclose that their separate workout action incurs a request. No paid evaluation, owner regeneration, model/settings change or native build occurred.
+
+The additive `20261007163020_complete_week_draft.sql` migration adds the private canonical plan, schema version and acceptance timestamp to the existing table; old rows remain unversioned. Release and fresh owner-only reset/readback are pending. Metro source changes are work in progress until the matching backend is deployed and verified.
+
+
 ## Workout validation contracts — 2026-10-07
 
 Read-only diagnosis confirmed the live calendar-week SHA `95b9a2d27748a1703352e9eb809407482132b057`, an approved `plain-v1` outline at revision 1, and a settled detail attempt rejected as `invalid_plan`, with zero saved detail days. The failed structured response and validation category were not retained; its exact historical rejection cannot be proven or recovered without another model request. No owner retry, regeneration or paid evaluation was performed.

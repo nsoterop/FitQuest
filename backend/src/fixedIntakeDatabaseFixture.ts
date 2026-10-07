@@ -46,6 +46,8 @@ export async function verifyFixedIntakeDatabase(t:TestContext,owner:Pool,pool:Po
   assert.deepEqual((await owner.query('SELECT * FROM fitquest.ai_budget')).rows,budget);assert.equal((await owner.query('SELECT count(*) FROM fitquest.onboarding_attempts WHERE user_id=$1',[a.userId])).rows[0].count,'0');
   const result=await intake.command(a,conv.id,{kind:'confirm',reviewedRevision:conv.revision,expectedRevision:conv.revision,operationId:randomUUID()},async()=>true);assert('deleted'in result&&result.summarySaved);assert.equal(calls,0);
   for(const table of ['onboarding_conversations','onboarding_turns','onboarding_context_revisions','onboarding_operations'])assert.equal((await owner.query(`SELECT count(*) FROM fitquest.${table} WHERE user_id=$1`,[a.userId])).rows[0].count,'0');
+  // Explicitly seed the previous version to retain legacy recovery coverage. New flow is tested separately.
+  await owner.query("UPDATE fitquest.training_plans SET schema_version=NULL,outline_first=true WHERE user_id=$1",[a.userId]);
   assert.deepEqual(intakeAnswers((await plans.read(a)).summary.document),answers);assert('deleted'in await intake.read(a,conv.id));
  });
  await t.test('one metered plain outline; failed conversion/refusal/incomplete recover explicitly; free reopen and duplicate protection',async()=>{

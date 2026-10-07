@@ -1,3 +1,4 @@
+import { verifyCompleteDatabase } from './completeDatabaseFixture.js';
 import { verifyFixedIntakeDatabase } from './fixedIntakeDatabaseFixture.js';
 import { verifySundayDatabase } from './sundayDatabaseFixture.js';
 import { verifyOutlineDatabase } from './outlineDatabaseFixture.js';
@@ -53,6 +54,11 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   });
   await owner.query(await readFile(new URL('../supabase/migrations/20261004203442_provider_diagnostics.sql',import.meta.url),'utf8'));
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261006175043_fixed_intake_plain_outline.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  const beforeComplete=(await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.training_plans p ORDER BY user_id,id')).rows;
+  await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261007163020_complete_week_draft.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  assert.deepEqual((await owner.query("SELECT to_jsonb(p)-'schema_version'-'complete_plan'-'accepted_at' AS value FROM fitquest.training_plans p ORDER BY user_id,id")).rows,beforeComplete);
+  for(const role of ['anon','authenticated','service_role'])assert.equal((await owner.query("SELECT has_column_privilege($1,'fitquest.training_plans','complete_plan','SELECT') AS permitted",[role])).rows[0].permitted,false);
+
   // Synthetic fixture only. Real evaluation/production accounting is never initialized here.
   await owner.query('UPDATE fitquest.ai_budget SET app_enabled=true');
   const alice={userId:'11111111-1111-4111-8111-111111111111',sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};
@@ -475,6 +481,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await verifyOutlineDatabase(t,owner,pool,profiles);
   await verifySundayDatabase(t,owner,pool,profiles);
   await verifyFixedIntakeDatabase(t,owner,pool,profiles);
+  await verifyCompleteDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);
