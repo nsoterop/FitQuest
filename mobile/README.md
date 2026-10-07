@@ -4,7 +4,7 @@
 
 Recognized validation categories now explain which workout check failed while retaining the approved outline and explicit retry control. Unknown codes cannot echo private strings. The rendered integration regression uses the real backend plain adapter, detail request schema, validator and catalog display projection through rejection → reopen → explicit retry → all seven days → free reopen. Existing today-onward display, duration ranges, optional/rest labels and Use this plan remain unchanged.
 
-**98 mobile tests**, TypeScript and offline Expo compatibility pass. These are synthetic rendering checks; physical-phone and live-provider acceptance remain unverified. Release/Metro/reset evidence is recorded in the root README.
+**98 mobile tests**, TypeScript and offline Expo compatibility pass. These are synthetic rendering checks; physical-phone and live-provider acceptance remain unverified. Backend `5cfabe0b0a37a15ee539184b1324a751a5d0a4ca` is live. Restarted Metro serves the matching 4,951,341-byte iOS bundle, SHA-256 `8d7691d8878f4155d927173aa1d8cc5f2290067bbb9ecca852c15bbcc9cc7868`; all nine inspected source-map files match. The fresh owner-only server reset/readback is complete. Reload and Start onboarding → Continue to onboarding invokes existing unmatched-device-draft cleanup; actual phone cleanup remains unverified. Full release evidence is recorded in the root README.
 
 ## Structured current-day-onward plan — 2026-10-06
 
