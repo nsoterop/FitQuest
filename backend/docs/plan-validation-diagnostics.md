@@ -45,6 +45,6 @@ Settlement occurs before application validation. Diagnostic writes run separatel
 
 ## Verification
 
-`npm test` runs unit/provider/service tests; the existing opt-in PostgreSQL integration fixture verifies retry/account isolation and a real diagnostic-insert failure independently of plan preservation and settlement. Supply its existing `FITQUEST_TEST_DATABASE_URL` only when the owner authorizes the local test database; never start a local server to satisfy this instruction implicitly.
+`npm test` runs unit/provider/service tests; the existing opt-in PostgreSQL integration fixture verifies retry/account isolation and a real diagnostic-insert failure independently of plan preservation and settlement. Supply its existing `FITQUEST_TEST_DATABASE_URL` for a disposable local test database. The owner authorizes temporary local servers for testing; stop any server you start when testing finishes, including on failure, and leave owner-started processes alone.
 
 `npm run build && node scripts/test-plan-diagnostics-offline.mjs` runs finite PostgreSQL single-user checks using a fresh disposable directory, with no network listener or persistent process. It executes the real migration and writer SQL, verifies constraints, retry retention, scoped writes/cleanup and accounting preservation. Single-user mode bypasses RLS, so this proves its configuration, not runtime enforcement. Offline results must not be described as full PostgreSQL integration acceptance.
