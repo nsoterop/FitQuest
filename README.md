@@ -1,5 +1,13 @@
 # FitQuest
 
+## Scheduling preference comparison — 2026-10-07
+
+The authorized four-request comparison is complete and **did not meet the release criterion**. Current-prompt samples produced four and five double-session days in the full week (two and three Wednesday onward); candidate samples produced two and three (one and one Wednesday onward). Both candidate samples failed to show useful improvement. All four passed application validation, but qualitative inspection found loose duration estimates and some prescription/cue ambiguity; validity is not verified coaching quality. Two samples per arm do not establish consistency or a causal effect.
+
+No application change was deployed, no owner plan was replaced and no testing reset occurred. The high-effort release `fca902aa0cac9cbd1a8711ab896895515bcd8a0f` remains current. The candidate source was restored; all 22 compiled baseline hashes match. The diagnostic harness, exact sentence change, preregistered rubric and aggregate evidence are described in [the comparison record](backend/docs/preference-comparison.md). Private answers and all response artifacts remain access-restricted and Git-ignored; all 20 earlier private artifact hashes are unchanged.
+
+Exactly four sends, no retries or replacements: maximum reservations totaled **$0.170164**, within the approved $0.18 and fresh ledger headroom; all four settled for **$0.048837 conservatively accounted**. Fresh readbacks at 9:40:48 and 9:41:34 PM EDT confirm unchanged owner content, one account/one distinct email, account/profile/Auth/request limits, other-user content, all 127 historical attempts, and historical reservations/caps. Only the four new attempts and expected spending totals changed. Candidate checks passed 240 backend tests with isolated PostgreSQL and zero skips, 101 mobile tests and both TypeScript checks; final restored-source/harness checks passed 23 tests. The temporary database is stopped; owner-started Metro was left alone. No additional calls or retuning are authorized by this completed batch.
+
 ## High reasoning for active complete plans — 2026-10-07
 
 Active complete-week generation and explicit revisions now send `reasoning.effort: high` with the same `gpt-6-luna`; [official model documentation](https://developers.openai.com/api/docs/models/gpt-6-luna) confirms support. The only runtime source change is that parameter. Independent pre-change request fingerprints (excluding reasoning) match both initial and revision requests. Prompt/answers, catalog, schema, validation, one-request behavior, pricing/accounting, 48,000 output tokens, 180-second timeout and all other bounds are unchanged. Free acceptance/reopen and legacy paths are unchanged. No migration or native build is required.
