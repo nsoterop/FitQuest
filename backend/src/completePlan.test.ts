@@ -72,16 +72,16 @@ const sha=(value:string)=>createHash('sha256').update(value).digest('hex');
 function assertWorkflowRequest(body:any){
  assert.equal(body.input,expectedWorkflow+catalogBytes);
  // Representation fingerprints updated for explicit units and derived tracking metadata;
- // the independently written coaching template and settings above remain unchanged.
+ // the independently written coaching template is unchanged; effort is now high.
  assert.equal(sha(body.input.slice(expectedWorkflow.length)),'2462711bea940228298fd6d526571542bbfb5c7f8732046ec969236dfdf1dabd');
  assert.equal(sha(JSON.stringify(body.text.format.schema)),'263b2911112487c20c34a1af56bfa57ff946d763843dbdaa22306ebaf1f21bb3');
  const {input:prompt,text,...settings}=body;
- assert.deepEqual(settings,{model:'gpt-6-luna',store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:48000});
+ assert.deepEqual(settings,{model:'gpt-6-luna',store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'high'},max_output_tokens:48000});
  assert.deepEqual({...text.format,schema:undefined},{type:'json_schema',name:'complete_week_units_v2',strict:true,schema:undefined});
  assert.deepEqual(Object.keys(text),['format']);
  assert(prompt.indexOf('First, create')<prompt.indexOf('Next, create')&&prompt.indexOf('Next, create')<prompt.indexOf('Finally, format'));
 }
-test('workflow request exactly matches independent template and verbatim answers; coaching substance and settings stay unchanged',()=>{
+test('workflow request exactly matches independent template and verbatim answers; coaching substance stays unchanged at high reasoning effort',()=>{
  assertWorkflowRequest(JSON.parse(prepareComplete({...provider,model:'gpt-6-luna'},workflowInput).body));
  assert.equal(completePrompt(workflowAnswers,dates),expectedWorkflow+catalogBytes);
 });
@@ -135,4 +135,22 @@ test('catalog restrictions and numeric load conventions apply to work and active
  const limited={...input,summary:intakeSummary({version:1,answers:syntheticAnswers.map((s,i)=>i===2?'No equipment':s)})};assert.throws(()=>checkComplete(wire(plan),limited),{code:'catalog_coverage'});
  e.activityId='FQ-ACT-00001';assert.throws(()=>checkComplete(wire(plan),input),{code:'invalid_plan:load'});
  const recovery=completeFixture(dates);recovery.days[0]!.sessions[0]!.blocks[0]!.recovery={placement:'between_rounds',activity:{...e,activityId:'FQ-ACT-00161',load:null},restSeconds:null,instruction:null};assert.throws(()=>checkComplete(wire(recovery),input),{code:'catalog_coverage'});
+});
+
+// Captured from the preceding low-effort release, excluding only reasoning.
+test('initial and revision use high effort with otherwise byte-identical requests and bounded accounting',async()=>{
+ const {openAIProvider}=await import('./onboardingProvider.js');
+ const {weeklyLimits}=await import('./weeklyPlanning.js');
+ assert.deepEqual(weeklyLimits,{inputBytes:450000,outputTokens:48000,responseBytes:512000,timeoutMs:180000,leaseSeconds:195});
+ let calls=0;
+ const p=openAIProvider({key:'synthetic-not-a-secret',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5},async(_url,init)=>{
+  calls++;const body=JSON.parse(String(init!.body));assert.deepEqual(body.reasoning,{effort:'high'});assert.equal(body.model,'gpt-6-luna');
+  return new Response(JSON.stringify({status:'completed',usage:{input_tokens:100,output_tokens:2500},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(wire())}]}]}));
+ });
+ const cases=[{input,hash:'08cddd444ddd5432a95157a131de2d15c3e44815930f8e0053ac851d9d6f45b5'},
+  {input:{...input,completeReview:{plan:completeFixture(dates),feedback:'Change Tuesday to be shorter. Keep Monday unchanged.'}},hash:'2d1d14a1c72509d0ff30ef12ce1f6b76b11d42b755f3df3b522a80fbfa03b1d4'}];
+ for(const c of cases){const prepared=prepareComplete(p,c.input),body=JSON.parse(prepared.body);assert.deepEqual(body.reasoning,{effort:'high'});delete body.reasoning;assert.equal(sha(JSON.stringify(body)),c.hash);
+  assert.equal(prepared.reserveMicro,p.cost({input:Buffer.byteLength(prepared.body),output:48000,cached:0,cacheWrite:0}));
+  const before=calls,reply=await p.call(prepared.body,new AbortController().signal);assert.equal(calls,before+1);assert.equal(reply.failure,undefined);assert.equal(checkComplete(reply.proposal,c.input).result.kind,'plan');
+ }
 });

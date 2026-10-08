@@ -64,7 +64,7 @@ export function prepareComplete(provider:OnboardingProvider,input:PlanningInput)
  if(input.completeReview){const old=protectionView(input.completeReview.plan),review={...old,feedback:input.completeReview.feedback,context:null};
   prompt+=`\n\nUpdate the same saved week according to this explicit feedback. Preserve unchanged and explicitly kept work, exact ranges, order and recovery. Do not infer completed workouts. If the requested change conflicts with kept work or cannot be supported, return unavailable with the specific reason; the saved plan will remain unchanged. The revised complete draft requires acceptance again.\nFeedback:\n${input.completeReview.feedback}\nSaved week:\n${JSON.stringify(encodeCompleteWire({result:{kind:'plan',plan:input.completeReview.plan}}))}\nProtected work (original positions, not extra prescriptions):\n${JSON.stringify(reviewProtections(review,input.dates))}`;
  }
- const body=JSON.stringify({model:provider.model,store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:weeklyLimits.outputTokens,input:prompt,text:{format:{type:'json_schema',name:completeWireName,strict:true,schema:completeResponseSchema}}});
+ const body=JSON.stringify({model:provider.model,store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'high'},max_output_tokens:weeklyLimits.outputTokens,input:prompt,text:{format:{type:'json_schema',name:completeWireName,strict:true,schema:completeResponseSchema}}});
  if(Buffer.byteLength(body)>weeklyLimits.inputBytes)throw new OnboardingError(422,'planning_context_limit');
  return {body,reserveMicro:provider.cost({input:Buffer.byteLength(body),output:weeklyLimits.outputTokens,cached:0,cacheWrite:0})};
 }

@@ -1,5 +1,11 @@
 # FitQuest
 
+## High reasoning for active complete plans — 2026-10-07 (release pending)
+
+Active complete-week generation and explicit revisions now send `reasoning.effort: high` with the same `gpt-6-luna`; [official model documentation](https://developers.openai.com/api/docs/models/gpt-6-luna) confirms support. The only runtime source change is that parameter. Independent pre-change request fingerprints (excluding reasoning) match both initial and revision requests. Prompt/answers, catalog, schema, validation, one-request behavior, pricing/accounting, 48,000 output tokens, 180-second timeout and all other bounds are unchanged. Free acceptance/reopen and legacy paths are unchanged. No migration or native build is required.
+
+**239 backend tests with isolated PostgreSQL and zero skips; 101 mobile tests**, both TypeScript checks, six mock diagnostic-harness tests and diff checks pass. The historical comparison harness remains frozen to low and rejects high before dispatch; its private artifacts and reusable answer baseline are preserved. No paid evaluation or automatic owner regeneration occurred. The temporary database was stopped; owner-started Metro is not managed. Hosted deployment and fresh owner-only testing reset/readback are pending. Higher-effort coaching quality and multi-session consistency remain unverified.
+
 ## Explicit prescription units and counted actions — 2026-10-07
 
 New complete-week provider requests use `complete_week_units_v2`. Activity targets (including active recovery) explicitly select `durationUnit: seconds | minutes`; passive recovery explicitly selects `recoveryRestUnit`. Non-time targets/no passive rest require null units. The adapter converts supported minutes to canonical seconds once, preserving exact/ranged doses, side/round semantics and all sessions. Missing, unsupported or inconsistent units are rejected; small values never imply minutes. Canonical storage remains `complete-week-v1`, and old saved seconds are never silently rescaled. No migration or mobile runtime change is needed.
