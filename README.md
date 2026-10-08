@@ -1,10 +1,16 @@
 # FitQuest
 
-## High reasoning for active complete plans — 2026-10-07 (release pending)
+## High reasoning for active complete plans — 2026-10-07
 
 Active complete-week generation and explicit revisions now send `reasoning.effort: high` with the same `gpt-6-luna`; [official model documentation](https://developers.openai.com/api/docs/models/gpt-6-luna) confirms support. The only runtime source change is that parameter. Independent pre-change request fingerprints (excluding reasoning) match both initial and revision requests. Prompt/answers, catalog, schema, validation, one-request behavior, pricing/accounting, 48,000 output tokens, 180-second timeout and all other bounds are unchanged. Free acceptance/reopen and legacy paths are unchanged. No migration or native build is required.
 
-**239 backend tests with isolated PostgreSQL and zero skips; 101 mobile tests**, both TypeScript checks, six mock diagnostic-harness tests and diff checks pass. The historical comparison harness remains frozen to low and rejects high before dispatch; its private artifacts and reusable answer baseline are preserved. No paid evaluation or automatic owner regeneration occurred. The temporary database was stopped; owner-started Metro is not managed. Hosted deployment and fresh owner-only testing reset/readback are pending. Higher-effort coaching quality and multi-session consistency remain unverified.
+**239 backend tests with isolated PostgreSQL and zero skips; 101 mobile tests**, both TypeScript checks, six mock diagnostic-harness tests and diff checks pass. The historical comparison harness remains frozen to low and rejects high before dispatch; its private artifacts and reusable answer baseline are preserved. No paid evaluation or automatic owner regeneration occurred. The temporary database was stopped; owner-started Metro is not managed. Release **`fca902aa0cac9cbd1a8711ab896895515bcd8a0f`** is [Live on the existing Render service](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db3eqb59fdbs73dftre0), October 7, **9:09:00 PM EDT** dashboard timestamp, 33.2-second deployment. Runtime instance `5b548` reports the exact SHA and matches all **22 compiled-module/catalog hashes**; only `completePlanning.js` changed among them. Health and all **26 private-route authentication/no-store checks** pass. No migration was required.
+
+Read-only owner Metro verification confirms the unchanged **4,965,419-byte** iOS bundle, SHA-256 `2c65480cc1499a70dbb94de5c9621e275f64ea5b8a91d264a0b61a9194867672`, at `192.168.1.173:8081`. Manifest/bundle return 200 and all 11 inspected source-map files match. No owner-started server was managed.
+
+The scoped reset committed at **9:10:45 PM EDT**, deleting **two plans, three generation jobs, one retained summary and one diagnostic**; the other five scoped tables were empty. Independent **9:10:52 PM EDT** readback confirms all nine owner content tables empty, **one account/one distinct email**, no active work, and identical preservation fingerprints for Auth/account/sessions, profile, request limits, all **126 independent AI attempts**, accounting/budget/reservations/caps and other-user content. Foreign keys/triggers, catalog and all 20 fingerprinted private baseline/comparison artifacts remain unchanged.
+
+Reload → **Start onboarding → Continue to onboarding** invokes existing server revalidation and mismatched-device-draft cleanup. Physical-phone reload/draft cleanup remains unverified. Higher-effort coaching quality and multi-session consistency remain unverified.
 
 ## Explicit prescription units and counted actions — 2026-10-07
 

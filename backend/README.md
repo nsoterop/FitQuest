@@ -1,5 +1,9 @@
 # FitQuest API
 
+## High reasoning for active plans — 2026-10-07
+
+Release `fca902aa0cac9cbd1a8711ab896895515bcd8a0f` is Live. Active complete-week initial/revision requests keep GPT-6 Luna and change only reasoning effort to high; pre-change fingerprints excluding reasoning match both outgoing requests. Prompt/schema/catalog, request limits/timeouts, accounting and free acceptance/reopen remain unchanged. All **239 isolated backend tests, zero skips**, TypeScript and six diagnostic-harness mock tests pass. The completed comparison harness remains frozen at low. All 22 live artifact hashes, health and 26 private-route checks pass; no migration. Fresh owner reset/readback preserves Auth/account/profile, all 126 AI attempts and historical private comparison artifacts. The temporary database is stopped. No paid generation; higher-effort coaching quality remains unverified. See root README for release evidence.
+
 ## Explicit prescription units and event counts — 2026-10-07
 
 Release `7c594f21b696fcbc5748e3b8ce6d58f9b0b4c092` is Live with all 22 runtime hashes, health and 26 private-route checks verified. `complete_week_units_v2` makes activity/recovery duration units explicit and deterministically converts minutes to canonical seconds. The catalog projection and validation share justified discrete-event repetition/count aliases; genuine mismatches, RIR, equipment and eligibility protections remain enforced. Canonical storage and legacy seconds are unchanged; no migration. All **238 isolated backend tests, zero skips**, TypeScript and five diagnostic-harness mock tests pass. The temporary database was stopped. Fresh owner-only reset/readback preserves account/profile/Auth, all 122 AI attempts/accounting and the private answer baseline. No paid evaluation; see root README for release evidence and phone/coaching limits.
