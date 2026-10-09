@@ -74,7 +74,6 @@ const { AccountPanel } = await import('./AccountPanel.tsx');
 const { default: App } = await import('../App.tsx');
 const { OnboardingScreen } = await import('./OnboardingScreen.tsx');
 const { TrainingScreen } = await import('./TrainingScreen.tsx');
-const { visibleTrainingDates } = await import('./trainingPresentation.ts');
 const { parsePlainOutline } = await import('../../backend/src/plainOutline.ts');
 const { privateDrafts } = await import('./onboardingDraftStorage.ts');
 const payload = { firstName: 'Alex', lastName: 'Example', height: { value: 68, unit: 'in' }, age: 29,
@@ -1038,18 +1037,23 @@ function calendarDetails(plan){
  plan.days=plan.outline.days.map(d=>({date:d.date,detail:{...structuredClone(example),date:d.date,sessions:d.sessions.map(s=>({...structuredClone(example.sessions[0]),timing:s.timing,estimatedMinutes:s.plain.durationRange.min}))}}));
  plan.reviewState='accepted';plan.confirmedOutlineRevision=plan.planRevision;plan.jobs.push({target:`details:${plan.planRevision}`,status:'completed',attemptId:'calendar-details',error:null});
 }
-test('full saved week projects every weekday without shifting sessions; Tuesday/Sunday cards preserve rest, goals and ranges',async t=>{
- const saved=calendarState(),original=structuredClone(saved.plans[0]);assert.equal(original.outline.days.filter(d=>d.sessions.length).length,5);
- for(let weekday=0;weekday<7;weekday++){
-  t.mock.timers.setTime(new Date(`2026-10-${String(5+weekday).padStart(2,'0')}T12:00:00Z`).getTime());
-  const server=trainingServer(saved),screen=await mountTraining();const labels=screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Training day ')).map(n=>n.props.accessibilityLabel.slice(13));assert.deepEqual(labels,calendarDates.slice(weekday));
-  const visible=renderedTrainingText(screen);assert(!visible.includes(calendarResponse));assert.match(visible,/About 20–30 minutes/);assert.match(visible,/Build steady capacity/);assert.match(visible,/Optional session/);if(weekday<5)assert.match(visible,/Rest day/);
-  assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert.deepEqual(saved.plans[0],original);await act(async()=>screen.unmount());
+test('legacy outlines and workouts retain every saved date before, during and after the range',async t=>{
+ for(const count of [1,3,7])for(const accepted of [false,true])for(const now of ['2026-10-01T12:00:00Z','2026-10-07T12:00:00Z','2027-01-04T12:00:00Z']){
+  t.mock.timers.setTime(new Date(now).getTime());
+  const saved=calendarState(),p=saved.plans[0];p.dates=p.dates.slice(-count);p.outline.days=p.outline.days.slice(-count);
+  if(accepted)calendarDetails(p);
+  const original=structuredClone(p),server=trainingServer(saved);let screen=await mountTraining();
+  for(const reopening of [false,true]){
+   if(reopening){await act(async()=>screen.unmount());screen=await mountTraining()}
+   const labels=screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Training day ')).map(n=>n.props.accessibilityLabel.slice(13));assert.deepEqual(labels,p.dates);
+   const visible=renderedTrainingText(screen);assert(!visible.includes(calendarResponse));assert.match(visible,/About 20–30 minutes/);assert.match(visible,/Build steady capacity/);assert.match(visible,/Optional session/);assert.doesNotMatch(visible,/No remaining days/);
+   if(count>1)assert.match(visible,/Rest day/);
+   if(accepted){assert.match(visible,new RegExp(`${count} ${count===1?'day':'days'} · America/New_York`));assert.match(visible,/Outdoor walking/)}
+   else {assert.doesNotMatch(visible,/Outdoor walking/);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);assert.equal(screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Session ')).length,p.outline.days.reduce((n,d)=>n+d.sessions.length,0))}
+   assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert.deepEqual(saved.plans[0],original);
+  }
+  await act(async()=>screen.unmount());
  }
- for(const [zone,now,expected] of [['America/Los_Angeles','2026-10-06T02:00:00Z',calendarDates],['Pacific/Kiritimati','2026-10-10T12:00:00Z',[calendarDates[6]]]])assert.deepEqual(visibleTrainingDates(calendarDates,zone,new Date(now)),expected);
- assert.deepEqual(visibleTrainingDates(['2026-10-26','2026-10-27','2026-10-28','2026-10-29','2026-10-30','2026-10-31','2026-11-01'],'America/New_York',new Date('2026-11-01T07:30:00Z')),['2026-11-01']);
- assert.deepEqual(visibleTrainingDates(['2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01','2027-01-02','2027-01-03'],'Pacific/Kiritimati',new Date('2026-12-31T12:00:00Z')),['2027-01-01','2027-01-02','2027-01-03']);
- const dst=['2026-03-02','2026-03-03','2026-03-04','2026-03-05','2026-03-06','2026-03-07','2026-03-08'];assert.deepEqual(visibleTrainingDates(dst,'America/New_York',new Date('2026-03-08T07:30:00Z')),[dst[6]]);
 });
 test('five answers to actual parsed cards, Use this plan creates all seven saved days once, then exercises and free reopen',async t=>{
  t.mock.timers.setTime(new Date('2026-10-06T12:00:00Z').getTime());resetAuth(alice);let intake=fixedFixture(),completed=false,answers=0,outlines=0,details=0;const saved=calendarState(),plan=saved.plans[0];plan.outline=null;plan.planRevision=0;plan.jobs=[];
@@ -1064,8 +1068,8 @@ test('five answers to actual parsed cards, Use this plan creates all seven saved
  };
  let screen=await mount();await act(async()=>{press(screen,'Start onboarding');await flush()});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
  for(const [i,answer]of ['Stronger','Walk weekly','Floor and route','Five days; coach chooses','None'].entries()){await act(async()=>input(screen,`Answer ${i+1}`).props.onChangeText(answer));await act(async()=>{press(screen,'Send');await flush()});}
- assert.equal(answers,5);assert.equal(outlines,0);await act(async()=>{press(screen,'Generate plan');await flush();await flush()});assert.equal(outlines,1);assert.equal(details,0);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);assert.match(renderedTrainingText(screen),/Tuesday/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);
- await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});assert.equal(details,1);assert.equal(plan.days.length,7);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);
+ assert.equal(answers,5);assert.equal(outlines,0);await act(async()=>{press(screen,'Generate plan');await flush();await flush()});assert.equal(outlines,1);assert.equal(details,0);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);assert.match(renderedTrainingText(screen),/Tuesday/);assert.match(renderedTrainingText(screen),/Monday/);
+ await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});assert.equal(details,1);assert.equal(plan.days.length,7);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);assert.match(renderedTrainingText(screen),/Monday/);
  await act(async()=>{press(screen,'Back to greeting');await flush()});await act(async()=>{press(screen,'View training');await flush()});assert.equal(outlines,1);assert.equal(details,1);assert.match(renderedTrainingText(screen),/Outdoor walking/);await act(async()=>screen.unmount());
 });
 
@@ -1106,7 +1110,7 @@ test('actual detail wire and validators feed mobile exercises; safe validation f
  assert.match(renderedTrainingText(screen),/repetitions-in-reserve target check/);assert.doesNotMatch(renderedTrainingText(screen),/invalid_plan|:0:0:2/);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,1);
  await act(async()=>{press(screen,'Retry creating workouts');press(screen,'Retry creating workouts');await flush()});assert.equal(calls,2);assert.equal(p.days.length,7);assert.equal(p.reviewState,'accepted');
- assert.deepEqual(p.outline.days,original.days);assert.match(renderedTrainingText(screen),/Standing arm circles/);assert.match(renderedTrainingText(screen),/3 RIR/);assert.match(renderedTrainingText(screen),/Optional/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);
+ assert.deepEqual(p.outline.days,original.days);assert.match(renderedTrainingText(screen),/Standing arm circles/);assert.match(renderedTrainingText(screen),/3 RIR/);assert.match(renderedTrainingText(screen),/Optional/);assert.match(renderedTrainingText(screen),/Monday/);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,2);assert.match(renderedTrainingText(screen),/Standing arm circles/);await act(async()=>screen.unmount());
  assert(!trainingError('invalid_plan:private_health_text:0').includes('private_health_text'));
 });
@@ -1136,11 +1140,11 @@ test('complete canonical draft renders only overview through reload; one generat
   if(url.endsWith('/review')){revisionRequests++;canonical.days[1].sessions[0].durationMinutes={min:10,max:15};p.planRevision++;p.overview=planOverview(canonical);p.reviewState='draft';p.completePlan=null;p.activityNames={};p.acceptedAt=null;}
   return {status:200,json:async()=>structuredClone(saved)};
  };
- let screen=await mountTraining({generateOnOpen:true});assert.equal(dispatches,1);assert.equal(accepts,0);assert.match(renderedTrainingText(screen),/Steady practice/);assert.match(renderedTrainingText(screen),/About 20–30 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round|recoveries|Monday/);
+ let screen=await mountTraining({generateOnOpen:true});assert.equal(dispatches,1);assert.equal(accepts,0);assert.match(renderedTrainingText(screen),/Steady practice/);assert.match(renderedTrainingText(screen),/About 20–30 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round|recoveries/);
  assert.equal(input(screen,'Use this plan').props.disabled,false);
  await act(async()=>{input(screen,'Plan feedback').props.onChangeText('Unsent correction');await flush()});assert.equal(input(screen,'Use this plan').props.disabled,true);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(dispatches,1);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round/);
- await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});assert.equal(accepts,1);assert.equal(dispatches,1);assert.match(renderedTrainingText(screen),/Outdoor walking · 60–90 sec/);assert.match(renderedTrainingText(screen),/Between rounds \(2 recoveries\): Rest 30–45 sec/);assert.doesNotMatch(renderedTrainingText(screen),/Monday/);assert.deepEqual(p.completePlan,canonical);
+ await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});assert.equal(accepts,1);assert.equal(dispatches,1);assert.match(renderedTrainingText(screen),/Outdoor walking · 60–90 sec/);assert.match(renderedTrainingText(screen),/Between rounds \(2 recoveries\): Rest 30–45 sec/);assert.match(renderedTrainingText(screen),/Monday/);assert.deepEqual(p.completePlan,canonical);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.match(renderedTrainingText(screen),/Outdoor walking/);assert.equal(dispatches,1);assert.equal(accepts,1);
  await act(async()=>input(screen,'Plan feedback').props.onChangeText('Shorten Tuesday; keep the other days unchanged.'));await act(async()=>{press(screen,'Update this week');await flush()});assert.equal(revisionRequests,1);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round/);assert.match(renderedTrainingText(screen),/About 10–15 min/);assert.equal(input(screen,'Use this plan').props.disabled,false);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking/);await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(dispatches,1);assert.equal(accepts,2);assert.equal(revisionRequests,1);assert.match(renderedTrainingText(screen),/Outdoor walking/);
@@ -1181,4 +1185,27 @@ test('explicit wire minutes and event-count aliases render canonical doses after
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(dispatches,1);assert.equal(accepts,1);assert.match(renderedTrainingText(screen),/120–180 sec/);await act(async()=>screen.unmount());
  // A saved pre-change 2-second target remains 2 seconds; no value-based guessing.
  p.completePlan.days[1].sessions[0].blocks[0].exercises[0].target.seconds={min:2,max:2};screen=await mountTraining();assert.match(renderedTrainingText(screen),/Outdoor walking · 2 sec/);assert.equal(dispatches,1);await act(async()=>screen.unmount());
+});
+
+
+test('complete pending and accepted views show the whole saved week across dates and free reopen',async t=>{
+ const {completeFixture}=await import('../../backend/src/completePlanFixture.ts');
+ const {completeActivities}=await import('../../backend/src/completePlanning.ts');
+ const {planOverview}=await import('../../backend/src/completePlanContract.ts');
+ const ranges=[calendarDates,['2026-03-02','2026-03-03','2026-03-04','2026-03-05','2026-03-06','2026-03-07','2026-03-08'],['2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01','2027-01-02','2027-01-03']];
+ for(const dates of ranges)for(const timeZone of ['America/New_York','Pacific/Kiritimati'])for(const offset of [-7,0,3,6,14])for(const accepted of [false,true]){
+  t.mock.timers.setTime(new Date(dates[0]+'T12:00:00Z').getTime()+offset*86400000);
+  const saved=trainingState(),p=saved.plans[0],canonical=completeFixture(dates);
+  Object.assign(p,{dates,timeZone,schemaVersion:'complete-week-v1',outlineFirst:false,reviewState:accepted?'accepted':'draft',planRevision:1,completeReady:true,completePlan:accepted?canonical:null,overview:planOverview(canonical),activityNames:accepted?completeActivities(canonical):{},acceptedAt:accepted?'2026-03-01T12:00:00Z':null,jobs:[{target:'week',status:'completed',attemptId:'saved',error:null}]});
+  const original=structuredClone(p),server=trainingServer(saved);let screen=await mountTraining({generateOnOpen:true});
+  for(const reopening of [false,true]){
+   if(reopening){await act(async()=>screen.unmount());screen=await mountTraining()}
+   const labels=screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Training day ')).map(n=>n.props.accessibilityLabel.slice(13));assert.deepEqual(labels,dates);
+   assert.equal(screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Session ')).length,canonical.days.reduce((n,d)=>n+d.sessions.length,0));
+   const visible=renderedTrainingText(screen);assert.match(visible,/7 days/);assert.match(visible,/Optional session/);assert.match(visible,/About 20–30 min/);assert.match(visible,/Rest — no planned session/);assert.doesNotMatch(visible,/No remaining days/);
+   if(accepted)assert.match(visible,/Outdoor walking/);else{assert.doesNotMatch(visible,/Outdoor walking|targets per round|recoveries/);assert.equal(input(screen,'Use this plan').props.disabled,false)}
+   assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert.deepEqual(p,original);
+  }
+  await act(async()=>screen.unmount());
+ }
 });

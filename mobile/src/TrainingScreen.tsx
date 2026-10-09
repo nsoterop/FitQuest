@@ -1,7 +1,7 @@
 import { CompleteWeekView } from './CompleteWeekView';
 import { nutritionText } from './nutrition';
 import { useConversationScroll } from './ConversationScrollView';
-import { sessionRows,visibleTrainingDates } from './trainingPresentation';
+import { sessionRows } from './trainingPresentation';
 import type { RecoveryRequest } from './onboardingApi';
 import { privateDrafts } from './onboardingDraftStorage';
 import { useEffect,useRef,useState } from 'react';
@@ -33,7 +33,7 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
   }
   const current=state?.plans.find(p=>p.summaryRevision===state.summary?.revision);
   const shown=state?.plans.find(p=>p.id===selected)??current??state?.plans[0];
-  const visibleDates=shown?visibleTrainingDates(shown.dates,shown.timeZone):[];
+  const savedDates=shown?.dates??[];
   const overviewReady=shown?.schemaVersion==='complete-week-v1'?!!shown.completeReady:!!shown?.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length;
   const reviewing=(shown?.reviewState==='draft'||shown?.reviewState==='accepted')&&(shown?.schemaVersion==='complete-week-v1'||!shown?.outlineFirst||!weekComplete(shown));
   const reviewJob=shown?.jobs.find(j=>j.target===`review:${shown.planRevision}`);
@@ -115,7 +115,7 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
         !current.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)&&
         button(current.outlineFirst?(current.jobs.some(j=>j.target==='outline'&&j.status==='failed')?'Retry weekly outline':'Generate weekly outline'):current.jobs.some(j=>j.target==='week'&&j.status==='failed')?'Retry weekly plan':current.outline?'Complete weekly plan':'Generate weekly plan',()=>void run(request=>initialPlan(request,state,true)))}
     </>}
-    {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)||shown.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)?'Planning needs attention':`${weekComplete(shown)?`${visibleDates.length} ${visibleDates.length===1?'day':'days'}`:shown.outlineFirst&&overviewReady?'Weekly outline':'Week incomplete'} · ${shown.timeZone}`}</Text>
+    {shown&&<View style={styles.day}><Text style={styles.label}>{shown.outline&&(needsClarification(shown.outline)||shown.outline.coverage.length)||shown.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)?'Planning needs attention':`${weekComplete(shown)?`${savedDates.length} ${savedDates.length===1?'day':'days'}`:shown.outlineFirst&&overviewReady?'Weekly outline':'Week incomplete'} · ${shown.timeZone}`}</Text>
       {reviewing&&<Text style={styles.label}>{shown.reviewState==='accepted'?'Accepted plan':shown.outlineFirst?'Draft outline — review your week':'Draft plan — review your week'}</Text>}
       {shown.reviewState==='legacy'&&<Text style={styles.small}>Saved plan — acceptance was not recorded.</Text>}
       {shown.outline?.nutrition&&<View style={styles.exercise}><Text style={styles.copy}>{nutritionText(shown.outline.nutrition)}</Text>
@@ -127,9 +127,8 @@ function AccountTrainingScreen({userId,accessToken,onClose,onSessionEnded,onClar
       {shown.outline?.goalDecisions?.filter(g=>g.status!=='addressed').map((g,i)=><Text key={`goal-${i}`} style={styles.small}>{g.goal}: {g.reason}</Text>)}
       {shown.jobs.filter(j=>j.status!=='completed'&&(j.target===`review:${shown.planRevision}`||j.target==='week'||j.target===`details:${shown.planRevision}`||!shown.jobs.some(x=>x.target==='week'))).map(j=><Text key={j.target} style={styles.copy}>{j.target.startsWith('review:')?'Changes':j.target==='week'?'Week':j.target.startsWith('details:')?'Workouts':j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':trainingError(j.error??'unavailable')}</Text>)}
       {!shown.outline&&shown.jobs.filter(j=>j.rawResponse&&j.status==='failed').map(j=><View key={`raw-${j.target}`} style={styles.day}><Text style={styles.label}>Response saved for recovery — not a usable plan</Text><Text style={styles.copy}>{j.error==='outline_conversion'?'The response could not be converted into a complete dated outline. Retry checks the saved response first; a new AI request is used only if it still cannot be converted.':'The response did not produce a usable outline. An explicit retry requests a new plan.'}</Text></View>)}
-      {shown.schemaVersion==='complete-week-v1'&&<CompleteWeekView plan={shown} dates={visibleDates}/> }
-      {shown.outline&&!visibleDates.length&&<Text style={styles.copy}>No remaining days in this saved week. Its full dated plan is still saved.</Text>}
-      {shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.filter(d=>visibleDates.includes(d.date)).map(d=><View key={d.date} accessibilityLabel={`Training day ${d.date}`} style={styles.day}>
+      {shown.schemaVersion==='complete-week-v1'&&<CompleteWeekView plan={shown}/> }
+      {shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.map(d=><View key={d.date} accessibilityLabel={`Training day ${d.date}`} style={styles.day}>
         <Text accessibilityRole="header" style={styles.label}>{calendarDate(d.date)}</Text>
         {d.restText&&<Text style={styles.copy}>{d.restText}</Text>}
         {shown.days.some(x=>x.date===d.date)&&shown.reviewState!=='draft'?showDay(shown.days.find(x=>x.date===d.date)!):<>

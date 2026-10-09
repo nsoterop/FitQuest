@@ -10,12 +10,11 @@ export function exerciseText(e:Exercise,names:NonNullable<TrainingPlan['activity
  const loadScope=/per dumbbell/i.test(convention)?' per dumbbell':/per stack|working stack/i.test(convention)?' per stack':/assistance/i.test(convention)?' assistance':/total|bar and plates/i.test(convention)?' total':/per side/i.test(convention)?' per side':'';
  return [names[e.activityId]?.name??e.activityId,target,e.perSide?'each side':null,e.load?`${e.load.value} ${e.load.unit}${loadScope}`:null,e.loadInstruction,e.effort?.rpe?`RPE ${rangeText(e.effort.rpe)}`:null,e.effort?.rir?`${rangeText(e.effort.rir)} RIR`:null,e.effort?.cue].filter(Boolean).join(' · ');
 }
-export function CompleteWeekView({plan,dates}:{plan:TrainingPlan;dates:string[]}){
+export function CompleteWeekView({plan}:{plan:TrainingPlan}){
  const o=plan.overview;if(!o)return null;
  return <View style={styles.group}>
   {o.catalogGaps.map((g,i)=><Text key={i} style={styles.copy}>{g.goal}: {g.reason}</Text>)}
-  {!dates.length&&<Text style={styles.copy}>No remaining days in this saved week. The full week is still saved.</Text>}
-  {o.days.filter(d=>dates.includes(d.date)).map(d=><View key={d.date} accessibilityLabel={`Training day ${d.date}`} style={styles.group}>
+  {o.days.map(d=><View key={d.date} accessibilityLabel={`Training day ${d.date}`} style={styles.group}>
    <Text accessibilityRole="header" style={styles.title}>{calendarDate(d.date)}</Text>
    {!d.sessions.length&&<Text style={styles.copy}>Rest — no planned session.</Text>}
    {d.sessions.map((s,i)=><View key={i} accessibilityLabel={`Session ${i+1} on ${d.date}`} style={styles.session}>
