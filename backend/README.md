@@ -1,5 +1,11 @@
 # FitQuest API
 
+## Workout-content batch 2 — 2026-10-09
+
+New `document-week-v2` plans store free-text exercise/prescription rows. The display contract replaces only the final formatting paragraph; the five-answer coaching prefix, Sol 6.1 low, one request, pricing/limits and accounting remain unchanged. Both version readers derive the hidden-detail overview explicitly. Accept/reopen is free; successful explicit legacy revisions publish v2 atomically while retaining versioned accepted history, including old untagged v1 snapshots. Failed/stale revisions preserve prior work. Legacy Markdown remains unconverted.
+
+Migration `20261009232000_document_exercise_rows.sql` is recorded hosted as `20261009232521_document_exercise_rows`. It extends the existing document/diagnostic constraints and permits the existing app role to update the document version under unchanged forced owner RLS. No data rewrite, table or resource was added. All 276 backend tests pass with isolated PostgreSQL and zero skips. Application `885eb97` is live; runtime, protected owner readback, unchanged food/library/accounting and mobile evidence are recorded in the root README and [batch 2 evidence](../docs/batch-2-native/README.md). No paid evaluation or owner generation occurred.
+
 ## Usability batch 1 — 2026-10-09
 
 Training reads now include `onboarded`, derived from durable server acceptance across all saved plans, independently of the recent-plan page or current calendar. A pending document revision may include `acceptedDocument`, the last server-recorded accepted revision; the current draft still exposes only its overview. This preserves accepted workouts while requiring acceptance of new details. No schema/storage/provider change or migration is required. The 274-test backend suite, including isolated persistence and ownership checks, passes. Published/live checkpoint and protected reset evidence are recorded in the root README.
