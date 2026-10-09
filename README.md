@@ -1,5 +1,20 @@
 # FitQuest
 
+## Release 2 food diary — 2026-10-09
+
+Published **`39d637fedbe1130ead724263354b33fb265edda9`** adds Nutrition after Today/Week: conversational candidate review, free manual logging, corrections and dates, explicit provenance/unknown values, 30-second delete/Undo, completed-day tracking and deterministic calorie/protein/carbs/fat trends. Drafts and unknown outcomes survive navigation; saving/reopening/retrying a saved operation does not buy another interpretation. [Native evidence and phone steps](docs/release-2-native/README.md) and [API/retention details](backend/README.md) describe the bounded feature. Training prompt/model/schema/flow remain unchanged.
+
+**267 backend tests with isolated PostgreSQL and zero skips; 111 mobile tests; both TypeScript checks and self-review pass.** Native simulator inspection covered diary, keyboard/composer, clarification/review, provenance, edit and trend states with synthetic isolated responses. No paid AI call, owner regeneration, native build, external food lookup or new resource was used. Temporary PostgreSQL, the owned port-8082 preview and disposable simulator were stopped. Owner Metro PID 91062 remains untouched.
+
+[Render deployment `dep-db4m0avavr4c73foo690`](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db4m0avavr4c73foo690) is **Live**, October 9, **5:44:11 PM EDT** dashboard timestamp, 30.6-second deployment. Runtime instance `4n7pt` confirms exact application SHA and all 29 compiled-module/catalog artifacts (aggregate SHA-256 `cf96a46a7e28f418aa38ca7393c81c90c0b3272f3de74a13ed0ec630fcefc2ce`). A prepared, undispatched food request confirms configured `gpt-6.1-sol`, low reasoning, 2,000 output-token limit and unchanged 7,000,000-microUSD shared cap. Existing training request bounds are unchanged. Health and all **32 signed-out/invalid-token private-route checks** pass.
+
+The scoped food migration is recorded as **`20261009214153_food_diary`**, adding three private tables with enabled/forced owner RLS and only app SELECT/INSERT/UPDATE. Existing content, triggers, all 17 protected groups and accounting match before/after; only the intended food ownership/receipt foreign keys were added. No existing row was rewritten.
+
+The owner's existing Metro at **192.168.87.230:8081** serves the matching 5,069,679-byte iOS bundle with all **24 inspected source-map files** equal to current source. Bundle SHA-256: `3ad11ac079c561259ced2cd5914c84762952ed267377a4508b78eebf79c241fb`.
+
+Independent post-release readback at **5:45:30 PM EDT** confirms all nine standing owner test-content tables remain empty from the reconciled Release 1 reset, so no repeat deletion was performed. Exactly one owner account and one distinct email, all 139 permanent attempts, profile/Auth, other-user content, counters, caps and settled/uncertain reservations match the fresh pre-migration baseline. Food entries/days/operations are also empty at **5:45:32 PM**; no nutrition reset was performed. All 1,390 fingerprinted private artifacts remain unchanged. Physical-phone acceptance, VoiceOver/additional text sizes and live food-estimation accuracy remain unverified.
+
+
 ## Release 1 UI — 2026-10-09
 
 Published `95b7a6e3fc8c2927e6bda1be95f9e570b799b460`: shared 22pt gutters, safe-area/keyboard layouts, account/profile, progressive intake, Today/Week/review and readable saved workouts. [Native screenshots and verification](docs/release-1-native/README.md) include the before/after padding correction. 108 mobile tests, both TypeScript checks and three frozen backend request tests pass. Temporary preview servers and simulators were stopped; owner Metro PID 91062 was verified and left untouched.
