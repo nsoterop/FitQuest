@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Ajv } from 'ajv';
 import { activity,eligibleActivities,catalogDigest,completeSelectionCatalog,selectionCatalog,supportedTargetKinds,repetitionCountAlias } from './activityCatalog.js';
-import { unitWireFixture,completeFixture,syntheticAnswers } from './completePlanFixture.js';
+import { unitWireFixture,completeFixture,completeOutlineFixture,syntheticAnswers } from './completePlanFixture.js';
 import { checkComplete,prepareComplete } from './completePlanning.js';
 import { completeResponseSchema,encodeCompleteWire,decodeCompleteWire } from './completePlanWire.js';
 import { validCompletePlan } from './completePlanContract.js';
@@ -46,7 +46,7 @@ test('derived selection metadata matches validation for all eligible IDs without
 });
 test('new producer format passes the real provider adapter, validator and revision protections with one dispatch',async()=>{
  let calls=0;const {wire,expected}=unitWireFixture(dates);const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5},async(_url,init)=>{calls++;const r=JSON.parse(String(init!.body));assert.equal(r.text.format.name,'complete_week_units_v2');assert(new Ajv({strict:true}).compile(r.text.format.schema)(wire));assert.equal(r.max_output_tokens,48000);return new Response(JSON.stringify({status:'completed',usage:{input_tokens:100,output_tokens:4000},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(wire)}]}]}))});
- const r=await provider.call(prepareComplete(provider,input).body,new AbortController().signal);assert.equal(calls,1);assert.deepEqual(checkComplete(r.proposal,input),{result:{kind:'plan',plan:expected}});
+ const r=await provider.call(prepareComplete(provider,{...input,completeOutlineText:completeOutlineFixture(expected)}).body,new AbortController().signal);assert.equal(calls,1);assert.deepEqual(checkComplete(r.proposal,input),{result:{kind:'plan',plan:expected}});
  const review={...input,completeReview:{plan:expected,feedback:'Shorten Tuesday. Keep Monday unchanged.'}},next=unitWireFixture(dates,true);assert.deepEqual(checkComplete(next.wire,review),{result:{kind:'plan',plan:next.expected}});
  if(next.wire.result.kind==='plan')next.wire.result.days[0]!.sessions[0]!.blocks[0]!.recoveryRestMax=1;assert.throws(()=>checkComplete(next.wire,review),{code:'saved_day_changed'});
  const old=completeFixture(dates);old.days[0]!.sessions[0]!.blocks[0]!.exercises[0]!.target={kind:'duration',seconds:{min:2,max:2}};assert(validCompletePlan(old,dates));assert.deepEqual(decodeCompleteWire(encodeCompleteWire({result:{kind:'plan',plan:old}})),{result:{kind:'plan',plan:old}});

@@ -1,6 +1,8 @@
 import { CompleteValidationError,invalidComplete,schemaPosition,type DiagnosticPosition } from './planDiagnostics.js';
 import { Ajv } from 'ajv';
 import { activity,catalog,completeSelectionCatalog,trackingModes,repetitionCountAlias,supportedTargetKinds } from './activityCatalog.js';
+import { initialOutlinePrompt,parsePlainOutline } from './plainOutline.js';
+import { planOverview } from './completePlanContract.js';
 import { intakeAnswers } from './fixedIntake.js';
 import { OnboardingError } from './onboardingError.js';
 import type { OnboardingProvider } from './onboardingProvider.js';
@@ -10,8 +12,23 @@ import { completePlanVersion,validCompletePlan,validOverview,validExercise,type 
 import { completeResponseSchema,completeWireName,decodeCompleteWire,encodeCompleteWire,type WireResponse } from './completePlanWire.js';
 import { checkReviewProtections,reviewProtections } from './reviewProtection.js';
 const validate=new Ajv({strict:true}).compile<WireResponse>(completeResponseSchema);
-export function completePrompt(answers:string[],dates:string[]):string{
- return `I want you to come up with an exercise plan for me.
+export function prepareCompleteOutline(provider:OnboardingProvider,input:PlanningInput){
+ const answers=intakeAnswers(input.summary);if(!answers)throw new OnboardingError(409,'summary_needs_correction');
+ let prompt=initialOutlinePrompt(answers,input.dates);
+ if(input.completeReview)prompt+=`\n\nRevise this same high-level week according to my feedback. Preserve the arrangement and work I ask to keep. Return the revised days and sessions, goals and rough durations only, without exercises.\nFeedback:\n${input.completeReview.feedback}\nSaved high-level week:\n${JSON.stringify(planOverview(input.completeReview.plan))}`;
+ const body=JSON.stringify({model:provider.model,store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:2000,input:prompt});
+ if(Buffer.byteLength(body)>48000)throw new OnboardingError(422,'planning_context_limit');
+ return {body,reserveMicro:provider.cost({input:Buffer.byteLength(body),output:2000,cached:0,cacheWrite:0})};
+}
+export function completeOutline(text:string,dates:string[]){
+ const outline=parsePlainOutline(text,dates);
+ // Bounded reuse of the existing list adapter; no model extraction or invented sessions.
+ const days=outline.days.map(d=>({date:d.date,sessions:d.sessions.map(s=>({title:s.focus,goal:s.plain!.goal,timing:s.plain!.timingText,durationMinutes:s.plain!.durationRange!,optional:s.plain!.optional}))}));
+ if(days.some(d=>d.sessions.length>12||d.sessions.some(s=>s.title.length>160||s.goal!==null&&s.goal.length>600||s.timing!==null&&s.timing.length>600||s.durationMinutes.min<1||s.durationMinutes.max>1440)))throw new OnboardingError(422,'outline_conversion');
+ return days;
+}
+export function completePrompt(answers:string[],dates:string[],outlineText:string):string{
+ return `Create exercises/workouts for every day and session in the exact high-level plan below, and format the complete week with the provided response schema. Do not replan, merge, drop, move or reorder sessions. Preserve goals, timing, optionality, duration ranges and rest days. Copy the supplied session metadata exactly; where a goal is null, use the original response to describe that session's purpose. Select only exact eligible catalog IDs and respect equipment, setup and tracking requirements. Include appropriate sets, repetitions, time, distance, recovery and effort targets. If catalog work cannot support the outline, return unavailable with the specific reason instead of silently changing the schedule.
 
 My goals are: ${answers[0]}.
 My current activity is: ${answers[1]}.
@@ -19,34 +36,12 @@ My available equipment is: ${answers[2]}.
 My training preferences are: ${answers[3]}.
 My limitations are: ${answers[4]}.
 
-Build a complete plan for Monday ${dates[0]} through Sunday ${dates[6]}
-to help me achieve my goals. Plan the entire week, even if some
-of those days have already passed.
+Saved dates: ${dates.join(', ')}
+Exact high-level response:
+${outlineText}
 
-First, create the high-level weekly outline: each day's session(s),
-with each session's name, goal, timing and approximate duration.
-Choose the training structure and session distribution that best
-fit my goals, availability and limitations.
-
-Next, create the workout for every session in that outline,
-including exercises or activities with appropriate sets,
-repetitions, time, distance, recovery and effort targets.
-Preserve the outline's days and separate sessions when adding
-the workouts.
-
-Select exercises and activities only from the supplied catalog.
-Reference each selected activity by its exact catalog ID and
-respect its equipment, setup and tracking requirements. You
-choose the programming; the catalog supplies the available
-activities, not predetermined routines.
-
-If the catalog cannot support part of the plan, identify the
-specific gap rather than inventing an exercise or catalog ID.
-
-Finally, format the complete plan using the provided response
-schema. Formatting must preserve the sessions and prescriptions,
-not merge, drop, move or rewrite them. Return only the final
-complete week, including all session details.
+Session metadata to preserve (from that response):
+${JSON.stringify(completeOutline(outlineText,dates))}
 
 Exercise catalog:
 ${JSON.stringify({encoding:'Rows align with columns. Numeric cells index strings; string and array cells are literal.',...completeSelectionCatalog})}`;
@@ -60,11 +55,12 @@ function protectionView(plan:WeeklyPlan){
 }
 export function prepareComplete(provider:OnboardingProvider,input:PlanningInput){
  const answers=intakeAnswers(input.summary);if(!answers)throw new OnboardingError(409,'summary_needs_correction');
- let prompt=completePrompt(answers,input.dates);
+ if(!input.completeOutlineText)throw new OnboardingError(409,'outline_required');
+ let prompt=completePrompt(answers,input.dates,input.completeOutlineText);
  if(input.completeReview){const old=protectionView(input.completeReview.plan),review={...old,feedback:input.completeReview.feedback,context:null};
   prompt+=`\n\nUpdate the same saved week according to this explicit feedback. Preserve unchanged and explicitly kept work, exact ranges, order and recovery. Do not infer completed workouts. If the requested change conflicts with kept work or cannot be supported, return unavailable with the specific reason; the saved plan will remain unchanged. The revised complete draft requires acceptance again.\nFeedback:\n${input.completeReview.feedback}\nSaved week:\n${JSON.stringify(encodeCompleteWire({result:{kind:'plan',plan:input.completeReview.plan}}))}\nProtected work (original positions, not extra prescriptions):\n${JSON.stringify(reviewProtections(review,input.dates))}`;
  }
- const body=JSON.stringify({model:provider.model,store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'high'},max_output_tokens:weeklyLimits.outputTokens,input:prompt,text:{format:{type:'json_schema',name:completeWireName,strict:true,schema:completeResponseSchema}}});
+ const body=JSON.stringify({model:provider.model,store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:weeklyLimits.outputTokens,input:prompt,text:{format:{type:'json_schema',name:completeWireName,strict:true,schema:completeResponseSchema}}});
  if(Buffer.byteLength(body)>weeklyLimits.inputBytes)throw new OnboardingError(422,'planning_context_limit');
  return {body,reserveMicro:provider.cost({input:Buffer.byteLength(body),output:weeklyLimits.outputTokens,cached:0,cacheWrite:0})};
 }
@@ -116,6 +112,16 @@ export function checkComplete(raw:unknown,input:PlanningInput):PlanResponse{
  if(!validCompletePlan(plan,input.dates))diagnoseStructure(plan,input.dates);
  if(Buffer.byteLength(JSON.stringify(plan))>400000)invalidComplete('planning_context_limit','integrity','size');
  plan.days.forEach((d,day)=>d.sessions.forEach((s,session)=>s.blocks.forEach((b,block)=>{b.exercises.forEach((e,exercise)=>checkActivity(e,input,{day,session,block,exercise}));if(b.recovery?.activity)checkActivity(b.recovery.activity,input,{day,session,block,recovery:true});})));
+ if(input.completeOutlineText){
+  const expected=completeOutline(input.completeOutlineText,input.dates);
+  const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
+  expected.forEach((d,day)=>{
+   if(d.sessions.length!==plan.days[day]!.sessions.length)throw new OnboardingError(422,'outlined_schedule_changed');
+   d.sessions.forEach((s,session)=>{const actual=plan.days[day]!.sessions[session]!;
+    if(s.title!==actual.title||s.goal!==null&&s.goal!==actual.goal||s.timing!==actual.timing||s.optional!==actual.optional||!same(s.durationMinutes,actual.durationMinutes))throw new OnboardingError(422,'outlined_schedule_changed');
+   });
+  });
+ }
  if(input.completeReview){const old=protectionView(input.completeReview.plan),next=protectionView(plan);checkReviewProtections({...old,feedback:input.completeReview.feedback,context:null},input.dates,next.days,next.outline);}
  return result;
 }

@@ -1,5 +1,5 @@
 import { CompleteValidationError,safeValidationDiagnostic } from './planDiagnostics.js';
-import { checkComplete } from './completePlanning.js';
+import { checkComplete,completeOutline } from './completePlanning.js';
 import { validationFailureCode } from './planningValidation.js';
 import { parsePlainOutline } from './plainOutline.js';
 import { intakeAnswers } from './fixedIntake.js';
@@ -21,27 +21,34 @@ export function planningService(store:PlanningStore,provider?:OnboardingProvider
     generate:(a:Account,r:GenerationRequest,authorize:()=>Promise<boolean>)=>run(a,()=>store.claim(a,r,provider),authorize),
   };
   async function run(a:Account,claim:()=>Promise<import('./planningStore.js').PlanningWork|undefined>,authorize:()=>Promise<boolean>){
-      const work=await claim();
-      if(work&&provider) {
+      let nextWork=await claim();
+      for(let stageCount=0;nextWork&&provider&&stageCount<2;stageCount++) {
+        const work=nextWork;
+        const attempt=work.attempt;
         const controller=new AbortController();let timer:ReturnType<typeof setTimeout>;
-        const timeout=new Promise<ProviderResult>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve({failure:'provider_error',diagnostic:{transport:'aborted'}})},work.input.kind==='week'?weeklyLimits.timeoutMs:30000)});
+        const timeout=new Promise<ProviderResult>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve({failure:'provider_error',diagnostic:{transport:'aborted'}})},work.stage==='outline'?30000:work.input.kind==='week'?weeklyLimits.timeoutMs:30000)});
         // Settlement survives sign-out, a changed summary, timeout and content publication failure.
         const pending=Promise.resolve().then(()=>provider.call(work.body,controller.signal)).catch(():ProviderResult=>({failure:'provider_error'})).then(async result=>{
-          await store.settle(a,work.attempt,result.usage?provider.cost(result.usage):null,result.diagnostic);return result;
+          await store.settle(a,attempt,result.usage?provider.cost(result.usage):null,result.diagnostic);return result;
         });
         let result:ProviderResult;try{result=await Promise.race([timeout,pending])}finally{clearTimeout(timer!)}
-        if(controller.signal.aborted)await store.settle(a,work.attempt,null,{transport:'aborted'});
+        if(controller.signal.aborted)await store.settle(a,attempt,null,{transport:'aborted'});
         if(!await authorize())throw new OnboardingError(401,'session_ended');
         let value;let failure:string|undefined=result.failure;
-        if(!failure)try{value=work.input.schemaVersion==='complete-week-v1'?checkComplete(result.proposal,work.input):work.input.outlineFirst&&work.input.kind==='outline'?(work.input.review?checkOverviewReview(result.proposal,work.input):intakeAnswers(work.input.summary)?parsePlainOutline(result.rawText!,work.input.dates):checkOverview(result.proposal,work.input)):work.input.review?checkReview(result.proposal,work.input):work.input.kind==='week'?checkWeek(result.proposal,work.input):work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!);if('coverage' in value&&informationCoverage(value.coverage)){value=undefined;throw new OnboardingError(422,'invalid_plan')}}catch(e){
+        if(!failure)try{value=work.stage==='outline'?completeOutline(result.rawText!,work.input.dates):work.input.schemaVersion==='complete-week-v1'?checkComplete(result.proposal,work.input):work.input.outlineFirst&&work.input.kind==='outline'?(work.input.review?checkOverviewReview(result.proposal,work.input):intakeAnswers(work.input.summary)?parsePlainOutline(result.rawText!,work.input.dates):checkOverview(result.proposal,work.input)):work.input.review?checkReview(result.proposal,work.input):work.input.kind==='week'?checkWeek(result.proposal,work.input):work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!);if(!Array.isArray(value)&&'coverage' in value&&informationCoverage(value.coverage)){value=undefined;throw new OnboardingError(422,'invalid_plan')}}catch(e){
           failure=validationFailureCode(e)??(e instanceof OnboardingError?e.code:'invalid_plan');
           if(work.input.schemaVersion==='complete-week-v1')try{
             const diagnostic=e instanceof CompleteValidationError?e.diagnostic:safeValidationDiagnostic({stage:'integrity',rule:e instanceof OnboardingError&&e.code==='saved_day_changed'?'kept_work':'validation'});
             await store.recordValidation(a,work,diagnostic);
           }catch{/* Diagnostics cannot mask validation or affect settled accounting. */}
         }
+        if(work.stage==='outline'&&!failure){
+          nextWork=await store.advanceComplete(a,work,result.rawText!,provider);
+          continue;
+        }
         const reviewedText=work.input.review?.outline.sourceFormat==='plain-v1'?(result.proposal as {outlineText?:unknown}|undefined)?.outlineText:undefined;
-        await store.finish(a,work,value,failure,result.rawText??(typeof reviewedText==='string'?reviewedText:undefined));
+        await store.finish(a,work,Array.isArray(value)?undefined:value,failure,result.rawText??(typeof reviewedText==='string'?reviewedText:undefined));
+        break;
       }
       return store.read(a);
   }

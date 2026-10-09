@@ -1117,7 +1117,7 @@ test('actual detail wire and validators feed mobile exercises; safe validation f
 
 test('complete canonical draft renders only overview through reload; one generation, free acceptance reveals exact saved revision',async t=>{
  t.mock.timers.setTime(new Date('2026-10-06T16:00:00Z').getTime());
- const {completeFixture,syntheticAnswers}=await import('../../backend/src/completePlanFixture.ts');
+ const {completeFixture,completeOutlineFixture,syntheticAnswers}=await import('../../backend/src/completePlanFixture.ts');
  const {checkComplete,prepareComplete,completeActivities}=await import('../../backend/src/completePlanning.ts');
  const {encodeCompleteWire}=await import('../../backend/src/completePlanWire.ts');
  const {planOverview}=await import('../../backend/src/completePlanContract.ts');
@@ -1132,7 +1132,7 @@ test('complete canonical draft renders only overview through reload; one generat
   if(url.endsWith('/generate')){
    assert.equal(body.target,'week');assert.equal(body.confirmOutline,undefined);dispatches++;
    const planning={kind:'week',schemaVersion:p.schemaVersion,summary:saved.summary.document,dates,profile:{age:30,heightInches:68,weightLb:155}};
-   const request=JSON.parse(prepareComplete({model:'mock',cost:()=>10},planning).body);assert.equal(request.text.format.name,'complete_week_units_v2');
+   const request=JSON.parse(prepareComplete({model:'mock',cost:()=>10},{...planning,completeOutlineText:completeOutlineFixture(completeFixture(dates))}).body);assert.equal(request.text.format.name,'complete_week_units_v2');
    const result=checkComplete(encodeCompleteWire({result:{kind:'plan',plan:completeFixture(dates)}}),planning);canonical=result.result.plan;
    p.overview=planOverview(canonical);p.completeReady=true;p.planRevision=1;p.jobs=[{target:'week',status:'completed',attemptId:'complete-attempt',error:null}];
   }
@@ -1163,7 +1163,7 @@ test('complete exercise rows preserve per-side ranges, loads and effort without 
 
 test('explicit wire minutes and event-count aliases render canonical doses after acceptance and free reopen',async t=>{
  t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
- const {unitWireFixture,syntheticAnswers}=await import('../../backend/src/completePlanFixture.ts');
+ const {unitWireFixture,completeOutlineFixture,syntheticAnswers}=await import('../../backend/src/completePlanFixture.ts');
  const {checkComplete,prepareComplete,completeActivities}=await import('../../backend/src/completePlanning.ts');
  const {planOverview}=await import('../../backend/src/completePlanContract.ts');
  const {intakeSummary}=await import('../../backend/src/fixedIntake.ts');
@@ -1173,7 +1173,7 @@ test('explicit wire minutes and event-count aliases render canonical doses after
  let dispatches=0,accepts=0,canonical;
  globalThis.fetch=async(url,options)=>{
   if(url.endsWith('/generate')){dispatches++;const context={kind:'week',summary:saved.summary.document,dates,profile:{age:30,heightInches:68,weightLb:155}};
-   assert.equal(JSON.parse(prepareComplete({model:'mock',cost:()=>10},context).body).text.format.name,'complete_week_units_v2');
+   assert.equal(JSON.parse(prepareComplete({model:'mock',cost:()=>10},{...context,completeOutlineText:completeOutlineFixture(unitWireFixture(dates).expected)}).body).text.format.name,'complete_week_units_v2');
    const fixture=unitWireFixture(dates);canonical=checkComplete(fixture.wire,context).result.plan;assert.deepEqual(canonical,fixture.expected);
    p.overview=planOverview(canonical);p.completeReady=true;p.planRevision=1;p.jobs=[{target:'week',status:'completed',attemptId:'unit-attempt',error:null}];}
   if(url.endsWith('/accept')){accepts++;p.reviewState='accepted';p.completePlan=structuredClone(canonical);p.activityNames=completeActivities(canonical);p.acceptedAt='2026-10-05T16:00:00Z';}
@@ -1207,5 +1207,27 @@ test('complete pending and accepted views show the whole saved week across dates
    assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert.deepEqual(p,original);
   }
   await act(async()=>screen.unmount());
+ }
+});
+
+
+test('two-stage failures reopen without dispatch and offer only the explicit stage retry with its saved attempt',async()=>{
+ const {completeFixture,syntheticAnswers}=await import('../../backend/src/completePlanFixture.ts');
+ const {planOverview}=await import('../../backend/src/completePlanContract.ts');
+ const {intakeSummary}=await import('../../backend/src/fixedIntake.ts');
+ for(const stage of ['outline','workouts']){
+  const saved=trainingState(),p=saved.plans[0],requests=[];
+  saved.summary.document=intakeSummary({version:1,answers:syntheticAnswers});
+  Object.assign(p,{schemaVersion:'complete-week-v1',outlineFirst:false,reviewState:'draft',planRevision:0,completeReady:false,completePlan:null,overview:null,activityNames:{},acceptedAt:null,jobs:[{target:'week',stage,status:'failed',error:stage==='outline'?'outline_conversion':'outlined_schedule_changed',attemptId:`${stage}-failed`}]});
+  globalThis.fetch=async(url,options)=>{const body=options.body?JSON.parse(options.body):null;requests.push({url,body});return{status:200,json:async()=>structuredClone(saved)}};
+  let screen=await mountTraining();assert.equal(requests.filter(r=>r.body).length,0);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round/);
+  assert.match(renderedTrainingText(screen),stage==='outline'?/No workouts were requested/:/Your outline is saved/);
+  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(requests.filter(r=>r.body).length,0);
+  await act(async()=>{press(screen,stage==='outline'?'Retry plan outline':'Retry workouts');await flush()});assert.deepEqual(requests.filter(r=>r.body).map(r=>r.body.retryAttempt),[`${stage}-failed`]);
+  await act(async()=>screen.unmount());
+  // Failed revisions preserve the saved overview and never reveal an unaccepted draft's exercises.
+  p.planRevision=1;p.completeReady=true;p.overview=planOverview(completeFixture(p.dates));p.jobs=[{target:'review:1',stage,status:'failed',error:'provider_error',attemptId:`${stage}-revision`,feedback:'Keep the saved week and change only timing.'}];requests.length=0;
+  screen=await mountTraining();assert.match(renderedTrainingText(screen),/Steady practice/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round/);assert.equal(requests.filter(r=>r.body).length,0);
+  await act(async()=>{press(screen,'Retry changes');await flush()});assert.equal(requests.find(r=>r.body)?.body.retryAttempt,`${stage}-revision`);await act(async()=>screen.unmount());
  }
 });

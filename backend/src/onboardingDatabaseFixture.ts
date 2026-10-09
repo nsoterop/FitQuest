@@ -1,3 +1,4 @@
+import {verifyTwoStageDatabase} from './twoStageDatabaseFixture.js';
 import { verifyCompleteDatabase } from './completeDatabaseFixture.js';
 import { verifyFixedIntakeDatabase } from './fixedIntakeDatabaseFixture.js';
 import { verifySundayDatabase } from './sundayDatabaseFixture.js';
@@ -57,6 +58,11 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   const beforeComplete=(await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.training_plans p ORDER BY user_id,id')).rows;
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261007163020_complete_week_draft.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261007180022_plan_validation_diagnostics.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  const beforeStages=(await owner.query('SELECT to_jsonb(g) AS value FROM fitquest.training_generations g ORDER BY user_id,plan_id,target')).rows;
+  await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261009163721_two_request_planning.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  assert.deepEqual((await owner.query("SELECT to_jsonb(g)-'complete_stage'-'outline_attempt_id' AS value FROM fitquest.training_generations g ORDER BY user_id,plan_id,target")).rows,beforeStages);
+  for(const role of ['anon','authenticated','service_role'])assert.equal((await owner.query("SELECT has_column_privilege($1,'fitquest.training_generations','raw_response','SELECT') AS permitted",[role])).rows[0].permitted,false);
+  assert.equal((await owner.query("SELECT has_column_privilege('fitquest_app','fitquest.training_generations','complete_stage','UPDATE') AS permitted")).rows[0].permitted,true);
   assert.deepEqual((await owner.query("SELECT to_jsonb(p)-'schema_version'-'complete_plan'-'accepted_at' AS value FROM fitquest.training_plans p ORDER BY user_id,id")).rows,beforeComplete);
   for(const role of ['anon','authenticated','service_role'])assert.equal((await owner.query("SELECT has_column_privilege($1,'fitquest.training_plans','complete_plan','SELECT') AS permitted",[role])).rows[0].permitted,false);
 
@@ -483,6 +489,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await verifySundayDatabase(t,owner,pool,profiles);
   await verifyFixedIntakeDatabase(t,owner,pool,profiles);
   await verifyCompleteDatabase(t,owner,pool,profiles);
+  await verifyTwoStageDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);

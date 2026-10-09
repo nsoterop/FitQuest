@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { Ajv } from 'ajv';
 import { createHash } from 'node:crypto';
 import { completeSelectionCatalog as selectionCatalog } from './activityCatalog.js';
-import { completeFixture,syntheticAnswers } from './completePlanFixture.js';
+import { completeFixture,completeOutlineFixture,syntheticAnswers } from './completePlanFixture.js';
 import { completeResponseSchema,encodeCompleteWire,decodeCompleteWire } from './completePlanWire.js';
-import { checkComplete,completePrompt,prepareComplete } from './completePlanning.js';
+import { checkComplete,completePrompt,prepareComplete,prepareCompleteOutline,completeOutline } from './completePlanning.js';
 import { planOverview,recoveryCount,distanceMeters } from './completePlanContract.js';
 import { intakeSummary } from './fixedIntake.js';
 import { planDates } from './trainingSummary.js';
@@ -27,63 +27,25 @@ test('strict complete wire uses required object properties, compatible keywords 
 // Independently specified synthetic answers/template; never derived from completePrompt.
 const workflowAnswers=['General strength & comfortable walking','Two easy walks; no lifting currently','Dumbbells, floor & a safe outdoor route','I prefer separate sessions.\nEach session: 20–40 minutes; three days available.','None'];
 const workflowInput={...input,summary:intakeSummary({version:1,answers:workflowAnswers})};
-const expectedWorkflow=`I want you to come up with an exercise plan for me.
-
-My goals are: General strength & comfortable walking.
-My current activity is: Two easy walks; no lifting currently.
-My available equipment is: Dumbbells, floor & a safe outdoor route.
-My training preferences are: I prefer separate sessions.
-Each session: 20–40 minutes; three days available..
-My limitations are: None.
-
-Build a complete plan for Monday 2026-10-05 through Sunday 2026-10-11
-to help me achieve my goals. Plan the entire week, even if some
-of those days have already passed.
-
-First, create the high-level weekly outline: each day's session(s),
-with each session's name, goal, timing and approximate duration.
-Choose the training structure and session distribution that best
-fit my goals, availability and limitations.
-
-Next, create the workout for every session in that outline,
-including exercises or activities with appropriate sets,
-repetitions, time, distance, recovery and effort targets.
-Preserve the outline's days and separate sessions when adding
-the workouts.
-
-Select exercises and activities only from the supplied catalog.
-Reference each selected activity by its exact catalog ID and
-respect its equipment, setup and tracking requirements. You
-choose the programming; the catalog supplies the available
-activities, not predetermined routines.
-
-If the catalog cannot support part of the plan, identify the
-specific gap rather than inventing an exercise or catalog ID.
-
-Finally, format the complete plan using the provided response
-schema. Formatting must preserve the sessions and prescriptions,
-not merge, drop, move or rewrite them. Return only the final
-complete week, including all session details.
-
-Exercise catalog:
-`;
+const outlineText=completeOutlineFixture(completeFixture(dates));
+const workoutInput={...workflowInput,completeOutlineText:outlineText};
 const catalogBytes=JSON.stringify({encoding:'Rows align with columns. Numeric cells index strings; string and array cells are literal.',...selectionCatalog});
 const sha=(value:string)=>createHash('sha256').update(value).digest('hex');
 function assertWorkflowRequest(body:any){
- assert.equal(body.input,expectedWorkflow+catalogBytes);
- // Representation fingerprints updated for explicit units and derived tracking metadata;
- // the independently written coaching template is unchanged; effort is now high.
- assert.equal(sha(body.input.slice(expectedWorkflow.length)),'2462711bea940228298fd6d526571542bbfb5c7f8732046ec969236dfdf1dabd');
+ assert.equal(body.input,completePrompt(workflowAnswers,dates,outlineText));
+ assert.equal(sha(body.input.split('Exercise catalog:\n')[1]),'2462711bea940228298fd6d526571542bbfb5c7f8732046ec969236dfdf1dabd');
  assert.equal(sha(JSON.stringify(body.text.format.schema)),'263b2911112487c20c34a1af56bfa57ff946d763843dbdaa22306ebaf1f21bb3');
  const {input:prompt,text,...settings}=body;
- assert.deepEqual(settings,{model:'gpt-6-luna',store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'high'},max_output_tokens:48000});
+ assert.deepEqual(settings,{model:'gpt-6-luna',store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:48000});
  assert.deepEqual({...text.format,schema:undefined},{type:'json_schema',name:'complete_week_units_v2',strict:true,schema:undefined});
- assert.deepEqual(Object.keys(text),['format']);
- assert(prompt.indexOf('First, create')<prompt.indexOf('Next, create')&&prompt.indexOf('Next, create')<prompt.indexOf('Finally, format'));
+ assert(prompt.includes(outlineText));assert(workflowAnswers.every(answer=>prompt.includes(answer)));
 }
-test('workflow request exactly matches independent template and verbatim answers; coaching substance stays unchanged at high reasoning effort',()=>{
- assertWorkflowRequest(JSON.parse(prepareComplete({...provider,model:'gpt-6-luna'},workflowInput).body));
- assert.equal(completePrompt(workflowAnswers,dates),expectedWorkflow+catalogBytes);
+test('two-stage payloads use faithful answers, low effort and exact saved outline; first stage has no catalog or forced schema',()=>{
+ const p={...provider,model:'gpt-6-luna'},a=JSON.parse(prepareCompleteOutline(p,workflowInput).body);
+ assert.deepEqual(a,{model:'gpt-6-luna',store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:2000,input:`I want you to come up with an exercise plan for me. My goals are: ${workflowAnswers[0]}. My current activity is: ${workflowAnswers[1]}. My available equipment is: ${workflowAnswers[2]}. My training preferences are: ${workflowAnswers[3]}. My limitations are: ${workflowAnswers[4]}. I want you to build a plan to help me achieve my goals. Return a high level plan for the full Monday–Sunday calendar week, 2026-10-05 through 2026-10-11 inclusive, don't give exercises yet. Just return a list with days of the week up until Sunday, with each day's session(s) underneath it, the goal for each session and the rough time to complete the session.`});
+ assertWorkflowRequest(JSON.parse(prepareComplete(p,workoutInput).body));
+ assert.throws(()=>prepareComplete(p,workflowInput),{code:'outline_required'});
+ assert.deepEqual(completeOutline(outlineText,dates),planOverview(completeFixture(dates)).days);
 });
 test('mixed multi-session, ranges, distance, per-side lifting, circuits and active/passive/instruction recovery round-trip exactly',()=>{
  const p=completeFixture(dates),s=p.days[0]!.sessions[0]!;
@@ -124,7 +86,7 @@ test('actual OpenAI adapter allows the complete-week limits and distinguishes re
   calls++;const request=JSON.parse(String(init!.body));assertWorkflowRequest(request);assert(new Ajv().compile(request.text.format.schema)(wire()));
   return new Response(JSON.stringify({status,usage:{input_tokens:100,output_tokens:2500},output:[{type:'message',content:[refusal?{type:'refusal',refusal:'Synthetic refusal'}:{type:'output_text',text:JSON.stringify(wire())}]}]}),{headers:{'x-request-id':'req_complete_synthetic'}});
  });
- const prepared=prepareComplete(p,workflowInput);let reply=await p.call(prepared.body,new AbortController().signal);assert.equal(calls,1);assert.equal(reply.failure,undefined);assert.equal(reply.usage!.output,2500);assert.equal(checkComplete(reply.proposal,input).result.kind,'plan');assert.equal(reply.rawText,undefined);
+ const prepared=prepareComplete(p,workoutInput);let reply=await p.call(prepared.body,new AbortController().signal);assert.equal(calls,1);assert.equal(reply.failure,undefined);assert.equal(reply.usage!.output,2500);assert.equal(checkComplete(reply.proposal,input).result.kind,'plan');assert.equal(reply.rawText,undefined);
  status='incomplete';reply=await p.call(prepared.body,new AbortController().signal);assert.equal(reply.failure,'incomplete');assert.equal(reply.usage!.output,2500);refusal=true;status='completed';reply=await p.call(prepared.body,new AbortController().signal);assert.equal(reply.failure,'refused');assert.equal(calls,3);
 });
 
@@ -137,20 +99,26 @@ test('catalog restrictions and numeric load conventions apply to work and active
  const recovery=completeFixture(dates);recovery.days[0]!.sessions[0]!.blocks[0]!.recovery={placement:'between_rounds',activity:{...e,activityId:'FQ-ACT-00161',load:null},restSeconds:null,instruction:null};assert.throws(()=>checkComplete(wire(recovery),input),{code:'catalog_coverage'});
 });
 
-// Captured from the preceding low-effort release, excluding only reasoning.
-test('initial and revision use high effort with otherwise byte-identical requests and bounded accounting',async()=>{
+test('both initial and revision requests use low effort with separately bounded reservations',async()=>{
  const {openAIProvider}=await import('./onboardingProvider.js');
- const {weeklyLimits}=await import('./weeklyPlanning.js');
- assert.deepEqual(weeklyLimits,{inputBytes:450000,outputTokens:48000,responseBytes:512000,timeoutMs:180000,leaseSeconds:195});
  let calls=0;
  const p=openAIProvider({key:'synthetic-not-a-secret',model:'gpt-6-luna',capMicro:7000000,inputRate:.1,cachedRate:.01,cacheWriteRate:.125,outputRate:.5},async(_url,init)=>{
-  calls++;const body=JSON.parse(String(init!.body));assert.deepEqual(body.reasoning,{effort:'high'});assert.equal(body.model,'gpt-6-luna');
-  return new Response(JSON.stringify({status:'completed',usage:{input_tokens:100,output_tokens:2500},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(wire())}]}]}));
+  calls++;const body=JSON.parse(String(init!.body));assert.deepEqual(body.reasoning,{effort:'low'});assert.equal(body.model,'gpt-6-luna');
+  const text=body.text?JSON.stringify(wire()):outlineText;
+  return new Response(JSON.stringify({status:'completed',usage:{input_tokens:100,output_tokens:100},output:[{type:'message',content:[{type:'output_text',text}]}]}));
  });
- const cases=[{input,hash:'08cddd444ddd5432a95157a131de2d15c3e44815930f8e0053ac851d9d6f45b5'},
-  {input:{...input,completeReview:{plan:completeFixture(dates),feedback:'Change Tuesday to be shorter. Keep Monday unchanged.'}},hash:'2d1d14a1c72509d0ff30ef12ce1f6b76b11d42b755f3df3b522a80fbfa03b1d4'}];
- for(const c of cases){const prepared=prepareComplete(p,c.input),body=JSON.parse(prepared.body);assert.deepEqual(body.reasoning,{effort:'high'});delete body.reasoning;assert.equal(sha(JSON.stringify(body)),c.hash);
-  assert.equal(prepared.reserveMicro,p.cost({input:Buffer.byteLength(prepared.body),output:48000,cached:0,cacheWrite:0}));
-  const before=calls,reply=await p.call(prepared.body,new AbortController().signal);assert.equal(calls,before+1);assert.equal(reply.failure,undefined);assert.equal(checkComplete(reply.proposal,c.input).result.kind,'plan');
+ for(const source of [input,{...input,completeReview:{plan:completeFixture(dates),feedback:'Change Tuesday to be shorter. Keep Monday unchanged.'}}]){
+  const first=prepareCompleteOutline(p,source),firstBody=JSON.parse(first.body);assert.equal(firstBody.text,undefined);assert(!firstBody.input.includes('Exercise catalog:'));assert(!firstBody.input.includes('activityId'));assert(!firstBody.input.includes('blocks'));
+  const reply=await p.call(first.body,new AbortController().signal);assert.equal(reply.rawText,outlineText);
+  const second=prepareComplete(p,{...source,completeOutlineText:reply.rawText});assert.equal(JSON.parse(second.body).max_output_tokens,48000);
+  for(const prepared of [first,second])assert.equal(prepared.reserveMicro,p.cost({input:Buffer.byteLength(prepared.body),output:JSON.parse(prepared.body).max_output_tokens,cached:0,cacheWrite:0}));
+  assert.equal((await p.call(second.body,new AbortController().signal)).failure,undefined);
  }
+ assert.equal(calls,4);
+});
+test('workout conversion preserves every outline date/session, goal, timing, optionality, range and rest',()=>{
+ const i={...input,completeOutlineText:outlineText};assert.equal(checkComplete(wire(),i).result.kind,'plan');
+ const mutations=[(p:any)=>p.days[0].sessions.pop(),(p:any)=>p.days[0].sessions.reverse(),(p:any)=>p.days[2].sessions.push(p.days[0].sessions[0]),(p:any)=>p.days[0].sessions[0].goal='Changed purpose',(p:any)=>p.days[0].sessions[1].timing='Morning',(p:any)=>p.days[0].sessions[1].optional=false,(p:any)=>p.days[0].sessions[0].durationMinutes.max=40];
+ for(const mutate of mutations){const p=completeFixture(dates);mutate(p);assert.throws(()=>checkComplete(wire(p),i),{code:'outlined_schedule_changed'});}
+ assert.throws(()=>completeOutline('Monday: unknown',dates),{code:'outline_conversion'});
 });

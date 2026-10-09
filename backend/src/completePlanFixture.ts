@@ -22,3 +22,8 @@ export function unitWireFixture(dates:string[],shorter=false){
  wire.result.days[0]!.sessions[1]!.blocks[0]!.exercises[1]!.targetKind='repetitions';
  return {wire,expected};
 }
+
+export function completeOutlineFixture(plan:WeeklyPlan):string{
+ const weekdays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+ return plan.days.map(d=>`${weekdays[new Date(d.date+'T12:00:00Z').getUTCDay()]} ${d.date}\n${d.sessions.length?d.sessions.map(s=>`- ${s.title}\n${s.optional?'  Optional\n':''}  Goal: ${s.goal}\n  Duration: ${s.durationMinutes.min}–${s.durationMinutes.max} minutes${s.timing?'\n  Timing: '+s.timing:''}`).join('\n'):'Rest day'}`).join('\n\n');
+}
