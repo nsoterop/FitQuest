@@ -18,7 +18,7 @@ export async function verifyDocumentDatabase(t:TestContext,owner:Pool,pool:Pool,
   const store=planningStore(pool),plan=(await store.ensurePlan(a,1)).plans[0]!;assert.equal(plan.schemaVersion,'document-week-v1');
   const r={summaryRevision:1,planId:plan.id,target:'week',retryAttempt:null as string|null},document=documentFixture(plan.dates),bodies:string[]=[];
   let mode='valid',changed=false;
-  const provider:OnboardingProvider={mode:'test',model:'gpt-6-luna',capMicro:7000000,prepare(){throw Error('No intake calls')},cost:()=>10,call:async body=>{
+  const provider:OnboardingProvider={mode:'test',model:'gpt-6.1-sol',capMicro:7000000,prepare(){throw Error('No intake calls')},cost:()=>10,call:async body=>{
    bodies.push(body);const req=JSON.parse(body);assert.deepEqual(req.reasoning,{effort:'low'});assert.equal(req.text.format.name,'document_week_v1');assert(!req.input.includes('catalog'));assert(syntheticAnswers.every(answer=>req.input.includes(answer)));
    const result=structuredClone(document);if(changed)result.days[1]!.sessions[0]!.workoutMarkdown='## Revised\n- Gentle floor flow for 10 minutes.';
    return {...(['refused','incomplete','provider_error'].includes(mode)?{failure:mode as 'refused'}:{proposal:mode==='invalid'?{days:[]} : result}),...(mode==='provider_error'?{}:{usage:{input:10,output:10,cached:0,cacheWrite:0}})};

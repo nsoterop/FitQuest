@@ -55,6 +55,14 @@ test('approved non-renewing configuration rejects monthly budgets, missing field
     {OPENAI_INPUT_USD_PER_M:'0.001'},{OPENAI_OUTPUT_USD_PER_M:'0.01'},{OPENAI_CACHE_WRITE_USD_PER_M:'0.1'},
     {OPENAI_MODEL:'other-model'},{OPENAI_API_KEY:'   '}])assert.equal(configuredProvider({...env,...change}),undefined);
 });
+test('Sol 6.1 requires its own rates and preserves lifetime cap and long-context accounting',()=>{
+  const env={ONBOARDING_AI_ENABLED:'true',ONBOARDING_AI_APPROVED:'true',ONBOARDING_POLICY_APPROVED:'true',OPENAI_API_KEY:'synthetic',OPENAI_MODEL:'gpt-6.1-sol',ONBOARDING_TOTAL_USD:'7',OPENAI_INPUT_USD_PER_M:'2',OPENAI_CACHED_USD_PER_M:'0.1',OPENAI_CACHE_WRITE_USD_PER_M:'2.5',OPENAI_OUTPUT_USD_PER_M:'10'};
+  const provider=configuredProvider(env)!;assert.equal(provider.model,'gpt-6.1-sol');assert.equal(provider.capMicro,7000000);
+  for(const [key,value] of Object.entries({OPENAI_INPUT_USD_PER_M:'1.99',OPENAI_CACHED_USD_PER_M:'0.09',OPENAI_CACHE_WRITE_USD_PER_M:'2.49',OPENAI_OUTPUT_USD_PER_M:'9.99',ONBOARDING_TOTAL_USD:'7.01',OPENAI_MODEL:'gpt-6-sol'}))assert.equal(configuredProvider({...env,[key]:value}),undefined,key);
+  assert.equal(provider.cost({input:1000,output:100,cached:900,cacheWrite:100}),3500);
+  assert.equal(provider.cost({input:272000,output:100,cached:0,cacheWrite:0}),681000);
+  assert.equal(provider.cost({input:272001,output:100,cached:0,cacheWrite:0}),1361505);
+});
 test('OpenAI adapter is stateless, bounded, strict, single call and conservatively reserves cache charges',async()=>{
   let calls=0;
   const provider=openAIProvider({key:'synthetic',model:'gpt-6-luna',capMicro:1000000,inputRate:0.1,cachedRate:0.01,cacheWriteRate:0.125,outputRate:0.5},async(url,init)=>{

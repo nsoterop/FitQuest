@@ -84,7 +84,7 @@ export function serializeInput(input: ModelInput, model: string): string {
 // Only this concrete adapter is prepared. No SDK retry, tools, hosted conversation, fallback or logging.
 export function openAIProvider(config: { key: string; model: string; capMicro: number; inputRate: number; cachedRate: number; cacheWriteRate: number; outputRate: number }, fetcher: typeof fetch = fetch): OnboardingProvider {
   const maximumInputRate = Math.max(config.inputRate, config.cachedRate, config.cacheWriteRate);
-  // Luna long-context pricing applies to the whole request above 272K input
+  // Approved GPT-6 long-context pricing applies to the whole request above 272K input
   // tokens. Byte-based reservations also take that premium conservatively.
   const cost = (usage: Usage) => Math.ceil(usage.input * maximumInputRate * (usage.input > 272000 ? 2 : 1) + usage.output * config.outputRate * (usage.input > 272000 ? 1.5 : 1));
   return {
@@ -143,9 +143,10 @@ export function configuredProvider(env: NodeJS.ProcessEnv): OnboardingProvider |
   // No defaults authorize generation or spend. Owner approval must be configured explicitly later.
   if (env.ONBOARDING_AI_ENABLED !== 'true' || env.ONBOARDING_AI_APPROVED !== 'true' || env.ONBOARDING_POLICY_APPROVED !== 'true') return;
   const values = [env.ONBOARDING_TOTAL_USD, env.OPENAI_INPUT_USD_PER_M, env.OPENAI_CACHED_USD_PER_M, env.OPENAI_CACHE_WRITE_USD_PER_M, env.OPENAI_OUTPUT_USD_PER_M];
-  if (values.some(x => !x || !Number.isFinite(Number(x)) || Number(x) <= 0) || !env.OPENAI_API_KEY?.trim() || env.OPENAI_MODEL !== 'gpt-6-luna') return;
+  if (values.some(x => !x || !Number.isFinite(Number(x)) || Number(x) <= 0) || !env.OPENAI_API_KEY?.trim() || !['gpt-6-luna','gpt-6.1-sol'].includes(env.OPENAI_MODEL ?? '')) return;
   const [cap, inputRate, cachedRate, cacheWriteRate, outputRate] = values.map(Number) as [number, number, number, number, number];
-  // Verified standard rates (2026-10-03). Reject underpriced or accidentally replenishing configuration.
-  if (cap > 7 || cap < 0.000001 || inputRate < 0.10 || cachedRate < 0.01 || cacheWriteRate < 0.125 || outputRate < 0.50) return;
-  return openAIProvider({ key: env.OPENAI_API_KEY, model: env.OPENAI_MODEL, capMicro: Math.floor(cap * 1e6), inputRate, cachedRate, cacheWriteRate, outputRate });
+  // Verified standard rates (2026-10-09). Reject underpriced or replenishing configuration.
+  const minimum = env.OPENAI_MODEL === 'gpt-6.1-sol' ? [2,0.10,2.50,10] : [0.10,0.01,0.125,0.50];
+  if (cap > 7 || cap < 0.000001 || [inputRate,cachedRate,cacheWriteRate,outputRate].some((rate,i)=>rate<minimum[i]!)) return;
+  return openAIProvider({ key: env.OPENAI_API_KEY, model: env.OPENAI_MODEL!, capMicro: Math.floor(cap * 1e6), inputRate, cachedRate, cacheWriteRate, outputRate });
 }
