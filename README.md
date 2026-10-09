@@ -1,5 +1,19 @@
 # FitQuest
 
+## Release 3 saved meals and recipes — 2026-10-09
+
+Published application commit **`1329efc7f19781f6d8e43c23f94dc75a4c60ca0c`** adds Nutrition → Saved meals & recipes. Save a consumed meal without logging it again, create and edit ingredient/yield recipes, and log fractional or multiple servings after explicit confirmation. Each diary entry keeps a complete version snapshot; future recipe edits do not change earlier nutrition. All library actions use deterministic arithmetic and no AI calls. [Native evidence and phone steps](docs/release-3-native/README.md) and [API details](backend/README.md) cover the release.
+
+**274 backend tests with isolated PostgreSQL and zero skips; 113 mobile tests; both TypeScript checks and self-review pass.** The native preview verified half/1.5 servings, ingredient keyboard editing, history preservation and saving without consumption. Owned PostgreSQL, port-8082 preview and disposable simulator are stopped; owner Metro PID 91062 remains untouched. No paid evaluation, owner regeneration, native build or new resource was used.
+
+Hosted migration **`20261009221101_saved_food_library`** adds two private forced-RLS tables. Existing food rows, 17 protected groups and ledger were preserved; only intended ownership foreign keys were added. The matching owner Metro at **192.168.87.230:8081** serves a **5,106,473-byte** bundle with all **26 inspected source-map files** equal to source; SHA-256 `95df6d5eb86130a959a889c23f7614a03b15c8f820a55653e348cd70d60e91de`.
+
+
+[Render deployment `dep-db4mf4s9v7es73acfh8g`](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db4mf4s9v7es73acfh8g) is **Live** as of **6:16:38 PM EDT**. Runtime instance `pdcb4` confirms the exact application SHA and all 30 compiled-module/catalog artifacts, aggregate SHA-256 `29142687ed0e1315c50e47d59f14e05cb8fa0d9ca09dd1f0cedf7b51a545fb36`. An undispatched prepared request confirms Sol 6.1, low reasoning, 2,000 food output tokens and the unchanged 7,000,000-microUSD cap. Health and **38 signed-out/invalid-token private-route checks** pass after activation; an earlier check during deployment correctly encountered the old release's missing library route.
+
+The standing positively identified owner-only training-content reset completed **6:17:53 PM EDT**. Independent **6:18:02 PM** readback confirms all nine scoped tables empty, exactly one account and one distinct email, all **140** permanent attempts and all 17 protected account/profile/Auth/other-user/accounting groups unchanged against the fresh baseline. Food diary and library fingerprints also remain unchanged; no nutrition content was deleted. All 1,390 fingerprinted private artifacts remain unchanged. Physical-phone acceptance, VoiceOver/additional text sizes and live nutrition-estimation accuracy remain separately unverified.
+
+
 ## Release 2 food diary — 2026-10-09
 
 Published **`39d637fedbe1130ead724263354b33fb265edda9`** adds Nutrition after Today/Week: conversational candidate review, free manual logging, corrections and dates, explicit provenance/unknown values, 30-second delete/Undo, completed-day tracking and deterministic calorie/protein/carbs/fat trends. Drafts and unknown outcomes survive navigation; saving/reopening/retrying a saved operation does not buy another interpretation. [Native evidence and phone steps](docs/release-2-native/README.md) and [API/retention details](backend/README.md) describe the bounded feature. Training prompt/model/schema/flow remain unchanged.
