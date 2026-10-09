@@ -37,7 +37,7 @@ export function ConversationScrollView({ children, contentContainerStyle }: { ch
   }, []);
   return <ConversationScrollContext.Provider value={{ reveal }}>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top}>
-      <ScrollView ref={scroll} style={{ flex: 1 }} automaticallyAdjustKeyboardInsets={false} contentInsetAdjustmentBehavior="never"
+      <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{flexGrow:1}} automaticallyAdjustKeyboardInsets={false} contentInsetAdjustmentBehavior="never"
         keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" scrollEventThrottle={16}
         onScrollBeginDrag={() => { following.current = false; }}
         onScroll={event => {

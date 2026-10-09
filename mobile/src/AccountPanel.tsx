@@ -3,6 +3,8 @@ import { AppState, Keyboard, Linking, Pressable, StyleSheet, Text, TextInput, Vi
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { ProfileIntakeForm } from './ProfileIntakeForm';
+import {Action,Page,Notice,ui,colors} from './Design';
+import {AccountView} from './AccountView';
 import { privateDrafts } from './onboardingDraftStorage';
 
 export function AccountPanel() {
@@ -12,6 +14,10 @@ export function AccountPanel() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [accountOpen,setAccountOpen]=useState(false);
+  const [trainingNavigation,setTrainingNavigation]=useState(0);
+  const [confirmation,setConfirmation]=useState(false);
+  const [showPassword,setShowPassword]=useState(false);
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
   const [pendingLabel, setPendingLabel] = useState('Restoring your session…');
   const passwordInput = useRef<TextInput>(null);
@@ -120,7 +126,7 @@ export function AccountPanel() {
         hidden.current = false;
         // The auth subscription verifies any new session before displaying the form.
         setPassword('');
-        if (signUp && !data.session) setMessage('Check your email and open the confirmation link, then sign in.');
+        if (signUp && !data.session) setConfirmation(true);
       }
     } catch { setMessage('Unable to reach authentication. Please try again.'); }
     finally { lock.current = false; setBusy(false); }
@@ -129,6 +135,7 @@ export function AccountPanel() {
   async function signOut(endedMessage = '') {
     if (!supabase || lock.current) return;
     lock.current = true; hidden.current = true;
+    setAccountOpen(false);setConfirmation(false);
     current.current = null; setSession(null); setEmail(''); setPassword(''); setMessage(''); setBusy(true); setMode('signIn');
     // Hide/unmount profile immediately, including when remote sign-out fails.
     try {
@@ -147,39 +154,27 @@ export function AccountPanel() {
     return data.session.access_token;
   }
 
-  if (!supabase) return <Text style={styles.notice}>Account setup is not configured yet.</Text>;
-  if (!ready) return <Text accessibilityLiveRegion="polite" style={styles.notice}>{pendingLabel}</Text>;
-  if (session) return <View>
-    <View style={styles.account}>
-      <Text style={styles.email} numberOfLines={1}>{session.user.email}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void signOut()} style={styles.switch}><Text style={styles.switchText}>Sign out</Text></Pressable>
+  if (!supabase) return <Page><Notice>Account setup is not configured yet.</Notice></Page>;
+  if (!ready) return <Page><Text accessibilityLiveRegion="polite" style={ui.copy}>{pendingLabel}</Text></Page>;
+  if (hidden.current) return <Page><Text accessibilityRole="header" style={ui.title}>Finish signing out.</Text><Notice error>{message||'Clearing your device draft…'}</Notice><Action label="Retry sign out" busy={busy} onPress={()=>void signOut()}/></Page>;
+  if (session) return <View style={ui.screen}>
+    <View style={accountOpen?{display:'none'}:ui.screen} accessibilityElementsHidden={accountOpen} importantForAccessibility={accountOpen?'no-hide-descendants':'auto'}>
+      <ProfileIntakeForm trainingNavigation={trainingNavigation} key={session.user.id} userId={session.user.id} accessToken={() => accessToken(session.user.id)} onAccount={()=>setAccountOpen(true)} onSessionEnded={() => void signOut('Your session ended. Please sign in again.')} />
     </View>
-    <ProfileIntakeForm key={session.user.id} userId={session.user.id} accessToken={() => accessToken(session.user.id)} onSessionEnded={() => void signOut('Your session ended. Please sign in again.')} />
+    {accountOpen&&<AccountView key={session.user.id} email={session.user.email??''} accessToken={()=>accessToken(session.user.id)} onBack={()=>setAccountOpen(false)} onTraining={()=>{setTrainingNavigation(n=>n+1);setAccountOpen(false)}} onSignOut={()=>void signOut()} onSessionEnded={()=>void signOut('Your session ended. Please sign in again.')}/>}
   </View>;
-  return <View style={styles.card}>
-    <Text accessibilityRole="header" style={styles.title}>{mode === 'signUp' ? 'Create your account' : 'Sign in'}</Text>
-    <Text style={styles.copy}>{mode === 'signUp' ? 'Create an account to save your profile. Confirm your email before signing in.' : 'Sign in to save and restore your profile.'}</Text>
-    <Text style={styles.label}>Email</Text>
-    <TextInput accessibilityLabel="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} editable={!busy && !hidden.current} textContentType="emailAddress" autoComplete="email" returnKeyType="next" onSubmitEditing={() => passwordInput.current?.focus()} style={styles.input} />
-    <Text style={styles.label}>Password</Text>
-    <TextInput ref={passwordInput} accessibilityLabel="Password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} editable={!busy && !hidden.current} textContentType={mode === 'signUp' ? 'newPassword' : 'password'} autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'} returnKeyType="go" onSubmitEditing={() => void authenticate(mode === 'signUp')} style={styles.input} />
-    <Pressable accessibilityRole="button" accessibilityLabel={mode === 'signUp' ? 'Create account' : 'Sign in'} accessibilityState={{ disabled: busy || hidden.current, busy }} disabled={busy || hidden.current} onPress={() => void authenticate(mode === 'signUp')} style={[styles.button, (busy || hidden.current) && styles.disabled]}><Text style={styles.buttonText}>{busy ? (mode === 'signUp' ? 'Creating account…' : 'Signing in…') : mode === 'signUp' ? 'Create account' : 'Sign in'}</Text></Pressable>
-    <Pressable accessibilityRole="button" accessibilityLabel={mode === 'signUp' ? 'Switch to sign in' : 'Switch to create account'} disabled={busy || hidden.current} onPress={() => { setMode(mode === 'signUp' ? 'signIn' : 'signUp'); setPassword(''); setMessage(''); }} style={styles.switch}><Text style={styles.switchText}>{mode === 'signUp' ? 'Already have an account? Sign in' : 'New to FitQuest? Create an account'}</Text></Pressable>
-    {hidden.current && <Pressable accessibilityRole="button" disabled={busy} onPress={() => void signOut()} style={styles.button}><Text style={styles.buttonText}>Retry sign out</Text></Pressable>}
-    {message ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.copy}>{message}</Text> : null}
-  </View>;
+  if(confirmation)return <Page><Text style={ui.eyebrow}>ONE MORE STEP</Text><Text accessibilityRole="header" style={ui.title}>Check your inbox.</Text><Text style={ui.copy}>Open the confirmation link sent to {email.trim()}, then sign in.</Text><Notice>Keep this app installed so the link can bring you back to FitQuest.</Notice><Action label="Back to sign in" onPress={()=>{setConfirmation(false);setMode('signIn');setMessage('')}}/><Action label="Use a different email" onPress={()=>{setConfirmation(false);setEmail('');setMessage('')}} secondary/>{!!message&&<Notice error>{message}</Notice>}</Page>;
+  return <Page context={mode==='signUp'?'Create account':'Welcome back'}>
+    <Text style={ui.eyebrow}>TRAINING, BUILT AROUND YOU</Text>
+    <Text accessibilityRole="header" style={ui.title}>{mode==='signUp'?'Make room for your goals.':'Welcome back.'}</Text>
+    <Text style={ui.copy}>{mode==='signUp'?'Create your account to start a plan that fits your life.':'Sign in to pick up where you left off.'}</Text>
+    <View style={{gap:7}}><Text style={ui.label}>Email</Text>
+    <TextInput accessibilityLabel="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} editable={!busy} textContentType="emailAddress" autoComplete="email" returnKeyType="next" onSubmitEditing={()=>passwordInput.current?.focus()} style={ui.input}/></View>
+    <View style={{gap:7}}><View style={ui.row}><Text style={ui.label}>Password</Text><Pressable accessibilityRole="button" accessibilityLabel={showPassword?'Hide password':'Show password'} onPress={()=>setShowPassword(!showPassword)} style={{minHeight:44,justifyContent:'center'}}><Text style={{color:colors.action}}>{showPassword?'Hide':'Show'}</Text></Pressable></View>
+    <TextInput ref={passwordInput} accessibilityLabel="Password" value={password} onChangeText={setPassword} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} editable={!busy} textContentType={mode==='signUp'?'newPassword':'password'} autoComplete={mode==='signUp'?'new-password':'current-password'} returnKeyType="go" onSubmitEditing={()=>void authenticate(mode==='signUp')} style={ui.input}/></View>
+    {!!message&&<Notice error>{message}</Notice>}
+    <Action label={mode==='signUp'?'Create account':'Sign in'} busy={busy} onPress={()=>void authenticate(mode==='signUp')}/>
+    <Pressable accessibilityRole="button" accessibilityLabel={mode==='signUp'?'Switch to sign in':'Switch to create account'} disabled={busy} onPress={()=>{setMode(mode==='signUp'?'signIn':'signUp');setPassword('');setMessage('')}} style={{minHeight:44,justifyContent:'center'}}><Text style={[ui.copy,{color:colors.action,textAlign:'center'}]}>{mode==='signUp'?'Already have an account? Sign in':'New to FitQuest? Create an account'}</Text></Pressable>
+    <View style={{padding:22,borderRadius:13,backgroundColor:colors.hero,gap:12,marginTop:12}}><Text style={[ui.eyebrow,{color:colors.highlight}]}>YOUR WEEK. YOUR WAY.</Text><Text style={[ui.section,{color:'white'}]}>A clear plan. Room for real life.</Text><Text style={[ui.copy,{color:'#CDD0D7'}]}>Start with your goals. Build a week around the time and equipment you have.</Text></View>
+  </Page>;
 }
-const styles = StyleSheet.create({
-  card: { marginTop: 20, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#DDE5DD', gap: 14 },
-  title: { color: '#193B34', fontSize: 28, fontWeight: '600' },
-  account: { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  email: { flex: 1, color: '#52655E', fontSize: 14 },
-  switch: { minHeight: 44, paddingVertical: 12, justifyContent: 'center' },
-  switchText: { color: '#176B5B', fontSize: 16, fontWeight: '600' },
-  copy: { color: '#52655E', fontSize: 16, lineHeight: 25 },
-  label: { color: '#193B34', fontSize: 16, fontWeight: '600' },
-  input: { minHeight: 48, borderWidth: 1, borderColor: '#91A69B', borderRadius: 12, padding: 12, color: '#193B34', fontSize: 17, backgroundColor: '#F6F7F2' },
-  button: { minHeight: 48, borderRadius: 12, backgroundColor: '#176B5B', padding: 14, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
-  disabled: { opacity: 0.5 }, notice: { marginTop: 20, color: '#52655E', fontSize: 16 },
-});

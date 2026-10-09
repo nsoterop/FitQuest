@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-09",
+  "screens": 44,
+  "checks": [
+    "Navigation order Today / Week / Nutrition; core preview has no Nutrition tab; selected-date title and saved-order feature verified.",
+    "Sign-out cleanup failure hides account content and blocks other-account entry.",
+    "Stale refresh retains exact feedback; unknown request offers status check, not new generation; acceptance unknown hides details.",
+    "Guided conversational food entry clarifies portions, labels supplied/estimated values and adds one reviewed receipt.",
+    "Hypothetical meal excluded until explicit consumed intent; unknown portions stay unknown through receipt.",
+    "Portion correction scales existing estimated values and requires review before saving.",
+    "0.5 and 1.5 recipe portions scale exactly; ingredient edits change future recipe values while the prior logged version stays unchanged.",
+    "Saving a reusable meal does not add consumption; later logging scales its saved composition.",
+    "Consumed entry date edit, explicit unknown nutrients, delete and persistent Undo work in memory.",
+    "Mark complete / reopen changes explicit average denominators; missing Wednesday and future dates never become zero.",
+    "Pending save disables duplicate submission; failed-save retry reuses preserved entry without AI analysis.",
+    "All supplemental screens fit 320 px at 125% text without horizontal overflow.",
+    "No external requests or runtime errors. Temporary browser closes on completion."
+  ],
+  "limitations": [
+    "Local HTML design simulation only",
+    "No native app, real account, AI, storage, sync or live health data",
+    "Nutrition features proposed, not implemented in application"
+  ]
+}

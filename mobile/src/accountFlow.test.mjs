@@ -80,9 +80,10 @@ const payload = { firstName: 'Alex', lastName: 'Example', height: { value: 68, u
   weight: { value: 155.5, unit: 'lb' }, gender: 'Prefer not to say',
   ageCapturedAt: '2026-10-02T12:00:00Z', updatedAt: '2026-10-02T12:00:00Z' };
 const flush = async () => { await new Promise(resolve => setImmediate(resolve)); };
-function input(screen, label) { return screen.root.findByProps({ accessibilityLabel: label }); }
+function input(screen, label) { return screen.root.findAllByProps({accessibilityLabel:label}).filter(n=>typeof n.type==='string').at(-1)??screen.root.findByProps({accessibilityLabel:label}); }
 function text(screen) { return JSON.stringify(screen.toJSON()); }
 const press = (screen, label) => input(screen, label).props.onPress();
+async function signOutThroughAccount(screen){await act(async()=>press(screen,'Account'));await act(async()=>press(screen,'Sign out'));assert.ok(input(screen,'Stay signed in'));await act(async()=>{press(screen,'Confirm sign out');await flush()});}
 function resetAuth(next = null) {
   session = next; loginError = logoutError = null; signupCalls = 0;
   restore = async () => ({ data: { session }, error: null });
@@ -131,8 +132,7 @@ test('actual account screen clears profile on logout and rejects old response af
   await act(async () => { screen = TestRenderer.create(React.createElement(AccountPanel)); await flush(); });
   assert.equal(requests[0].token, 'Bearer alice-token');
   assert.ok(text(screen).includes('Loading your profile'));
-  const signOut = screen.root.findAllByType('Pressable').find(x => x.findByType('Text').children.join('') === 'Sign out');
-  await act(async () => { signOut.props.onPress(); await flush(); });
+  await signOutThroughAccount(screen);
   assert.equal(text(screen).includes('Private Alice Draft'), false); assert.equal(text(screen).includes('First name'), false);
   await act(async () => { input(screen, 'Email').props.onChangeText('bob@example.test'); input(screen, 'Password').props.onChangeText('synthetic-password'); });
   const signIn = screen.root.findAllByType('Pressable').find(x => x.findByType('Text').children.join('') === 'Sign in');
@@ -144,14 +144,14 @@ test('actual account screen clears profile on logout and rejects old response af
   await act(async () => screen.unmount());
 });
 
-test('app opens at sign in, offers a signup switch, and keeps connection status after authentication content', async () => {
+test('app opens at sign in, offers a signup switch, with a single padded page shell and no developer connection label', async () => {
   resetAuth();
   globalThis.fetch = async () => ({status:200,json:async()=>({service:'fitquest-api',status:'ok'})});
   const screen = await mount(App);
   assert.ok(input(screen,'Sign in')); assert.ok(input(screen,'Switch to create account'));
   assert.equal(text(screen).includes('First name'),false);
   const words=screen.root.findAllByType('Text').map(x=>x.children.join('')).join('|');
-  assert.ok(words.indexOf('Sign in') < words.indexOf('Backend: Connected'));
+  assert.equal(words.includes('Backend:'),false);assert.equal(screen.root.findAllByType('ScrollView').length,1);assert.equal(screen.root.findAllByType('KeyboardAvoidingView').length,1);
   assert.equal(words.includes('Welcome to FitQuest.'),false);
   await act(async()=>{press(screen,'Switch to create account')});
   assert.ok(input(screen,'Create account')); assert.ok(input(screen,'Switch to sign in'));
@@ -166,7 +166,7 @@ test('signup waits for confirmation; an authenticated confirmation link opens th
   await act(async()=>{press(screen,'Switch to create account')}); await credentials(screen);
   await act(async()=>{press(screen,'Create account'); await flush()});
   assert.equal(signupCalls,1); assert.equal(reads,0); assert.equal(text(screen).includes('First name'),false);
-  assert.ok(text(screen).includes('Check your email')); assert.equal(input(screen,'Password').props.value,'');
+  assert.ok(text(screen).includes('Check your inbox')); assert.equal(screen.root.findAllByType('TextInput').length,0);
   await act(async()=>{globalThis.__fitquestLinkListener({url:'fitquest-dev://auth#access_token=alice-token&refresh_token=synthetic-refresh'}); await flush()});
   assert.equal(input(screen,'First name').props.value,''); assert.equal(reads,1);
   await act(async()=>screen.unmount());
@@ -224,7 +224,7 @@ test('session refresh keeps the greeting; signing out clears it before another a
   const screen=await mount();
   await act(async()=>{session={...alice,access_token:'refreshed-token'};authListener('TOKEN_REFRESHED',session);await flush()});
   assert.equal(screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''), 'Hi Alex'); assert.equal(reads,1);
-  await act(async()=>{press(screen,'Sign out');await flush()});
+  await signOutThroughAccount(screen);
   assert.equal(text(screen).includes('Hi Alex'),false);
   globalThis.fetch=async()=>({status:200,json:async()=>({profile:null})});
   await credentials(screen);
@@ -254,9 +254,9 @@ test('failed profile read cannot open the greeting or empty form; retry opens th
 test('failed sign out cannot revive private state from later auth notifications', async () => {
   resetAuth(alice); globalThis.fetch=async()=>({status:200,json:async()=>({profile:payload})});
   const screen=await mount(); logoutError={code:'network'};
-  await act(async()=>{press(screen,'Sign out'); await flush()});
+  await signOutThroughAccount(screen);
   await act(async()=>{authListener('SIGNED_IN',alice); await flush()});
-  assert.equal(text(screen).includes('First name'),false); assert.ok(input(screen,'Sign in').props.disabled);
+  assert.equal(text(screen).includes('First name'),false); assert.equal(screen.root.findAllByProps({accessibilityLabel:'Sign in'}).length,0);
   const retry=screen.root.findAllByType('Pressable').find(x=>x.findByType('Text').children.join('')==='Retry sign out');
   logoutError=null;await act(async()=>{retry.props.onPress();await flush()});
   assert.equal(input(screen,'Sign in').props.disabled,false);assert.equal(session,null);
@@ -282,8 +282,8 @@ test('disclosure precedes a minimal conversation; structured context is never si
   assert.equal(screen.root.findAllByProps({accessibilityLabel:'Onboarding message'}).length,0);
   await act(async()=>{press(screen,'Continue to onboarding');await flush()});
   assert.ok(text(screen).includes(saved.opening));
-  for(const extra of ['Review understanding','Your understanding','Current activity unknown','Athlete report','Provisional retention','Refresh conversation','Skip this topic','Delete conversation','Back to greeting','Draft saved','Confirm this understanding'])assert.equal(text(screen).includes(extra),false,extra);
-  assert.deepEqual(screen.root.findAllByType('Pressable').map(x=>x.props.accessibilityLabel).filter(x=>x!=='Sign out'),['Conversation options','Send']);
+  for(const extra of ['Review understanding','Your understanding','Current activity unknown','Athlete report','Provisional retention','Refresh conversation','Skip this topic','Delete conversation','Draft saved','Confirm this understanding'])assert.equal(text(screen).includes(extra),false,extra);
+  assert.deepEqual(screen.root.findAllByType('Pressable').map(x=>x.props.accessibilityLabel).filter(x=>x!=='Sign out'),['Back to greeting','Account','Conversation options','Send']);
   assert.equal(commands.length,0);assert.equal(saved.state,'collecting');
   await act(async()=>screen.unmount());
 });
@@ -348,7 +348,7 @@ test('sign out clears onboarding UI and encrypted draft; late response cannot po
   const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
   await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Private Alice goal');await flush()});
   await act(async()=>{press(screen,'Send');await flush()});assert.ok(await privateDrafts.read('alice'));
-  await act(async()=>{press(screen,'Sign out');await flush()});assert.equal(await privateDrafts.read('alice'),null);assert.equal(text(screen).includes('Private Alice'),false);
+  await signOutThroughAccount(screen);assert.equal(await privateDrafts.read('alice'),null);assert.equal(text(screen).includes('Private Alice'),false);
   await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
   await act(async()=>{complete({status:200,json:async()=>({...saved,turns:[{id:'t',sequence:1,message:'Private Alice goal',reply:'Private reply',questionTopic:null,state:'completed',error:null}]})});await flush()});
   assert.equal(text(screen).includes('Private Alice'),false);assert.equal(text(screen).includes('Private reply'),false);assert.equal(input(screen,'First name').props.value,'');
@@ -471,7 +471,7 @@ test('a completion receipt arriving after account switch cannot close or populat
   globalThis.fetch=async(url)=>{if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};if(url.endsWith('/commands'))return new Promise(resolve=>{complete=resolve});return{status:200,json:async()=>saved}};
   const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
   await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Looks good');await flush()});await act(async()=>{press(screen,'Send');await flush()});
-  await act(async()=>{press(screen,'Sign out');await flush()});await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
+  await signOutThroughAccount(screen);await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
   await act(async()=>{complete({status:200,json:async()=>deletionReceipt(saved.id)});await flush()});assert.equal(text(screen).includes('Onboarding finished'),false);assert.equal(await privateDrafts.read('alice'),null);
   await act(async()=>screen.unmount());
 });
@@ -589,7 +589,7 @@ test('reload after a lost review response clears only the submitted feedback and
   const saved=reviewUiState(),p=saved.plans[0],requests=[];let lost=true;
   globalThis.fetch=async(url,options)=>{requests.push({url,method:options.method});if(url.endsWith('/review')&&lost){lost=false;p.planRevision=2;p.reviewNote='The requested change is saved.';throw Error('Synthetic lost response after commit')}return{status:200,json:async()=>structuredClone(saved)}};
   const screen=await mountTraining();await act(async()=>input(screen,'Plan feedback').props.onChangeText('Make the walk shorter.'));await act(async()=>{press(screen,'Update this week');await flush()});
-  assert.equal(input(screen,'Plan feedback').props.value,'Make the walk shorter.');await act(async()=>{press(screen,'Reload saved training');await flush()});
+  assert.equal(input(screen,'Plan feedback').props.value,'Make the walk shorter.');await act(async()=>{press(screen,screen.root.findAllByProps({accessibilityLabel:'Check status'}).length?'Check status':'Reload saved training');await flush()});
   assert.equal(input(screen,'Plan feedback').props.value,'');assert.equal(input(screen,'Use this plan').props.disabled,false);assert.equal(requests.filter(r=>r.method==='POST').length,1);await act(async()=>screen.unmount());
 });
 test('greeting hides training during the authoritative check, after failure and for an unfinished account',async()=>{
@@ -775,7 +775,7 @@ test('a clarification arriving after sign-out cannot populate the next account',
   resetAuth(alice);globalThis.__fitquestSecure.clear();const saved=trainingState(),p=saved.plans[0];p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:['limitations_need_clarification']};let deliver;
   globalThis.fetch=async(url)=>{if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};if(url.endsWith('/training/clarification'))return new Promise(resolve=>{deliver=resolve});return{status:200,json:async()=>saved}};
   const screen=await mount();await act(async()=>{press(screen,'View training');await flush()});await act(async()=>{press(screen,'Continue clarification');await flush()});
-  await act(async()=>{press(screen,'Sign out');await flush()});await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
+  await signOutThroughAccount(screen);await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
   await act(async()=>{deliver({status:200,json:async()=>onboardingFixture()});await flush()});assert.doesNotMatch(text(screen),/Private tennis report|Onboarding message/);assert.equal(await privateDrafts.read('alice'),null);await act(async()=>screen.unmount());
 });
 
@@ -978,14 +978,14 @@ test('ready clarification recovery offers the same Continue control; outline con
  await act(async()=>{screen=TestRenderer.create(React.createElement(OnboardingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},recovery:{summaryRevision:1,planId:'synthetic',target:'outline'}}));await flush()});assert.equal(input(screen,'Continue').props.disabled,false);await act(async()=>screen.unmount());
  const saved=overviewUiState();let attempts=0;globalThis.fetch=async(url)=>{if(url.endsWith('/generate')){attempts++;throw Error('lost response')}return{status:200,json:async()=>saved}};
  screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});assert.equal(attempts,1);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);
- await act(async()=>{press(screen,'Reload saved training');await flush()});assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);await act(async()=>screen.unmount());
+ await act(async()=>{press(screen,screen.root.findAllByProps({accessibilityLabel:'Check status'}).length?'Check status':'Reload saved training');await flush()});assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);await act(async()=>screen.unmount());
 });
-test('partial Sunday plans render compact nutrition beside review and preserve it on free reopen; deferral retains training',async()=>{
+test('legacy Sunday ranges retain training and saved nutrition data without exposing nutrition UI',async()=>{
  for(const count of [1,3,7])for(const status of ['estimate','deferred']){
   const saved=overviewUiState(),p=saved.plans[0];p.dates=Array.from({length:count},(_,i)=>`2026-10-${String(12-count+i).padStart(2,'0')}`);p.outline.days=p.dates.map((date,i)=>({date,sessions:i===0?[{focus:'Easy walking',activityIds:[],timing:'morning',estimatedMinutes:12}]:[]}));
   p.outline.nutrition={status,calories:status==='estimate'?2400:null,proteinGrams:status==='estimate'?120:null,carbohydrateGrams:status==='estimate'?318:null,fatGrams:status==='estimate'?72:null,basis:status==='estimate'?'mifflin-st-jeor-v1':null,rationale:'Supports mixed goals without prescribing meals.',assumptions:'Starting estimate with reported inputs.',reason:status==='deferred'?'Nutrition inputs remain unknown.':null};
   const server=trainingServer(saved);let screen=await mountTraining();let visible=renderedTrainingText(screen);assert.match(visible,/Draft outline/);assert.match(visible,/Easy walking[\s\S]*Morning[\s\S]*About 12 min/);assert(visible.includes(p.dates.at(-1)));
-  if(status==='estimate')assert.match(visible,/Daily starting estimate.*2400 kcal.*Protein 120 g.*Carbs 318 g.*Fat 72 g/);else assert.match(visible,/Nutrition targets deferred.*unknown/);
+  assert.doesNotMatch(visible,/2400 kcal|Protein 120 g|Nutrition targets/);assert.equal(server.saved.plans[0].outline.nutrition.status,status);
   assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);
   await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert(renderedTrainingText(screen).includes(p.dates.at(-1)));await act(async()=>screen.unmount());
  }
@@ -1003,9 +1003,9 @@ test('fixed intake reveals exactly five questions progressively, edits/resumes v
  let screen=await mountOnboarding({onClose:(...args)=>closed.push(args)});assert.equal(creates[0].intakeVersion,1);assert.equal(commands.length,0);
  const answers=['Strong and mobile. '+ 'Exact details '.repeat(35),'Walk twice weekly.','Floor and route.','No preference','None'];
  for(let i=0;i<5;i++){
-  for(let j=0;j<5;j++)assert.equal(text(screen).includes(fixedQuestions[j]),j<=i);
+  for(let j=0;j<5;j++)assert.equal(text(screen).includes(fixedQuestions[j]),j===i);
   assert.equal(screen.root.findAllByProps({accessibilityLabel:'Generate plan'}).length,0);
-  const field=input(screen,`Answer ${i+1}`);assert(field.props.onFocus);assert(field.props.onContentSizeChange);assert.equal(field.props.multiline,true);assert.equal(field.props.style.maxHeight,180);
+  const field=input(screen,`Answer ${i+1}`);assert(field.props.onFocus);assert(field.props.onContentSizeChange);assert.equal(field.props.multiline,true);assert.equal(Object.assign({},...field.props.style).maxHeight,180);
   await act(async()=>field.props.onChangeText(answers[i]));await act(async()=>{press(screen,'Send');await flush()});
  }
  assert.equal(commands.length,5);assert(commands.every(c=>c.kind==='edit'));assert(!text(screen).includes('Onboarding recap'));assert(!text(screen).includes('Nutrition'));
@@ -1245,10 +1245,10 @@ test('document weeks render all metadata before acceptance, reveal safe Markdown
  };
  let screen=await mountTraining({generateOnOpen:true});assert.equal(generates,1);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Skill and strength/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Later easy practice/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Evening/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/About 10–15 min/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Optional session/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Rest — no planned session/);assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Cushion balance|catalog activities|two requests/i);
  await act(async()=>input(screen,'Plan feedback').props.onChangeText('Unsent change'));assert.equal(input(screen,'Use this plan').props.disabled,true);await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(generates,1);assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach/);
- await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});assert.equal(accepts,1);assert.equal(generates,1);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach: 3 sets of 5–8 per side/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Rest 45–60 seconds between sets/);
- await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(generates,1);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Cushion balance/);
- await act(async()=>input(screen,'Plan feedback').props.onChangeText('Change Tuesday only.'));await act(async()=>{press(screen,'Update this week');await flush()});assert.equal(reviews,1);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Cushion balance/);await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(reviews,1);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Cushion balance/);failReview=false;
- await act(async()=>{press(screen,'Retry changes');await flush()});assert.equal(reviews,2);assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Gentle floor flow/);await act(async()=>screen.unmount());screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Gentle floor flow/);await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(accepts,2);assert.equal(generates,1);assert.equal(reviews,2);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Gentle floor flow for 10 minutes/);await act(async()=>screen.unmount());
+ await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});assert.equal(accepts,1);assert.equal(generates,1);assert.doesNotMatch(renderedTrainingText(screen),/Crab reach/);await act(async()=>press(screen,'Session 1 on 2026-10-05'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach: 3 sets of 5–8 per side/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Rest 45–60 seconds between sets/);
+ await act(async()=>screen.unmount());screen=await mountTraining();await act(async()=>press(screen,'Week'));await act(async()=>press(screen,'Session 1 on 2026-10-05'));assert.equal(generates,1);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Cushion balance/);
+ await act(async()=>press(screen,'Back to week'));await act(async()=>input(screen,'Plan feedback').props.onChangeText('Change Tuesday only.'));await act(async()=>{press(screen,'Update this week');await flush()});assert.equal(reviews,1);await act(async()=>press(screen,'Session 1 on 2026-10-05'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Cushion balance/);await act(async()=>press(screen,'Back to week'));await act(async()=>screen.unmount());screen=await mountTraining();await act(async()=>press(screen,'Week'));assert.equal(reviews,1);await act(async()=>press(screen,'Session 1 on 2026-10-05'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Cushion balance/);await act(async()=>press(screen,'Back to week'));failReview=false;
+ await act(async()=>{press(screen,'Retry changes');await flush()});assert.equal(reviews,2);assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Gentle floor flow/);await act(async()=>screen.unmount());screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Gentle floor flow/);await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(accepts,2);assert.equal(generates,1);assert.equal(reviews,2);await act(async()=>press(screen,'Session 1 on 2026-10-06'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Gentle floor flow for 10 minutes/);await act(async()=>screen.unmount());
  // Even a malformed server response cannot leak a draft's Markdown through either API field.
  p.reviewState='draft';p.acceptedAt=null;screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Gentle floor flow|Crab reach|Skill and strength/);await act(async()=>screen.unmount());p.documentPlan=null;p.documentOverview.days[0].sessions[0].workoutMarkdown='Secret draft prose';screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Secret draft prose|Skill and strength/);await act(async()=>screen.unmount());
 });
@@ -1259,4 +1259,36 @@ test('workout Markdown is readable text only; HTML, links, images and code canno
  let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(WorkoutMarkdown,{source}))});const rendered=renderedTrainingText(screen).replace(/\s+/g,' ');assert.match(rendered,/Warm-up/);assert.match(rendered,/Easy walk for 3 minutes/);assert.match(rendered,/Reach gently for 30 seconds/);assert.doesNotMatch(rendered,/\*\*Easy|\[tracking\]/);assert.equal(requests.length,0);
  for(const node of screen.root.findAll(()=>true)){assert(!['Image','WebView','iframe','script'].includes(node.type));assert.equal(node.props.onPress,undefined);assert.equal(node.props.dangerouslySetInnerHTML,undefined);}
  await act(async()=>screen.unmount());
+});
+
+test('Today follows saved session order, retains date on workout back, resets focus on date change and distinguishes rest/outside',async t=>{
+ t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
+ const {documentFixture}=await import('../../backend/src/documentPlanFixture.ts'),{documentOverview}=await import('../../backend/src/documentPlanContract.ts');
+ const saved=trainingState(),p=saved.plans[0];p.dates=Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`);const canonical=documentFixture(p.dates);
+ Object.assign(p,{schemaVersion:'document-week-v1',outlineFirst:false,reviewState:'accepted',planRevision:1,completeReady:true,documentPlan:canonical,documentOverview:documentOverview(canonical),acceptedAt:'2026-10-05T15:00:00Z'});
+ const server=trainingServer(saved),screen=await mountTraining();assert.match(renderedTrainingText(screen),/Today\./);assert.ok(input(screen,'View workout: Skill and strength'));
+ await act(async()=>press(screen,'Feature session 2: Later easy practice'));assert.ok(input(screen,'View workout: Later easy practice'));
+ await act(async()=>press(screen,'View workout: Later easy practice'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Easy dance practice/);
+ await act(async()=>press(screen,'Back to day'));assert.ok(input(screen,'View workout: Later easy practice'));
+ await act(async()=>press(screen,'Select 2026-10-06'));assert.ok(input(screen,'View workout: Skill and strength'));assert.match(renderedTrainingText(screen),/Tue, Oct 6\./);assert.doesNotMatch(renderedTrainingText(screen),/Today\./);
+ await act(async()=>press(screen,'Select 2026-10-07'));assert.match(renderedTrainingText(screen),/A rest day/);
+ await act(async()=>press(screen,'Week'));assert.equal(screen.root.findAllByType('Pressable').filter(x=>x.props.accessibilityRole==='tab').length,2);assert.equal(screen.root.findAllByType('ScrollView').length,1);assert.doesNotMatch(renderedTrainingText(screen),/Crab reach|Nutrition/);
+ await act(async()=>screen.unmount());t.mock.timers.setTime(new Date('2026-10-15T16:00:00Z').getTime());const later=await mountTraining();assert.match(renderedTrainingText(later),/Outside your saved week/);assert.doesNotMatch(renderedTrainingText(later),/A rest day/);assert.equal(server.requests.filter(r=>r.method==='POST').length,0);await act(async()=>later.unmount());
+});
+
+test('unknown acceptance and stale changes block mutations until status read, preserve feedback, and never reveal draft prose',async()=>{
+ const {documentFixture}=await import('../../backend/src/documentPlanFixture.ts'),{documentOverview}=await import('../../backend/src/documentPlanContract.ts');
+ const saved=trainingState(),p=saved.plans[0];p.dates=Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`);const canonical=documentFixture(p.dates);Object.assign(p,{schemaVersion:'document-week-v1',outlineFirst:false,reviewState:'draft',planRevision:1,completeReady:true,documentPlan:null,documentOverview:documentOverview(canonical),acceptedAt:null});
+ let posts=0;globalThis.fetch=async(url,options)=>{if(options.method==='POST'){posts++;if(url.endsWith('/accept'))throw Error('Lost result');return{status:409,json:async()=>({code:'plan_changed'})}}return{status:200,json:async()=>structuredClone(saved)}};
+ const screen=await mountTraining();await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(posts,1);assert.ok(input(screen,'Check status'));assert.equal(input(screen,'Use this plan').props.disabled,true);assert.doesNotMatch(renderedTrainingText(screen),/Crab reach/);
+ await act(async()=>{press(screen,'Check status');await flush()});await act(async()=>input(screen,'Plan feedback').props.onChangeText('Keep my exact draft.'));await act(async()=>{press(screen,'Update this week');await flush()});assert.equal(posts,2);assert.equal(input(screen,'Update this week').props.disabled,true);
+ await act(async()=>{press(screen,'Check status');await flush()});assert.equal(input(screen,'Plan feedback').props.value,'Keep my exact draft.');assert.equal(input(screen,'Use this plan').props.disabled,true);
+ await act(async()=>press(screen,'Back to greeting'));assert.ok(input(screen,'Keep editing'));await act(async()=>press(screen,'Keep editing'));await act(async()=>press(screen,'Today'));await act(async()=>press(screen,'Week'));assert.equal(input(screen,'Plan feedback').props.value,'Keep my exact draft.');assert.equal(posts,2);await act(async()=>screen.unmount());
+});
+
+test('account navigation preserves intake text, saved profile is read-only, and sign-out cancellation preserves the session',async()=>{
+ resetAuth(alice);globalThis.__fitquestSecure.clear();const saved=fixedFixture();globalThis.fetch=async(url)=>({status:200,json:async()=>url.endsWith('/profile')?{profile:payload}:url.includes('/onboarding')?saved:{summary:null,plans:[]}});
+ const screen=await mount();await act(async()=>press(screen,'Start onboarding'));await act(async()=>{press(screen,'Continue to onboarding');await flush()});await act(async()=>{input(screen,'Answer 1').props.onChangeText('Exact unsent goals.');await flush()});
+ await act(async()=>press(screen,'Account'));await act(async()=>{press(screen,'Saved profile');await flush()});assert.match(renderedTrainingText(screen),/Age as recorded|AGE AS RECORDED/);assert.equal(screen.root.findAllByType('TextInput').filter(x=>x.props.accessibilityLabel==='Age (years)').length,0);
+ await act(async()=>press(screen,'Account'));await act(async()=>press(screen,'Sign out'));await act(async()=>press(screen,'Stay signed in'));assert.equal(session.user.id,'alice');await act(async()=>press(screen,'Back'));assert.equal(input(screen,'Answer 1').props.value,'Exact unsent goals.');assert.equal((await privateDrafts.read('alice')).text,'Exact unsent goals.');await act(async()=>screen.unmount());
 });

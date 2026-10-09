@@ -19,4 +19,4 @@ export function WorkoutMarkdown({source}:{source:string}){
   return <Text key={i} accessibilityRole={heading?'header':undefined} style={[styles.copy,heading&&styles.heading,fenced&&styles.code,(bullet||ordered)&&styles.item]}>{fenced?line:<>{bullet?'• ':ordered?`${ordered[1]}. `:''}{inline(heading?heading[2]!:bullet?bullet[1]!:ordered?ordered[2]!:line)}</>}</Text>;
  })}</View>;
 }
-const styles=StyleSheet.create({group:{gap:7,paddingTop:8},copy:{fontSize:16,lineHeight:24,color:'#354D45'},heading:{fontSize:16,fontWeight:'600',color:'#193B34',marginTop:7},item:{paddingLeft:8},bold:{fontWeight:'600'},italic:{fontStyle:'italic'},code:{fontFamily:'Courier',fontSize:14},rule:{height:1,backgroundColor:'#CDD9D1',marginVertical:5}});
+const styles=StyleSheet.create({group:{gap:7,paddingTop:8},copy:{fontSize:16,lineHeight:25,color:'#363B43'},heading:{fontSize:20,lineHeight:28,fontWeight:'700',color:'#191B20',marginTop:7},item:{paddingLeft:8},bold:{fontWeight:'600'},italic:{fontStyle:'italic'},code:{fontFamily:'Courier',fontSize:14},rule:{height:1,backgroundColor:'#DCDFE4',marginVertical:5}});

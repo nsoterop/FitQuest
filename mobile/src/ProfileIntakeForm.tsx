@@ -1,3 +1,4 @@
+import {Page,ui,Action,Tabs,Notice} from './Design';
 import type { RecoveryRequest } from './onboardingApi';
 import { TrainingScreen } from './TrainingScreen';
 import { useEffect, useRef, useState } from 'react';
@@ -11,12 +12,12 @@ const emptyFields: IntakeFields = {
 };
 
 type Props = {
-  accessToken: () => Promise<string>; onSessionEnded?: () => void; userId?: string;
+  accessToken: () => Promise<string>; onSessionEnded?: () => void; userId?: string; onAccount?:()=>void;trainingNavigation?:number;
 };
 export function ProfileIntakeForm(props: Props) {
   return <AccountProfileForm key={props.userId ?? 'signed-out'} {...props} />;
 }
-function AccountProfileForm({ accessToken, onSessionEnded, userId }: Props) {
+function AccountProfileForm({ accessToken, onSessionEnded, userId, onAccount, trainingNavigation=0 }: Props) {
   const [fields, setFields] = useState(emptyFields);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -37,6 +38,8 @@ function AccountProfileForm({ accessToken, onSessionEnded, userId }: Props) {
   const [generateOnOpen,setGenerateOnOpen]=useState(false);
   const [trainingAccess,setTrainingAccess]=useState<'checking'|'saved'|'empty'|'failed'>('checking');
   const [accessCheck,setAccessCheck]=useState(0);
+
+  useEffect(()=>{if(trainingNavigation&&savedFirstName!==null){setOnboarding(false);setGenerateOnOpen(false);setTraining(true)}},[trainingNavigation,savedFirstName]);
 
   useEffect(() => {
     if (!userId || savedFirstName === null || onboarding || training) return;
@@ -158,36 +161,34 @@ function AccountProfileForm({ accessToken, onSessionEnded, userId }: Props) {
   }
 
   if (savedFirstName !== null) {
-    if(training&&userId)return <TrainingScreen key={userId} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} generateOnOpen={generateOnOpen} onClarify={request=>{setRecovery(request);setTraining(false);setGenerateOnOpen(false);setOnboarding(true)}} onClose={returnToGreeting}/>;
-    if (onboarding && userId) return <OnboardingScreen recovery={recovery} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onClose={(message,summarySaved) => {setTrainingAccess('checking');setOnboarding(false);setRecovery(undefined);setOnboardingNotice(message??'');if(summarySaved){setGenerateOnOpen(true);setTraining(true)}}} />;
-    return <View>
-      <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.welcome}>Hi {savedFirstName}</Text>
+    if(training&&userId)return <TrainingScreen onAccount={onAccount} key={userId} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} generateOnOpen={generateOnOpen} onClarify={request=>{setRecovery(request);setTraining(false);setGenerateOnOpen(false);setOnboarding(true)}} onClose={returnToGreeting}/>;
+    if (onboarding && userId) return <OnboardingScreen onAccount={onAccount} recovery={recovery} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onClose={(message,summarySaved) => {setTrainingAccess('checking');setOnboarding(false);setRecovery(undefined);setOnboardingNotice(message??'');if(summarySaved){setGenerateOnOpen(true);setTraining(true)}}} />;
+    return <Page onAccount={onAccount}><Text style={ui.eyebrow}>LET’S MAKE A START</Text>
+      <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={ui.title}>Hi {savedFirstName}</Text><Text style={ui.copy}>Your training starts with you. Build a week around your goals, time and equipment.</Text>
       {!!onboardingNotice && <Text accessibilityLiveRegion="polite" style={styles.copy}>{onboardingNotice}</Text>}
       {userId&&trainingAccess==='saved'&&<Pressable accessibilityRole="button" accessibilityLabel="View training" onPress={()=>{setTrainingAccess('checking');setGenerateOnOpen(false);setTraining(true)}} style={[styles.button,{marginTop:20}]}><Text style={styles.buttonText}>View training</Text></Pressable>}
       {userId&&trainingAccess==='failed'&&<Pressable accessibilityRole="button" accessibilityLabel="Retry loading saved progress" onPress={()=>{setTrainingAccess('checking');setAccessCheck(value=>value+1)}} style={[styles.button,{marginTop:20}]}><Text style={styles.buttonText}>Retry loading saved progress</Text></Pressable>}
       {userId && <Pressable accessibilityRole="button" accessibilityLabel="Start onboarding" onPress={() => {setTrainingAccess('checking');setRecovery(undefined);setOnboardingNotice('');setOnboarding(true)}} style={[styles.button, { marginTop: 24 }]}><Text style={styles.buttonText}>Start onboarding</Text></Pressable>}
-    </View>;
+    </Page>;
   }
-  if (reading) return <Text accessibilityLiveRegion="polite" style={styles.notice}>Loading your profile…</Text>;
-  if (loadError) return <View style={styles.card}>
+  if (reading) return <Page onAccount={onAccount}><Text accessibilityLiveRegion="polite" style={ui.copy}>Loading your profile…</Text></Page>;
+  if (loadError) return <Page onAccount={onAccount}><Text accessibilityRole="header" style={ui.title}>Couldn’t load your profile.</Text>
     <Text accessibilityRole="alert" style={styles.error}>{loadError}</Text>
     <Pressable accessibilityRole="button" accessibilityLabel="Retry profile loading" onPress={() => void restore()} style={styles.button}>
       <Text style={styles.buttonText}>Retry profile loading</Text>
     </Pressable>
-  </View>;
+  </Page>;
 
   return (
-    <View style={styles.card}>
-      <Text accessibilityRole="header" style={styles.title}>Your profile</Text>
+    <Page onAccount={onAccount}><Text style={ui.eyebrow}>YOUR STARTING POINT</Text>
+      <Text accessibilityRole="header" style={ui.title}>Start with you.</Text>
       <Text style={styles.copy}>Save your details to your FitQuest account.</Text>
-      {field('firstName', 'First name')}
-      {field('lastName', 'Last name')}
+      <View style={styles.row}>{field('firstName', 'First name')}{field('lastName', 'Last name')}</View>
       <View style={styles.row}>
         {field('heightFeet', 'Height (feet)', 'number-pad')}
         {field('heightInches', 'Height (inches)', 'number-pad')}
       </View>
-      {field('age', 'Age (years)', 'number-pad')}
-      {field('weight', 'Weight (lb)', 'decimal-pad')}
+      <View style={styles.row}>{field('age', 'Age (years)', 'number-pad')}{field('weight', 'Weight (lb)', 'decimal-pad')}</View>
       {field('gender', 'Gender')}
       <Text style={styles.hint}>Describe your gender, or enter “Prefer not to say”.</Text>
       <Pressable
@@ -206,29 +207,29 @@ function AccountProfileForm({ accessToken, onSessionEnded, userId }: Props) {
           {feedback}
         </Text>
       )}
-      <Text style={styles.hint}>Submit to save your profile privately to your account.</Text>
-    </View>
+      <Text style={styles.hint}>Planning is for adults 18+. Your profile is saved privately to your account.</Text>
+    </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  welcome: { marginTop: 32, color: '#193B34', fontSize: 32, fontWeight: '600' },
-  notice: { marginTop: 20, color: '#52655E', fontSize: 16 },
+  welcome: { marginTop: 32, color: '#191B20', fontSize: 32, fontWeight: '600' },
+  notice: { marginTop: 20, color: '#626670', fontSize: 16 },
   card: { marginTop: 20, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24,
-    borderWidth: 1, borderColor: '#DDE5DD', gap: 14 },
-  title: { color: '#193B34', fontSize: 22, fontWeight: '600' },
-  copy: { color: '#52655E', fontSize: 16, lineHeight: 25 },
-  field: { flex: 1, gap: 7 },
-  label: { color: '#193B34', fontSize: 16, fontWeight: '600' },
-  input: { minHeight: 48, borderWidth: 1, borderColor: '#91A69B', borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 12, color: '#193B34', fontSize: 17,
-    backgroundColor: '#F6F7F2' },
-  row: { flexDirection: 'row', gap: 12 },
-  hint: { color: '#52655E', fontSize: 14, lineHeight: 21 },
-  button: { minHeight: 48, borderRadius: 12, backgroundColor: '#176B5B',
+    borderWidth: 1, borderColor: '#DCDFE4', gap: 14 },
+  title: { color: '#191B20', fontSize: 22, fontWeight: '600' },
+  copy: { color: '#626670', fontSize: 16, lineHeight: 25 },
+  field: { flexGrow: 1, minWidth:120, gap: 7 },
+  label: { color: '#191B20', fontSize: 16, fontWeight: '600' },
+  input: { minHeight: 48, borderWidth: 1, borderColor: '#9399A4', borderRadius: 7,
+    paddingHorizontal: 12, paddingVertical: 12, color: '#191B20', fontSize: 16,
+    backgroundColor: '#FFFFFF' },
+  row: { flexDirection: 'row', flexWrap:'wrap', gap: 12 },
+  hint: { color: '#626670', fontSize: 14, lineHeight: 21 },
+  button: { minHeight: 52, borderRadius: 9, backgroundColor: '#244DE5',
     padding: 14, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   disabled: { opacity: 0.5 },
-  feedback: { color: '#176B5B', fontSize: 16, lineHeight: 24, fontWeight: '600' },
+  feedback: { color: '#244DE5', fontSize: 16, lineHeight: 24, fontWeight: '600' },
   error: { color: '#9B302C' },
 });

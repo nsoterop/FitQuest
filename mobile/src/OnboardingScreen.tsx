@@ -1,3 +1,4 @@
+import {Page,ui} from './Design';
 import { FixedIntakeForm } from './FixedIntakeForm';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -7,9 +8,9 @@ import { privateDrafts } from './onboardingDraftStorage';
 import type { OnboardingDraftStore } from './onboardingDraft';
 
 type OnboardingProps={
-  recovery?:RecoveryRequest;userId:string;accessToken:()=>Promise<string>;onSessionEnded?:()=>void;onClose:(message?:string,summarySaved?:boolean)=>void;drafts?:OnboardingDraftStore;
+  onAccount?:()=>void;recovery?:RecoveryRequest;userId:string;accessToken:()=>Promise<string>;onSessionEnded?:()=>void;onClose:(message?:string,summarySaved?:boolean)=>void;drafts?:OnboardingDraftStore;
 };
-export function OnboardingScreen(props:OnboardingProps){return <AccountOnboardingScreen key={props.userId} {...props}/>}
+export function OnboardingScreen(props:OnboardingProps){return <Page onAccount={props.onAccount} onBack={()=>props.onClose()} backLabel="Back to greeting"><AccountOnboardingScreen key={props.userId} {...props}/></Page>}
 function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,recovery,drafts=privateDrafts}:OnboardingProps) {
   const [accepted,setAccepted]=useState(!!recovery);
   const [conversation,setConversation]=useState<OnboardingConversation|null>(null);
@@ -141,14 +142,14 @@ function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
         },false)}
         {button('Keep conversation',()=>setDeleteRequested(false),busy,true)}
       </>:<>
-        {button('Back to greeting',onClose,false,true)}
+        {button('Close options',()=>setOptionsOpen(false),false,true)}
         {conversation&&button('Delete conversation',()=>setDeleteRequested(true),false,true)}
       </>}
     </View>}
     {recovery&&!conversation&&<><Text style={styles.copy}>{busy?'Loading clarification…':error||'Continue from your saved summary.'}</Text>{!busy&&button('Load clarification',()=>void start())}</>}
     {!accepted?<>
       <Text accessibilityRole="header" style={styles.title}>Before we begin</Text>
-      <Text style={styles.copy}>Planning is for adults 18+. These five answers are saved privately, exactly as submitted. No AI is used during intake. Your answers are shared with OpenAI only when you choose Generate plan. Confirming the outline sends your context, relevant profile facts and the exercise catalog for detailed workouts. Planning answers and plans stay saved; intake revisions and the device draft are removed after submission. Provider retention and backups are separate.</Text>
+      <Text style={styles.copy}>Planning is for adults 18+. These five answers are saved privately, exactly as submitted. No AI is used during intake. Your answers are shared with OpenAI only when you choose Generate plan. Generation uses your answers and relevant profile facts to create the complete week in one request. You see the high-level plan first. Use this plan reveals its saved workouts without another AI request. Planning answers and plans stay saved; intake revisions and the device draft are removed after submission. Provider retention and backups are separate.</Text>
       {button('Continue to onboarding',()=>void start())}
     </>:conversation?.context.intake?<>
       <FixedIntakeForm questions={conversation.intakeQuestions!} answers={conversation.context.intake.answers} text={text} editIndex={editIndex} disabled={busy||!!pending||needsRefresh} canGenerate={!draftError&&!needsRefresh}
@@ -183,18 +184,19 @@ function AccountOnboardingScreen({userId,accessToken,onSessionEnded,onClose,reco
       </>}
       {!!draftError&&<Text accessibilityRole="alert" style={styles.error}>{draftError}</Text>}
     </>:null}
+    {!!draftError&&!busy&&button('Retry saving draft',()=>void saveDraft(text,pending),false,true)}
     {!accepted&&!!error&&<Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
   </View>;
 }
 const styles=StyleSheet.create({
-  section:{marginTop:16,gap:16},title:{fontSize:24,fontWeight:'600',color:'#193B34'},
-  copy:{fontSize:16,lineHeight:25,color:'#193B34'},notice:{fontSize:15,lineHeight:23,color:'#52655E'},
-  turn:{gap:14},answer:{alignSelf:'flex-end',maxWidth:'92%',backgroundColor:'#E5EEE8',borderRadius:14,padding:12},
+  section:{flexGrow:1,gap:16},title:ui.title,
+  copy:{fontSize:16,lineHeight:25,color:'#191B20'},notice:{fontSize:15,lineHeight:23,color:'#626670'},
+  turn:{gap:14},answer:{alignSelf:'flex-end',maxWidth:'92%',backgroundColor:'#F2F3F5',borderRadius:14,padding:12},
   composerGroup:{gap:10},composer:{flexDirection:'row',alignItems:'flex-end',gap:10},
-  input:{flex:1,minHeight:48,maxHeight:180,borderWidth:1,borderColor:'#91A69B',borderRadius:12,padding:12,color:'#193B34',fontSize:17,backgroundColor:'#FFFFFF'},
-  button:{minHeight:44,borderRadius:12,backgroundColor:'#176B5B',paddingHorizontal:16,paddingVertical:12,alignItems:'center',justifyContent:'center'},
-  buttonText:{color:'#FFFFFF',fontSize:16,fontWeight:'600'},secondary:{backgroundColor:'transparent',alignSelf:'flex-start'},secondaryText:{color:'#176B5B',fontSize:16},
-  optionsRow:{alignItems:'flex-end'},optionsButton:{minWidth:44,minHeight:44,alignItems:'center',justifyContent:'center'},optionsText:{fontSize:24,color:'#52655E'},
-  menu:{borderWidth:1,borderColor:'#DDE5DD',borderRadius:12,padding:12,gap:8,backgroundColor:'#FFFFFF'},
+  input:{flex:1,minHeight:48,maxHeight:180,borderWidth:1,borderColor:'#9399A4',borderRadius:12,padding:12,color:'#191B20',fontSize:17,backgroundColor:'#FFFFFF'},
+  button:{minHeight:44,borderRadius:12,backgroundColor:'#244DE5',paddingHorizontal:16,paddingVertical:12,alignItems:'center',justifyContent:'center'},
+  buttonText:{color:'#FFFFFF',fontSize:16,fontWeight:'600'},secondary:{backgroundColor:'transparent',alignSelf:'flex-start'},secondaryText:{color:'#244DE5',fontSize:16},
+  optionsRow:{alignItems:'flex-end'},optionsButton:{minWidth:44,minHeight:44,alignItems:'center',justifyContent:'center'},optionsText:{fontSize:24,color:'#626670'},
+  menu:{borderWidth:1,borderColor:'#DCDFE4',borderRadius:12,padding:12,gap:8,backgroundColor:'#FFFFFF'},
   disabled:{opacity:0.5},error:{fontSize:15,lineHeight:23,color:'#9B302C'},
 });

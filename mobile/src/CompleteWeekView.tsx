@@ -38,4 +38,4 @@ export function CompleteWeekView({plan}:{plan:TrainingPlan}){
   </View>)}
  </View>;
 }
-const styles=StyleSheet.create({group:{gap:10,paddingVertical:8},session:{gap:6,padding:12,borderRadius:12,backgroundColor:'#EDF2ED'},title:{fontSize:16,color:'#193B34',fontWeight:'600'},copy:{fontSize:16,lineHeight:23,color:'#52655E'},small:{fontSize:13,lineHeight:19,color:'#52655E'}});
+const styles=StyleSheet.create({group:{gap:10,paddingVertical:8},session:{gap:6,padding:12,borderRadius:12,backgroundColor:'#F2F3F5'},title:{fontSize:16,color:'#191B20',fontWeight:'600'},copy:{fontSize:16,lineHeight:23,color:'#626670'},small:{fontSize:13,lineHeight:19,color:'#626670'}});
