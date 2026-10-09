@@ -17,6 +17,7 @@ export async function verifyTwoStageDatabase(t:TestContext,owner:Pool,pool:Pool,
   await profiles.save(a,{firstName:'Synthetic',lastName:'Stages',age:30,height:{value:68,unit:'in'},weight:{value:155,unit:'lb'},gender:'Unspecified'});
   await owner.query("INSERT INTO fitquest.training_summaries(user_id,revision,document,time_zone) VALUES($1,1,$2,'America/New_York')",[a.userId,JSON.stringify(intakeSummary({version:1,answers:syntheticAnswers}))]);
   const store=planningStore(pool),plan=(await store.ensurePlan(a,1)).plans[0]!;
+  await owner.query("UPDATE fitquest.training_plans SET schema_version='complete-week-v1' WHERE user_id=$1",[a.userId]);
   const r={summaryRevision:1,planId:plan.id,target:'week',retryAttempt:null as string|null};
   const canonical=completeFixture(plan.dates),outline=completeOutlineFixture(canonical),bodies:string[]=[];
   let failOutline=false,failWorkouts=false,unknownCost=false;

@@ -17,7 +17,7 @@ export async function recordPlanDiagnostic(pool:Pool,a:Account,w:PlanningWork,va
   await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[a.userId]);
   await c.query("DELETE FROM fitquest.plan_validation_diagnostics WHERE user_id=$1 AND expires_at<=now()",[a.userId]);
   await c.query(`INSERT INTO fitquest.plan_validation_diagnostics(user_id,attempt_id,plan_id,diagnostic,deployment_sha,catalog_version,schema_version)
-   VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`,[a.userId,w.attempt,w.planId,diagnostic,typeof sha==='string'&&/^[0-9a-f]{40}$/.test(sha)?sha:null,catalog.version,completePlanVersion]);
+   VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`,[a.userId,w.attempt,w.planId,diagnostic,typeof sha==='string'&&/^[0-9a-f]{40}$/.test(sha)?sha:null,w.input.schemaVersion==='document-week-v1'?'not-applicable':catalog.version,w.input.schemaVersion??completePlanVersion]);
   await c.query(`DELETE FROM fitquest.plan_validation_diagnostics WHERE user_id=$1 AND attempt_id IN
    (SELECT attempt_id FROM fitquest.plan_validation_diagnostics WHERE user_id=$1 ORDER BY created_at DESC,attempt_id DESC OFFSET 50)`,[a.userId]);
   await c.query('COMMIT');

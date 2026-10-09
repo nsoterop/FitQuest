@@ -1,3 +1,4 @@
+import {checkDocument,documentPlanVersion} from './documentPlanning.js';
 import { CompleteValidationError,safeValidationDiagnostic } from './planDiagnostics.js';
 import { checkComplete,completeOutline } from './completePlanning.js';
 import { validationFailureCode } from './planningValidation.js';
@@ -35,9 +36,9 @@ export function planningService(store:PlanningStore,provider?:OnboardingProvider
         if(controller.signal.aborted)await store.settle(a,attempt,null,{transport:'aborted'});
         if(!await authorize())throw new OnboardingError(401,'session_ended');
         let value;let failure:string|undefined=result.failure;
-        if(!failure)try{value=work.stage==='outline'?completeOutline(result.rawText!,work.input.dates):work.input.schemaVersion==='complete-week-v1'?checkComplete(result.proposal,work.input):work.input.outlineFirst&&work.input.kind==='outline'?(work.input.review?checkOverviewReview(result.proposal,work.input):intakeAnswers(work.input.summary)?parsePlainOutline(result.rawText!,work.input.dates):checkOverview(result.proposal,work.input)):work.input.review?checkReview(result.proposal,work.input):work.input.kind==='week'?checkWeek(result.proposal,work.input):work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!);if(!Array.isArray(value)&&'coverage' in value&&informationCoverage(value.coverage)){value=undefined;throw new OnboardingError(422,'invalid_plan')}}catch(e){
+        if(!failure)try{value=work.input.schemaVersion===documentPlanVersion?checkDocument(result.proposal,work.input):work.stage==='outline'?completeOutline(result.rawText!,work.input.dates):work.input.schemaVersion==='complete-week-v1'?checkComplete(result.proposal,work.input):work.input.outlineFirst&&work.input.kind==='outline'?(work.input.review?checkOverviewReview(result.proposal,work.input):intakeAnswers(work.input.summary)?parsePlainOutline(result.rawText!,work.input.dates):checkOverview(result.proposal,work.input)):work.input.review?checkReview(result.proposal,work.input):work.input.kind==='week'?checkWeek(result.proposal,work.input):work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!);if(!Array.isArray(value)&&'coverage' in value&&informationCoverage(value.coverage)){value=undefined;throw new OnboardingError(422,'invalid_plan')}}catch(e){
           failure=validationFailureCode(e)??(e instanceof OnboardingError?e.code:'invalid_plan');
-          if(work.input.schemaVersion==='complete-week-v1')try{
+          if(work.input.schemaVersion==='complete-week-v1'||work.input.schemaVersion===documentPlanVersion)try{
             const diagnostic=e instanceof CompleteValidationError?e.diagnostic:safeValidationDiagnostic({stage:'integrity',rule:e instanceof OnboardingError&&e.code==='saved_day_changed'?'kept_work':'validation'});
             await store.recordValidation(a,work,diagnostic);
           }catch{/* Diagnostics cannot mask validation or affect settled accounting. */}

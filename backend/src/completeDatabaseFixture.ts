@@ -24,11 +24,11 @@ export async function verifyCompleteDatabase(t:TestContext,owner:Pool,pool:Pool,
  const store=planningStore(pool),service=planningService(store,provider,'test'),intake=onboardingService(postgresOnboardingStore(pool),provider,'test');let plan:any;
  const budget=async()=>(await owner.query('SELECT * FROM fitquest.ai_budget')).rows;
  const saved=async()=>(await owner.query('SELECT complete_plan,review_revision,review_state,accepted_at FROM fitquest.training_plans WHERE user_id=$1',[a.userId])).rows[0];
- await t.test('new five-answer completion remains free and versions a pristine complete-week plan',async()=>{
+ await t.test('legacy complete-week fixture retains free intake and the original reader/generation path',async()=>{
   const before=await budget();let c=await intake.create(a,'America/New_York',1);
   for(const [index,value]of syntheticAnswers.entries()){const next=await intake.command(a,c.id,{kind:'edit',topic:`intake:${index}`,itemId:null,value,operationId:randomUUID(),expectedRevision:c.revision},async()=>true);assert(!('deleted'in next));c=next;}
   await intake.command(a,c.id,{kind:'confirm',reviewedRevision:c.revision,expectedRevision:c.revision,operationId:randomUUID()},async()=>true);
-  assert.equal(calls,0);assert.deepEqual(await budget(),before);plan=(await store.read(a)).plans[0];assert.equal(plan.schemaVersion,'complete-week-v1');assert.equal(plan.outlineFirst,false);assert.equal(plan.completeReady,false);assert.equal(plan.dates.length,7);
+  assert.equal(calls,0);assert.deepEqual(await budget(),before);assert.equal((await store.read(a)).plans[0]!.schemaVersion,'document-week-v1');await owner.query("UPDATE fitquest.training_plans SET schema_version='complete-week-v1' WHERE user_id=$1",[a.userId]);plan=(await store.read(a)).plans[0];assert.equal(plan.schemaVersion,'complete-week-v1');assert.equal(plan.outlineFirst,false);assert.equal(plan.completeReady,false);assert.equal(plan.dates.length,7);
  });
  await t.test('refusal, incomplete, unavailable and invalid initial output are distinct; only explicit retries dispatch',async()=>{
   const r={summaryRevision:plan.summaryRevision,planId:plan.id,target:'week',retryAttempt:null as string|null};

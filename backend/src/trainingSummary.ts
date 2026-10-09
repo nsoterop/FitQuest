@@ -1,4 +1,4 @@
-import { completePlanVersion } from './completePlanContract.js';
+import { documentPlanVersion } from './documentPlanContract.js';
 import { intakeAnswers,intakeSummary } from './fixedIntake.js';
 import { nutritionInputSchema,type NutritionInput } from './nutrition.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -83,5 +83,5 @@ export async function retainTrainingSummary(c:PoolClient,account:Account,context
     document=EXCLUDED.document,preferences='[]',time_zone=EXCLUDED.time_zone,source_conversation=EXCLUDED.source_conversation,updated_at=now() RETURNING revision`,
     [account.userId,JSON.stringify(summary),checkTimeZone(timeZone),conversationId]);
   await c.query(`INSERT INTO fitquest.training_plans(user_id,id,summary_revision,summary,time_zone,dates,catalog_version,outline_first,schema_version)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[account.userId,context.recovery?recoveryPlanId(account.userId,context.recovery):randomUUID(),saved.rows[0].revision,JSON.stringify(summary),timeZone,JSON.stringify(planDates(timeZone)),catalog.version,!context.intake,context.intake?completePlanVersion:null]);
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[account.userId,context.recovery?recoveryPlanId(account.userId,context.recovery):randomUUID(),saved.rows[0].revision,JSON.stringify(summary),timeZone,JSON.stringify(planDates(timeZone)),catalog.version,!context.intake,context.intake?documentPlanVersion:null]);
 }
