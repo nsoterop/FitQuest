@@ -37,7 +37,7 @@ export function foodStore(pool:Pool){
    if((await c.query("SELECT 1 FROM fitquest.food_operations WHERE user_id=$1 AND status='pending'",[a.userId])).rowCount)fail('food_pending');
    const context:unknown[]=[];let previous=cmd.previousOperation;
    const target=cmd.entryId?(await c.query('SELECT document,revision,deleted_at FROM fitquest.food_entries WHERE user_id=$1 AND id=$2',[a.userId,cmd.entryId])).rows[0]:null;
-   if(cmd.entryId&&(!target||target.deleted_at||target.revision!==cmd.expectedRevision))fail('food_changed');while(previous){if(context.length>=6)fail('food_context_limit',422);const row=await operation(c,a,previous);if(row.kind!=='interpret'||row.status!=='completed'||!row.candidate||!row.message||row.entry_id!==cmd.entryId)fail('food_context_expired');context.unshift({message:row.message,candidate:row.candidate});previous=row.previous_operation}
+   if(cmd.entryId&&(!target||target.deleted_at||target.revision!==cmd.expectedRevision))fail('food_changed');if(target?.document?.recipe)fail('food_recipe_manual',422);while(previous){if(context.length>=6)fail('food_context_limit',422);const row=await operation(c,a,previous);if(row.kind!=='interpret'||row.status!=='completed'||!row.candidate||!row.message||row.entry_id!==cmd.entryId)fail('food_context_expired');context.unshift({message:row.message,candidate:row.candidate});previous=row.previous_operation}
    if(target)context.unshift({savedEntry:target.document});
    let work:{attempt:string;body:string;date:string;timeZone:string}|undefined,error='ai_disabled';
    if(provider){const rate=(await c.query(`INSERT INTO fitquest.onboarding_request_limits(user_id,hour,requests,day,generations) VALUES($1,date_trunc('hour',now()),1,current_date,1) ON CONFLICT(user_id) DO UPDATE SET hour=EXCLUDED.hour,day=EXCLUDED.day,requests=CASE WHEN onboarding_request_limits.hour=EXCLUDED.hour THEN onboarding_request_limits.requests+1 ELSE 1 END,generations=CASE WHEN onboarding_request_limits.day=EXCLUDED.day THEN onboarding_request_limits.generations+1 ELSE 1 END RETURNING requests,generations`,[a.userId])).rows[0];if(rate.requests>600||rate.generations>60)fail('rate_limit',429);
@@ -53,6 +53,7 @@ export function foodStore(pool:Pool){
    if(cmd.entryId&&(!existing||existing.revision!==cmd.expectedRevision))fail('food_changed');
    if(cmd.kind==='save'){
     if(existing?.deleted_at)fail('food_changed');
+    if(!isDeepStrictEqual(cmd.document.recipe,existing?.document?.recipe))fail('food_source_changed',422);
     let basis:FoodDocument|undefined=existing?.document;
     if(cmd.candidateOperation){const candidate=await operation(c,a,cmd.candidateOperation);if(candidate.kind!=='interpret'||candidate.status!=='completed'||candidate.entry_id!==cmd.entryId||!candidate.candidate?.document)fail('food_candidate_changed');if((await c.query("SELECT 1 FROM fitquest.food_operations WHERE user_id=$1 AND kind='save' AND previous_operation=$2",[a.userId,cmd.candidateOperation])).rowCount)fail('food_candidate_used');basis=candidate.candidate.document}
     for(const [i,item]of cmd.document.items.entries())for(const n of nutrients)if(item.nutrients[n].source==='estimated'){const p=basis?.items[i];if(!p||p.name!==item.name||p.portion!==item.portion||p.quantity!==item.quantity||p.unit!==item.unit||!isDeepStrictEqual(p.nutrients[n],item.nutrients[n]))fail('food_source_changed',422)}

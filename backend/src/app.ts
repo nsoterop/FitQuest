@@ -11,7 +11,7 @@ import { commandSchema, idSchema, type OnboardingService } from './onboarding.js
 import { OnboardingError, type Command } from './onboardingDomain.js';
 
 export function buildApp(logger: FastifyServerOptions['logger'] = false,
-  options: { store?: ProfileStore; verifyAccount?: VerifyAccount; onboarding?: OnboardingService; planning?:PlanningService; food?:FoodService } = {}) {
+  options: { store?: ProfileStore; verifyAccount?: VerifyAccount; onboarding?: OnboardingService; planning?:PlanningService; library?:import('./foodLibraryStore.js').FoodLibraryStore;food?:FoodService } = {}) {
   const app = Fastify({ logger, ajv: { customOptions: { coerceTypes: false, removeAdditional: false } } });
   const accounts = new WeakMap<object, Account>();
 
@@ -152,6 +152,10 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
       try{const next=await options.verifyAccount!(request.headers.authorization!.slice(7));return next?.userId===account.userId&&next.sessionId===account.sessionId}catch{return false}
     });
   });
+  const library=()=>{if(!options.library)throw new OnboardingError(503,'unavailable');return options.library};
+  app.get('/food-library',privateRoute,async request=>library().read(accounts.get(request)!));
+  app.get<{Params:{id:string}}>('/food-library/operations/:id',privateRoute,async request=>library().readOperation(accounts.get(request)!,request.params.id));
+  app.post<{Body:import('./foodContract.js').LibraryCommand}>('/food-library/commands',{...privateRoute,bodyLimit:28000},async request=>library().command(accounts.get(request)!,request.body));
   const food=()=>{if(!options.food)throw new OnboardingError(503,'unavailable');return options.food};
   app.get<{Querystring:{date:string;timeZone:string}}>('/food',{...privateRoute,schema:{querystring:{type:'object',additionalProperties:false,required:['date','timeZone'],properties:{date:{type:'string',maxLength:10},timeZone:{type:'string',maxLength:80}}}}},async request=>food().read(accounts.get(request)!,request.query.date,request.query.timeZone));
   app.get<{Params:{id:string}}>('/food/operations/:id',{...privateRoute,schema:{params:idSchema}},async request=>food().readOperation(accounts.get(request)!,request.params.id));

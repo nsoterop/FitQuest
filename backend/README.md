@@ -1,5 +1,17 @@
 # FitQuest API
 
+## Saved meals and recipes — Release 3
+
+Authenticated no-store routes: `GET /food-library`, `GET /food-library/operations/:id`, `POST /food-library/commands`. Save an exact owned diary revision, create/update a recipe, or explicitly log servings. Canonical operation digests, session guards, owned revisions and a per-user transaction lock protect replay, concurrency and unknown outcomes. No library action calls AI or changes accounting.
+
+Recipes retain base-portion nutrients/provenance, ingredient multipliers, batch yield and default consumed servings. Totals multiply exact thousandths before dividing yield, rounding only for display. Logging copies the full recipe version into an independent diary document; library edits cannot change it. Old entries remain readable. Recipe-entry corrections are manual to retain snapshot factors.
+
+Retention: library documents remain until future explicitly scoped removal; this release adds no library deletion. The bound is 200 items per account and 12 ingredients per item. Minimal operation digests/receipts remain for replay; no full command body is stored there. Encrypted account-scoped library drafts expire after 24 hours and clear on account cleanup. Existing diary retention is unchanged.
+
+Migration `20261009220046_saved_food_library.sql` is recorded hosted as `20261009221101_saved_food_library`. It adds two private tables with forced owner RLS, app SELECT/INSERT/UPDATE on documents and SELECT/INSERT on receipts, plus ownership indexes/foreign keys. Existing content, food rows, protected account groups and accounting were preserved. Security advisors show only the previously documented ledger no-policy notice and leaked-password warning.
+
+274 backend tests with isolated PostgreSQL and zero skips, 113 mobile tests, both TypeScript checks and self-review pass. Tests cover fractional arithmetic, unknown/provenance values, save without consumption, recipe history, RLS, idempotency, stale/concurrent operations, forgery prevention, durable drafts and recovery. [Native evidence](../docs/release-3-native/README.md) and root release evidence distinguish simulator and live verification from phone acceptance.
+
 ## Food diary — Release 2
 
 Authenticated no-store routes: `GET /food?date=YYYY-MM-DD&timeZone=...`, `GET /food/operations/:id`, and `POST /food/commands`. Commands have client operation IDs, canonical payload digests, owned entry/day revisions and explicit consumption confirmation. Manual capture, corrections, saves, delete/Undo, day completeness and read/recovery have no AI dispatch. Each explicit interpretation/clarification reserves and settles independently in the existing single ledger with configured Sol 6.1 low, unchanged caps, uncertain charges and no automatic retry. Training prompt/provider files are unchanged.
