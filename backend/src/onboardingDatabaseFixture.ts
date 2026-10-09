@@ -1,3 +1,4 @@
+import {verifyFoodDatabase} from './foodDatabaseFixture.js';
 import {verifyDocumentDatabase} from './documentDatabaseFixture.js';
 import {verifyTwoStageDatabase} from './twoStageDatabaseFixture.js';
 import { verifyCompleteDatabase } from './completeDatabaseFixture.js';
@@ -70,6 +71,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   const beforeDocument=(await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.training_plans p ORDER BY user_id,id')).rows;
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261009172830_document_planning.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   assert.deepEqual((await owner.query("SELECT to_jsonb(p)-'document_plan'-'document_history' AS value FROM fitquest.training_plans p ORDER BY user_id,id")).rows,beforeDocument);
+  await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261009211639_food_diary.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   // Synthetic fixture only. Real evaluation/production accounting is never initialized here.
   await owner.query('UPDATE fitquest.ai_budget SET app_enabled=true');
   const alice={userId:'11111111-1111-4111-8111-111111111111',sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};
@@ -495,6 +497,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await verifyCompleteDatabase(t,owner,pool,profiles);
   await verifyTwoStageDatabase(t,owner,pool,profiles);
   await verifyDocumentDatabase(t,owner,pool,profiles);
+  await verifyFoodDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');
     const a=await fresh();await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',[alice.userId]);

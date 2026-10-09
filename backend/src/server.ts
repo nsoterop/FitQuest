@@ -1,3 +1,5 @@
+import {foodStore} from './foodStore.js';
+import {foodService} from './food.js';
 import { planningStore } from './planningStore.js';
 import { planningService } from './planning.js';
 import { buildApp } from './app.js';
@@ -26,6 +28,7 @@ const pool = createPool(DATABASE_URL);
 const provider=configuredProvider(process.env);
 const app = buildApp({ redact: ['req.headers.authorization', 'req.headers.cookie', 'err'] }, {
   store: postgresProfileStore(pool), verifyAccount: supabaseVerifier(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+  food:foodService(foodStore(pool),provider),
   planning:planningService(planningStore(pool),provider),
   onboarding: onboardingService(postgresOnboardingStore(pool), provider),
 });
