@@ -8,9 +8,11 @@ import {intakeSummary} from './fixedIntake.js';
 import {openAIProvider} from './onboardingProvider.js';
 const dates=Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`),answers=['Build confidence & stamina','A few walks','Floor and cushions','Two short sessions when useful.\n20–30 minutes each.','None'];
 const input={kind:'week' as const,schemaVersion:'document-week-v1' as const,dates,summary:intakeSummary({version:1,answers}),profile:{age:30,heightInches:68,weightLb:155}};
-const expected=`I want you to come up with an exercise plan for me. My goals are: ${answers[0]}. My current activity is: ${answers[1]}. My available equipment is: ${answers[2]}. My training preferences are: ${answers[3]}. My limitations are: ${answers[4]}.
+const expected=`I want you to come up with a workout plan for me. My goals are: ${answers[0]}. My current activity is: ${answers[1]}. My available equipment is: ${answers[2]}. My training preferences are: ${answers[3]}. My limitations are: ${answers[4]}.
 
-Build the complete Monday–Sunday week, 2026-10-05 through 2026-10-11 inclusive, to help me achieve my goals. Choose the schedule and activities around my preferences, availability, equipment and limitations. Include the full week, even if some days have passed.
+I want you to build a plan for the week to help me achieve my goals. First give the high level plan, then after that, create a workout/exercise list for each session. For the high level plan, return a list with days of the week until Sunday, with each day's session(s) underneath it, the goal for each session and the rough time to complete the session.
+
+The week is Monday, 2026-10-05, through Sunday, 2026-10-11, inclusive.
 
 Return each day's sessions with a title, goal, timing if useful (otherwise null), approximate duration range in minutes, optionality, and the complete workout in workoutMarkdown. Rest days have empty session lists. Write clear, readable workout prescriptions with explicit units and recovery in Markdown. Use headings and lists where helpful. Return only the provided display schema.`;
 test('document request uses exact concise context and small display schema, no catalog or exercise contract, and low reasoning',()=>{
