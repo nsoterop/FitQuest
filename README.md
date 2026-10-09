@@ -1,5 +1,11 @@
 # FitQuest
 
+## Usability corrections — batch 1, 2026-10-09
+
+After profile setup, new users have only Start onboarding; saved intake/generation/review remains within onboarding. Actual server acceptance opens Today/Week/Nutrition. Server-recorded accepted history remains available during pending revisions and after the saved week expires. Review now has concise week content, distinct weekday/session cards, revision and acceptance controls. Today session taps open the exact selected workout. Native keyboard remeasurement keeps intake controls above the software keyboard.
+
+**274 backend tests including isolated PostgreSQL; 114 mobile tests; both TypeScript checks, offline iOS export and self-review pass.** [Native evidence and phone steps](docs/batch-1-native/README.md) distinguish simulator tests and built JavaScript from phone acceptance. The temporary servers and simulator are stopped. No owner Metro listener was present at final inspection; the owner must start the normal server for phone testing. No migration, paid AI request, generation/model/schema change or nutrition change was made. Publication/live/reset evidence follows after release verification.
+
 ## Release 3 saved meals and recipes — 2026-10-09
 
 Published application commit **`1329efc7f19781f6d8e43c23f94dc75a4c60ca0c`** adds Nutrition → Saved meals & recipes. Save a consumed meal without logging it again, create and edit ingredient/yield recipes, and log fractional or multiple servings after explicit confirmation. Each diary entry keeps a complete version snapshot; future recipe edits do not change earlier nutrition. All library actions use deterministic arithmetic and no AI calls. [Native evidence and phone steps](docs/release-3-native/README.md) and [API details](backend/README.md) cover the release.

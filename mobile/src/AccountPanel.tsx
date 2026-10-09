@@ -15,7 +15,6 @@ export function AccountPanel() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [accountOpen,setAccountOpen]=useState(false);
-  const [trainingNavigation,setTrainingNavigation]=useState(0);
   const [confirmation,setConfirmation]=useState(false);
   const [showPassword,setShowPassword]=useState(false);
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
@@ -159,9 +158,9 @@ export function AccountPanel() {
   if (hidden.current) return <Page><Text accessibilityRole="header" style={ui.title}>Finish signing out.</Text><Notice error>{message||'Clearing your device draft…'}</Notice><Action label="Retry sign out" busy={busy} onPress={()=>void signOut()}/></Page>;
   if (session) return <View style={ui.screen}>
     <View style={accountOpen?{display:'none'}:ui.screen} accessibilityElementsHidden={accountOpen} importantForAccessibility={accountOpen?'no-hide-descendants':'auto'}>
-      <ProfileIntakeForm trainingNavigation={trainingNavigation} key={session.user.id} userId={session.user.id} accessToken={() => accessToken(session.user.id)} onAccount={()=>setAccountOpen(true)} onSessionEnded={() => void signOut('Your session ended. Please sign in again.')} />
+      <ProfileIntakeForm key={session.user.id} userId={session.user.id} accessToken={() => accessToken(session.user.id)} onAccount={()=>setAccountOpen(true)} onSessionEnded={() => void signOut('Your session ended. Please sign in again.')} />
     </View>
-    {accountOpen&&<AccountView key={session.user.id} email={session.user.email??''} accessToken={()=>accessToken(session.user.id)} onBack={()=>setAccountOpen(false)} onTraining={()=>{setTrainingNavigation(n=>n+1);setAccountOpen(false)}} onSignOut={()=>void signOut()} onSessionEnded={()=>void signOut('Your session ended. Please sign in again.')}/>}
+    {accountOpen&&<AccountView key={session.user.id} email={session.user.email??''} accessToken={()=>accessToken(session.user.id)} onBack={()=>setAccountOpen(false)} onSignOut={()=>void signOut()} onSessionEnded={()=>void signOut('Your session ended. Please sign in again.')}/>}
   </View>;
   if(confirmation)return <Page><Text style={ui.eyebrow}>ONE MORE STEP</Text><Text accessibilityRole="header" style={ui.title}>Check your inbox.</Text><Text style={ui.copy}>Open the confirmation link sent to {email.trim()}, then sign in.</Text><Notice>Keep this app installed so the link can bring you back to FitQuest.</Notice><Action label="Back to sign in" onPress={()=>{setConfirmation(false);setMode('signIn');setMessage('')}}/><Action label="Use a different email" onPress={()=>{setConfirmation(false);setEmail('');setMessage('')}} secondary/>{!!message&&<Notice error>{message}</Notice>}</Page>;
   return <Page context={mode==='signUp'?'Create account':'Welcome back'}>

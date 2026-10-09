@@ -1,24 +1,23 @@
-import {Page,ui,Action,Tabs,Notice} from './Design';
+import {Page,ui,Action,Notice} from './Design';
 import type { RecoveryRequest } from './onboardingApi';
 import { TrainingScreen } from './TrainingScreen';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { submitIntake, validateIntake, loadProfile, type IntakeFields } from './profileIntake';
 import { OnboardingScreen } from './OnboardingScreen';
-import { TrainingError, trainingRequest } from './trainingApi';
+import { hasAcceptedTraining, TrainingError, trainingRequest } from './trainingApi';
 
 const emptyFields: IntakeFields = {
   firstName: '', lastName: '', heightFeet: '', heightInches: '', age: '', weight: '', gender: '',
 };
 
 type Props = {
-  accessToken: () => Promise<string>; onSessionEnded?: () => void; userId?: string; onAccount?:()=>void;trainingNavigation?:number;
+  accessToken: () => Promise<string>; onSessionEnded?: () => void; userId?: string; onAccount?:()=>void;
 };
 export function ProfileIntakeForm(props: Props) {
   return <AccountProfileForm key={props.userId ?? 'signed-out'} {...props} />;
 }
-function AccountProfileForm({ accessToken, onSessionEnded, userId, onAccount, trainingNavigation=0 }: Props) {
-  const [nutritionOpen,setNutritionOpen]=useState(false);
+function AccountProfileForm({ accessToken, onSessionEnded, userId, onAccount }: Props) {
   const [fields, setFields] = useState(emptyFields);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -40,7 +39,6 @@ function AccountProfileForm({ accessToken, onSessionEnded, userId, onAccount, tr
   const [trainingAccess,setTrainingAccess]=useState<'checking'|'saved'|'empty'|'failed'>('checking');
   const [accessCheck,setAccessCheck]=useState(0);
 
-  useEffect(()=>{if(trainingNavigation&&savedFirstName!==null){setOnboarding(false);setGenerateOnOpen(false);setTraining(true)}},[trainingNavigation,savedFirstName]);
 
   useEffect(() => {
     if (!userId || savedFirstName === null || onboarding || training) return;
@@ -56,7 +54,7 @@ function AccountProfileForm({ accessToken, onSessionEnded, userId, onAccount, tr
         const token = await tokenGetter.current();
         if (!active || current.signal.aborted) return;
         const saved = await trainingRequest('', 'GET', undefined, token, current.signal);
-        if (active && controller === current) setTrainingAccess(saved.summary ? 'saved' : 'empty');
+        if (active && controller === current&&!current.signal.aborted) {setTrainingAccess(hasAcceptedTraining(saved)?'saved':'empty');if(saved.summary||saved.plans.length||hasAcceptedTraining(saved)){setGenerateOnOpen(false);setTraining(true)}}
       } catch (error) {
         if (!active || controller !== current) return;
         setTrainingAccess('failed');
@@ -162,15 +160,14 @@ function AccountProfileForm({ accessToken, onSessionEnded, userId, onAccount, tr
   }
 
   if (savedFirstName !== null) {
-    if(training&&userId)return <TrainingScreen initialTab={nutritionOpen?'nutrition':undefined} onAccount={onAccount} key={userId} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} generateOnOpen={generateOnOpen} onClarify={request=>{setRecovery(request);setTraining(false);setGenerateOnOpen(false);setOnboarding(true)}} onClose={returnToGreeting}/>;
+    if(training&&userId)return <TrainingScreen onAccount={onAccount} key={userId} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} generateOnOpen={generateOnOpen} onClarify={request=>{setRecovery(request);setTraining(false);setGenerateOnOpen(false);setOnboarding(true)}} onClose={returnToGreeting}/>;
     if (onboarding && userId) return <OnboardingScreen onAccount={onAccount} recovery={recovery} userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onClose={(message,summarySaved) => {setTrainingAccess('checking');setOnboarding(false);setRecovery(undefined);setOnboardingNotice(message??'');if(summarySaved){setGenerateOnOpen(true);setTraining(true)}}} />;
     return <Page onAccount={onAccount}><Text style={ui.eyebrow}>LET’S MAKE A START</Text>
       <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={ui.title}>Hi {savedFirstName}</Text><Text style={ui.copy}>Your training starts with you. Build a week around your goals, time and equipment.</Text>
       {!!onboardingNotice && <Text accessibilityLiveRegion="polite" style={styles.copy}>{onboardingNotice}</Text>}
-      {userId&&trainingAccess==='saved'&&<Pressable accessibilityRole="button" accessibilityLabel="View training" onPress={()=>{setTrainingAccess('checking');setGenerateOnOpen(false);setNutritionOpen(false);setTraining(true)}} style={[styles.button,{marginTop:20}]}><Text style={styles.buttonText}>View training</Text></Pressable>}
-      {userId&&trainingAccess==='failed'&&<Pressable accessibilityRole="button" accessibilityLabel="Retry loading saved progress" onPress={()=>{setTrainingAccess('checking');setAccessCheck(value=>value+1)}} style={[styles.button,{marginTop:20}]}><Text style={styles.buttonText}>Retry loading saved progress</Text></Pressable>}
-      {userId&&<Pressable accessibilityRole="button" accessibilityLabel="Open nutrition" onPress={()=>{setGenerateOnOpen(false);setNutritionOpen(true);setTraining(true)}} style={styles.button}><Text style={styles.buttonText}>Nutrition</Text></Pressable>}
-      {userId && <Pressable accessibilityRole="button" accessibilityLabel="Start onboarding" onPress={() => {setTrainingAccess('checking');setRecovery(undefined);setOnboardingNotice('');setOnboarding(true)}} style={[styles.button, { marginTop: 24 }]}><Text style={styles.buttonText}>Start onboarding</Text></Pressable>}
+      {userId&&trainingAccess==='checking'&&<Text style={ui.copy}>Loading your saved progress…</Text>}
+      {userId&&trainingAccess==='failed'&&<><Notice error>Couldn’t load your saved progress. Retry to continue where you left off.</Notice><Action label="Retry loading saved progress" onPress={()=>setAccessCheck(value=>value+1)}/></>}
+      {userId&&trainingAccess==='empty'&&<Action label="Start onboarding" onPress={()=>{setRecovery(undefined);setOnboardingNotice('');setOnboarding(true)}}/>}
     </Page>;
   }
   if (reading) return <Page onAccount={onAccount}><Text accessibilityLiveRegion="polite" style={ui.copy}>Loading your profile…</Text></Page>;

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { visibleAnswerOffset } from './conversationViewport';
 
@@ -35,6 +35,13 @@ export function ConversationScrollView({ children, contentContainerStyle }: { ch
       }, () => {});
     });
   }, []);
+  // iOS finishes updating native scroll bounds after the keyboard's layout event.
+  // Re-measure then: a scroll issued during that layout can be clamped to old bounds.
+  useEffect(() => {
+    const shown = Keyboard.addListener('keyboardDidShow', () => { if (targets.current) reveal(targets.current); });
+    const hidden = Keyboard.addListener('keyboardDidHide', () => { if (targets.current) reveal(targets.current); });
+    return () => { shown.remove(); hidden.remove(); };
+  }, [reveal]);
   return <ConversationScrollContext.Provider value={{ reveal }}>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top}>
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{flexGrow:1}} automaticallyAdjustKeyboardInsets={false} contentInsetAdjustmentBehavior="never"

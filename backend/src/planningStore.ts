@@ -52,12 +52,13 @@ export function planningStore(pool:Pool) {
   }
   async function view(c:PoolClient,a:Account) {
     const s=(await c.query('SELECT revision,document,preferences,time_zone AS "timeZone",source_conversation AS "sourceConversation" FROM fitquest.training_summaries WHERE user_id=$1',[a.userId])).rows[0]??null;
-    const plans=(await c.query(`SELECT id,summary_revision AS "summaryRevision",time_zone AS "timeZone",dates,catalog_version AS "catalogVersion",outline,schema_version AS "schemaVersion",complete_plan AS "completePlan",document_plan AS "documentPlan",accepted_at AS "acceptedAt",created_at AS "createdAt",
+    const plans=(await c.query(`SELECT id,summary_revision AS "summaryRevision",time_zone AS "timeZone",dates,catalog_version AS "catalogVersion",outline,schema_version AS "schemaVersion",complete_plan AS "completePlan",document_plan AS "documentPlan",accepted_at AS "acceptedAt",created_at AS "createdAt",CASE WHEN review_state<>'accepted' THEN document_history->-1 ELSE NULL END AS "acceptedDocument",
       outline_first AS "outlineFirst",confirmed_outline_revision AS "confirmedOutlineRevision",review_state AS "reviewState",review_revision AS "planRevision",review_note AS "reviewNote",review_context->>'question' AS "reviewQuestion"
       FROM fitquest.training_plans WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20`,[a.userId])).rows;
     for(const p of plans) {
       p.days=(await c.query('SELECT date::text,detail FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 ORDER BY date',[a.userId,p.id])).rows;
       p.jobs=(await c.query('SELECT target,status,error_code AS error,attempt_id AS "attemptId",feedback,complete_stage AS stage,raw_response AS "rawResponse" FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND (target NOT LIKE \'review:%\' OR target=$3) AND (target NOT LIKE \'details:%\' OR target=$4)',[a.userId,p.id,`review:${p.planRevision}`,`details:${p.planRevision}`])).rows;
+      if(p.schemaVersion!==documentPlanVersion)delete p.acceptedDocument;
       if(p.schemaVersion===documentPlanVersion){
         p.completeReady=!!p.documentPlan;
         p.documentOverview=p.documentPlan?documentOverview(p.documentPlan):null;
@@ -72,7 +73,9 @@ export function planningStore(pool:Pool) {
         p.jobs=p.jobs.map(({rawResponse,...job}:any)=>job);
       }
     }
-    return {summary:s,plans};
+    // Acceptance is durable server evidence, independent of the current draft or calendar.
+    const onboarded=(await c.query("SELECT EXISTS(SELECT 1 FROM fitquest.training_plans WHERE user_id=$1 AND (review_state='accepted' OR jsonb_array_length(document_history)>0)) AS accepted",[a.userId])).rows[0].accepted;
+    return {summary:s,plans,onboarded};
   }
   async function claimDocument(c:PoolClient,a:Account,plan:any,r:GenerationRequest|ReviewRequest,provider?:OnboardingProvider):Promise<PlanningWork|undefined>{
     const s=await summary(c,a),p=await profile(c,a),review='feedback' in r;

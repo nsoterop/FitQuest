@@ -1,5 +1,5 @@
-import {Pressable,Text,TextInput,View} from 'react-native';
-import {useRef,useState} from 'react';
+import {Keyboard,Pressable,Text,TextInput,View} from 'react-native';
+import {useEffect,useRef,useState} from 'react';
 import {useConversationScroll} from './ConversationScrollView';
 import {Action,colors,ui} from './Design';
 export type FixedIntakeFormProps={questions:readonly string[];answers:string[];text:string;editIndex:number|null;disabled:boolean;canGenerate:boolean;onText:(text:string)=>void;onEdit:(index:number)=>void;onCancel:()=>void;onSave:(index:number)=>void;onGenerate:()=>void};
@@ -7,6 +7,8 @@ const titles=['Your goals.','Your starting point.','Your equipment.','Your sched
 const categories=['GOALS','CURRENT ACTIVITY','EQUIPMENT','PREFERENCES','LIMITATIONS'];
 export function FixedIntakeForm(p:FixedIntakeFormProps){
  const composer=useRef<View>(null),question=useRef<View>(null),scroll=useConversationScroll(),[history,setHistory]=useState(false);
+ const [keyboardOpen,setKeyboardOpen]=useState(Keyboard.isVisible?.()??false);
+ useEffect(()=>{const show=Keyboard.addListener('keyboardDidShow',()=>setKeyboardOpen(true)),hide=Keyboard.addListener('keyboardDidHide',()=>setKeyboardOpen(false));return()=>{show.remove();hide.remove()}},[]);
  const index=p.editIndex??p.answers.length,complete=p.answers.length===5;
  const reveal=(focus=false)=>scroll.reveal({composer,question},focus);
  const previous=<View style={{gap:16}}>{p.answers.map((answer,i)=>i===index?null:<View key={i} style={{gap:6,paddingVertical:10,borderBottomWidth:1,borderColor:colors.line}}><Text style={ui.eyebrow}>{categories[i]}</Text><Text style={ui.copy}>{answer}</Text><Action label={`Edit answer ${i+1}`} onPress={()=>p.onEdit(i)} disabled={p.disabled} secondary/></View>)}</View>;
@@ -15,10 +17,10 @@ export function FixedIntakeForm(p:FixedIntakeFormProps){
   <View accessibilityLabel={`${Math.min(index+1,5)} of 5 questions`} style={{flexDirection:'row',gap:6}}>{titles.map((_,i)=><View key={i} style={{flex:1,height:3,backgroundColor:i<=index?colors.action:colors.line}}/>)}</View>
   <Text accessibilityRole="header" style={ui.title}>{index<5?titles[index]:'Your starting point, saved.'}</Text>
   {index<5?<>
-   <View ref={question} collapsable={false}><Text style={[ui.section,{lineHeight:30}]}>{p.questions[index]}</Text></View>
    {p.answers.length>0&&<><Pressable accessibilityRole="button" accessibilityLabel={history?'Hide earlier answers':'Earlier answers'} accessibilityState={{expanded:history}} disabled={p.disabled} onPress={()=>setHistory(!history)} style={{minHeight:44,justifyContent:'center'}}><Text style={[ui.label,{color:colors.action}]}>{history?'Hide earlier answers':'Earlier answers'} {history?'−':'+'}</Text></Pressable>{history&&previous}</>}
+   <View ref={question} collapsable={false}><Text style={[ui.section,{lineHeight:30}]}>{p.questions[index]}</Text></View>
    <View ref={composer} collapsable={false} onLayout={()=>reveal()} style={{marginTop:'auto',paddingTop:16,gap:10}}>
-    <TextInput accessibilityLabel={`Answer ${index+1}`} placeholder="Tell me in your own words…" value={p.text} onChangeText={p.onText} multiline editable={!p.disabled} maxLength={4000} onFocus={()=>reveal(true)} onContentSizeChange={()=>reveal()} style={[ui.input,{minHeight:108,maxHeight:180,textAlignVertical:'top'}]}/>
+    <TextInput accessibilityLabel={`Answer ${index+1}`} placeholder="Tell me in your own words…" value={p.text} onChangeText={p.onText} multiline editable={!p.disabled} maxLength={4000} onFocus={()=>reveal(true)} onContentSizeChange={()=>reveal()} style={[ui.input,{minHeight:108,maxHeight:keyboardOpen?108:180,textAlignVertical:'top'}]}/>
     <Pressable accessibilityRole="button" accessibilityLabel={p.editIndex===null?'Send':'Save answer'} disabled={p.disabled||!p.text.trim()} onPress={()=>p.onSave(index)} style={[ui.button,(p.disabled||!p.text.trim())&&ui.disabled]}><Text style={ui.buttonText}>{p.editIndex===null?'Continue':'Save answer'}</Text></Pressable>
     {p.editIndex!==null&&<Action label="Cancel edit" onPress={p.onCancel} disabled={p.disabled} secondary/>}
    </View>

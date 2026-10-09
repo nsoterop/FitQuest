@@ -33,7 +33,7 @@ globalThis.__fitquestTestClient = { auth: {
 } };
 const native = `export const View='View', Text='Text', TextInput='TextInput', Pressable='Pressable', ScrollView='ScrollView', KeyboardAvoidingView='KeyboardAvoidingView';
   export const Platform={OS:'ios'};
-  export const StyleSheet={create:x=>x}; export const Keyboard={dismiss(){}};
+  export const StyleSheet={create:x=>x}; export const Keyboard={dismiss(){},addListener(){return {remove(){}}}};
   export const AppState={currentState:'active',addEventListener:(_event,callback)=>{globalThis.__fitquestAppStateListeners.add(callback);return {remove(){globalThis.__fitquestAppStateListeners.delete(callback)}}}};
   export const Linking={addEventListener:(_name,callback)=>{globalThis.__fitquestLinkListener=callback;return {remove(){}}},getInitialURL:async()=>null};`;
 registerHooks({
@@ -273,6 +273,7 @@ async function mountOnboarding(props={}) {
 test('disclosure precedes a minimal conversation; structured context is never silently confirmed',async()=>{
   resetAuth(alice);let saved={...onboardingFixture(),generationEnabled:true};let commands=[];
   globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/training'))return{status:200,json:async()=>({summary:null,plans:[]})};
     if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
     if(url.endsWith('/commands'))commands.push(JSON.parse(options.body));
     return{status:200,json:async()=>saved};
@@ -342,6 +343,7 @@ test('failed and pending replies have only the needed recovery action and never 
 test('sign out clears onboarding UI and encrypted draft; late response cannot populate the next account',async()=>{
   resetAuth(alice);globalThis.__fitquestSecure.clear();let complete;let saved=onboardingFixture();
   globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/training'))return{status:200,json:async()=>({summary:null,plans:[]})};
     if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:options.headers.Authorization==='Bearer alice-token'?payload:null})};
     if(url.endsWith('/commands'))return new Promise(resolve=>{complete=resolve});return{status:200,json:async()=>saved};
   };
@@ -415,6 +417,7 @@ test('completion waits for the server, clears draft/transcript, returns to greet
   resetAuth(alice);globalThis.__fitquestSecure.clear();let saved={...onboardingFixture(),generationEnabled:true,turns:[{id:'t',sequence:1,message:'Private tennis report',reply:'Recap: tennis first. Reply Looks good to finish.',questionTopic:'Onboarding recap',state:'completed',error:null}]};
   let complete;let commands=0;
   globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/training'))return{status:200,json:async()=>({summary:null,plans:[]})};
     if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
     if(url.endsWith('/commands')){commands++;return new Promise(resolve=>{complete=resolve})}
     return{status:200,json:async()=>saved};
@@ -468,7 +471,8 @@ test('reopen after completion cleanup discards an old pending draft and does not
 });
 test('a completion receipt arriving after account switch cannot close or populate the next account',async()=>{
   resetAuth(alice);globalThis.__fitquestSecure.clear();const saved=onboardingFixture();let complete;
-  globalThis.fetch=async(url)=>{if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};if(url.endsWith('/commands'))return new Promise(resolve=>{complete=resolve});return{status:200,json:async()=>saved}};
+  globalThis.fetch=async(url)=>{if(url.endsWith('/training'))return{status:200,json:async()=>({summary:null,plans:[]})};
+    if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};if(url.endsWith('/commands'))return new Promise(resolve=>{complete=resolve});return{status:200,json:async()=>saved}};
   const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
   await act(async()=>{input(screen,'Onboarding message').props.onChangeText('Looks good');await flush()});await act(async()=>{press(screen,'Send');await flush()});
   await signOutThroughAccount(screen);await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
@@ -490,9 +494,10 @@ function trainingServer(initial=trainingState()) {
   };
   return {requests,get saved(){return saved}};
 }
-async function mountTraining(extra={}){let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(TrainingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},...extra}));await flush()});return screen}
+async function mountTraining(extra={}){let screen;await act(async()=>{screen=TestRenderer.create(React.createElement(TrainingScreen,{initialTab:'week',userId:'alice',accessToken:async()=>'alice-token',onClose(){},...extra}));await flush()});return screen}
 
-const hasTrainingAccess=screen=>screen.root.findAllByProps({accessibilityLabel:'View training'}).length>0;
+async function choosePlan(screen,twice=false){await act(async()=>{press(screen,'Use this plan');if(twice)press(screen,'Use this plan');await flush()});if(screen.root.findAllByProps({accessibilityLabel:'Week'}).length)await act(async()=>press(screen,'Week'));}
+const hasTrainingAccess=screen=>screen.root.findAllByType('Pressable').some(n=>n.props.accessibilityRole==='tab'&&n.props.accessibilityLabel==='Nutrition');
 function renderedTrainingText(screen){const visit=node=>typeof node==='string'?node:Array.isArray(node)?node.map(visit).join(''):node?(node.children??[]).map(visit).join('')+(node.type==='Text'?'\n':''):'';return visit(screen.toJSON())}
 function overviewUiState(){
   const s=reviewUiState(),p=s.plans[0];p.outlineFirst=true;p.confirmedOutlineRevision=null;
@@ -509,9 +514,9 @@ test('outline-first renders no exercises until explicit confirmation; two genera
   return{status:200,json:async()=>structuredClone(saved)};
  };
  let screen=await mountTraining({generateOnOpen:true});assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,1);
- assert.match(renderedTrainingText(screen),/Draft outline/);assert.match(renderedTrainingText(screen),/Easy walking[\s\S]*Morning[\s\S]*About 12 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —|Complete weekly plan/);
+ assert.match(renderedTrainingText(screen),/Your training/);assert.match(renderedTrainingText(screen),/Easy walking[\s\S]*Morning[\s\S]*About 12 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —|Complete weekly plan/);
  const rendered={overview:screen.toJSON(),overviewText:renderedTrainingText(screen)};
- await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});
+ await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});if(hasTrainingAccess(screen))await act(async()=>press(screen,'Week'));
  assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,2);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);assert.doesNotMatch(renderedTrainingText(screen),/Use this plan/);
  rendered.details=screen.toJSON();rendered.detailsText=renderedTrainingText(screen);if(process.env.FITQUEST_RENDER_CAPTURE)writeFileSync(process.env.FITQUEST_RENDER_CAPTURE,JSON.stringify(rendered,null,2));
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,2);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);await act(async()=>screen.unmount());
@@ -527,7 +532,7 @@ test('failed or pending workout creation resumes the outline, with explicit retr
  for(const status of ['failed','pending']){
   const saved=overviewUiState(),p=saved.plans[0];p.confirmedOutlineRevision=1;p.jobs.push({target:'details:1',status,error:status==='failed'?'outline_conflict':null,attemptId:'detail-failed'});p.reviewNote='The catalog cannot support this equipment requirement.';
   const server=trainingServer(saved),screen=await mountTraining({generateOnOpen:true});assert.equal(server.requests.length,1);assert.match(renderedTrainingText(screen),/About 12 min/);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —/);
-  if(status==='failed'){assert.match(renderedTrainingText(screen),/equipment requirement/);await act(async()=>{press(screen,'Retry creating workouts');await flush()});const sent=server.requests.find(r=>r.url.endsWith('/generate'));assert.equal(sent.body.retryAttempt,'detail-failed');assert.equal(sent.body.confirmOutline,true)}
+  if(status==='failed'){assert.match(renderedTrainingText(screen),/equipment requirement/);await act(async()=>{press(screen,'Retry creating workouts');await flush()});if(hasTrainingAccess(screen))await act(async()=>press(screen,'Week'));const sent=server.requests.find(r=>r.url.endsWith('/generate'));assert.equal(sent.body.retryAttempt,'detail-failed');assert.equal(sent.body.confirmOutline,true)}
   else assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);
   await act(async()=>screen.unmount());
  }
@@ -541,12 +546,12 @@ function reviewUiState(){
 test('draft overview renders actual saved dates, timing, focus and approximate minutes with one feedback box; acceptance reveals minimal details',async()=>{
   const saved=reviewUiState(),requests=[];
   globalThis.fetch=async(url,options)=>{const body=options.body?JSON.parse(options.body):null;requests.push({url,body,method:options.method});if(url.endsWith('/accept'))saved.plans[0].reviewState='accepted';return{status:200,json:async()=>structuredClone(saved)}};
-  let screen=await mountTraining();let visible=text(screen);assert.match(visible,/Draft plan/);assert.match(visible,/Morning/);assert.match(visible,/Easy walking/);assert.match(visible,/About /);assert.match(visible,/12/);assert.doesNotMatch(visible,/Outdoor walking —|Synthetic hidden instructions/);
+  let screen=await mountTraining();let visible=text(screen);assert.match(visible,/Your training/);assert.match(visible,/Morning/);assert.match(visible,/Easy walking/);assert.match(visible,/About /);assert.match(visible,/12/);assert.doesNotMatch(visible,/Outdoor walking —|Synthetic hidden instructions/);
   for(const date of saved.plans[0].dates)assert.ok(visible.includes(date));
   assert.equal(screen.root.findAllByType('TextInput').length,1);assert.equal(typeof input(screen,'Plan feedback').props.onFocus,'function');assert.equal(input(screen,'Use this plan').props.disabled,false);
-  await act(async()=>{press(screen,'Use this plan');await flush()});assert.match(text(screen),/Accepted plan/);assert.match(text(screen),/Outdoor walking — 10 min \(easy\)/);assert.doesNotMatch(text(screen),/hidden instructions/);
+  await choosePlan(screen);assert.match(text(screen),/Your training/);assert.match(text(screen),/Outdoor walking — 10 min \(easy\)/);assert.doesNotMatch(text(screen),/hidden instructions/);
   assert.deepEqual(requests.find(r=>r.url.endsWith('/accept')).body,{planId:saved.plans[0].id,summaryRevision:1,planRevision:1});
-  await act(async()=>screen.unmount());screen=await mountTraining();assert.match(text(screen),/Accepted plan/);assert.equal(requests.filter(r=>r.url.endsWith('/review')||r.url.endsWith('/generate')).length,0);assert.equal(requests.filter(r=>r.method==='POST').length,1);await act(async()=>screen.unmount());
+  await act(async()=>screen.unmount());screen=await mountTraining();assert.match(text(screen),/Your training/);assert.equal(requests.filter(r=>r.url.endsWith('/review')||r.url.endsWith('/generate')).length,0);assert.equal(requests.filter(r=>r.method==='POST').length,1);await act(async()=>screen.unmount());
 });
 test('yes-but feedback cannot accept a plan and updated overview uses the returned saved session changes',async()=>{
   const saved=reviewUiState(),p=saved.plans[0],requests=[];
@@ -562,7 +567,7 @@ test('yes-but feedback cannot accept a plan and updated overview uses the return
 test('failed and pending review resume from the server, preserve the old draft and require explicit retry',async()=>{
   for(const status of ['failed','pending']){
     const saved=reviewUiState(),p=saved.plans[0],feedback='Keep the first day; adjust the second.';p.jobs.push({target:'review:1',status,error:status==='failed'?'provider_error':null,attemptId:'review-attempt',feedback});
-    const server=trainingServer(saved),screen=await mountTraining();assert.equal(server.requests.length,1);assert.equal(input(screen,'Plan feedback').props.value,feedback);assert.match(text(screen),/Draft plan/);assert.equal(input(screen,'Use this plan').props.disabled,true);
+    const server=trainingServer(saved),screen=await mountTraining();assert.equal(server.requests.length,1);assert.equal(input(screen,'Plan feedback').props.value,feedback);assert.match(text(screen),/Your training/);assert.equal(input(screen,'Use this plan').props.disabled,true);
     if(status==='failed'){await act(async()=>{press(screen,'Retry changes');await flush()});const request=server.requests.find(r=>r.url.endsWith('/review'));assert.equal(request.body.retryAttempt,'review-attempt');assert.equal(request.body.planRevision,1)}
     else{assert.equal(input(screen,'Plan feedback').props.editable,false);assert.equal(input(screen,'Update this week').props.disabled,true);assert.match(text(screen),/Generation in progress/)}
     assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,0);await act(async()=>screen.unmount());
@@ -576,7 +581,7 @@ test('review reply cannot cross an account switch, and a session-ended response 
   const saved=reviewUiState();let deliver,signal,ended=0;
   globalThis.fetch=async(url,options)=>{if(url.endsWith('/review')){signal=options.signal;return new Promise(resolve=>deliver=resolve)}return{status:200,json:async()=>options.headers.Authorization==='Bearer bob-token'?{summary:null,plans:[]}:saved}};
   const screen=await mountTraining();await act(async()=>input(screen,'Plan feedback').props.onChangeText('Two shorter sessions please.'));await act(async()=>{press(screen,'Update this week');await flush()});
-  await act(async()=>{screen.update(React.createElement(TrainingScreen,{userId:'bob',accessToken:async()=>'bob-token',onClose(){}}));await flush()});assert.equal(signal.aborted,true);assert.doesNotMatch(text(screen),/Easy walking/);
+  await act(async()=>{screen.update(React.createElement(TrainingScreen,{initialTab:'week',userId:'bob',accessToken:async()=>'bob-token',onClose(){}}));await flush()});assert.equal(signal.aborted,true);assert.doesNotMatch(text(screen),/Easy walking/);
   await act(async()=>{deliver({status:200,json:async()=>saved});await flush()});assert.doesNotMatch(text(screen),/Easy walking|Two shorter/);await act(async()=>screen.unmount());
   globalThis.fetch=async(url)=>url.endsWith('/review')?{status:401,json:async()=>({})}:{status:200,json:async()=>saved};
   const signedOut=await mountTraining({onSessionEnded(){ended++}});await act(async()=>input(signedOut,'Plan feedback').props.onChangeText('Shorter sessions please.'));await act(async()=>{press(signedOut,'Update this week');await flush()});assert.equal(ended,1);await act(async()=>signedOut.unmount());
@@ -595,7 +600,7 @@ test('reload after a lost review response clears only the submitted feedback and
 test('greeting hides training during the authoritative check, after failure and for an unfinished account',async()=>{
   resetAuth(alice);let deliver;const requests=[];
   globalThis.fetch=async(url,options)=>{requests.push({url,method:options.method??'GET'});if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};return new Promise(resolve=>{deliver=resolve})};
-  const screen=await mount();assert.ok(input(screen,'Start onboarding'));assert.equal(hasTrainingAccess(screen),false);
+  const screen=await mount();assert.equal(screen.root.findAllByProps({accessibilityLabel:'Start onboarding'}).length,0);assert.equal(hasTrainingAccess(screen),false);
   await act(async()=>{deliver({status:503,json:async()=>({})});await flush()});assert.equal(hasTrainingAccess(screen),false);
   await act(async()=>{press(screen,'Retry loading saved progress');await flush()});assert.equal(hasTrainingAccess(screen),false);
   await act(async()=>{deliver({status:200,json:async()=>({summary:null,plans:[]})});await flush()});assert.equal(hasTrainingAccess(screen),false);
@@ -617,45 +622,9 @@ test('a newly saved profile and an unconfirmed recap do not grant training acces
   assert.equal(hasTrainingAccess(screen),false);await act(async()=>press(screen,'Conversation options'));await act(async()=>{press(screen,'Back to greeting');await flush()});
   assert.equal(hasTrainingAccess(screen),false);assert.equal(reads,2);await act(async()=>screen.unmount());
 });
-test('saved completion grants reload access even with no plan or pending, failed or blocked generation',async()=>{
-  for(const kind of ['summary-only','pending','failed','blocked']){
-    resetAuth(alice);const state=trainingState();if(kind==='summary-only')state.plans=[];
-    else if(kind==='blocked')state.plans[0].outline={days:state.plans[0].dates.map(date=>({date,sessions:[]})),coverage:['limitations_need_clarification']};
-    else state.plans[0].jobs=[{target:'week',status:kind,error:kind==='failed'?'provider_error':null,attemptId:'attempt'}];
-    const requests=[];globalThis.fetch=async(url,options)=>{requests.push(options.method??'GET');return{status:200,json:async()=>url.endsWith('/profile')?{profile:payload}:state}};
-    let screen=await mount();assert.equal(hasTrainingAccess(screen),true,kind);
-    await act(async()=>{press(screen,'View training');await flush()});assert.match(text(screen),/Your training/);
-    if(kind==='failed')assert.ok(input(screen,'Retry weekly plan'));
-    if(kind==='blocked')assert.ok(input(screen,'Continue clarification'));
-    await act(async()=>{press(screen,'Back to greeting');await flush()});assert.equal(hasTrainingAccess(screen),true);
-    await act(async()=>screen.unmount());screen=await mount();assert.equal(hasTrainingAccess(screen),true);assert.ok(requests.every(m=>m==='GET'));
-    await act(async()=>screen.unmount());
-  }
-});
-test('return to greeting and foreground revalidate completion after an owner test reset',async()=>{
-  resetAuth(alice);let saved=trainingState();let defer=false,deliver;
-  globalThis.fetch=async url=>{if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};if(defer)return new Promise(resolve=>{deliver=resolve});return{status:200,json:async()=>saved}};
-  const screen=await mount();assert.equal(hasTrainingAccess(screen),true);
-  await act(async()=>{press(screen,'View training');await flush()});saved={summary:null,plans:[]};defer=true;
-  await act(async()=>{press(screen,'Back to greeting');await flush()});assert.equal(hasTrainingAccess(screen),false);
-  await act(async()=>{deliver({status:200,json:async()=>saved});await flush()});assert.equal(hasTrainingAccess(screen),false);
-  defer=false;saved=trainingState();await act(async()=>{for(const cb of globalThis.__fitquestAppStateListeners)cb('active');await flush()});assert.equal(hasTrainingAccess(screen),true);
-  await act(async()=>{for(const cb of globalThis.__fitquestAppStateListeners)cb('background')});assert.equal(hasTrainingAccess(screen),false);
-  saved={summary:null,plans:[]};await act(async()=>{for(const cb of globalThis.__fitquestAppStateListeners)cb('active');await flush()});assert.equal(hasTrainingAccess(screen),false);
-  await act(async()=>screen.unmount());
-});
-test('late completion-status results cannot cross account switch, unmount or onboarding navigation',async()=>{
-  const waiting=[];globalThis.fetch=async(url,options)=>url.endsWith('/profile')?{status:200,json:async()=>({profile:payload})}:new Promise(resolve=>waiting.push({resolve,signal:options.signal}));
-  let screen;const props=userId=>({userId,accessToken:async()=>`${userId}-token`});
-  await act(async()=>{screen=TestRenderer.create(React.createElement(ProfileIntakeForm,props('alice')));await flush()});assert.equal(waiting.length,1);
-  await act(async()=>{screen.update(React.createElement(ProfileIntakeForm,props('bob')));await flush()});assert.equal(waiting[0].signal.aborted,true);
-  await act(async()=>{waiting[0].resolve({status:200,json:async()=>trainingState()});waiting[1].resolve({status:200,json:async()=>({summary:null,plans:[]})});await flush()});assert.equal(hasTrainingAccess(screen),false);
-  await act(async()=>{screen.update(React.createElement(ProfileIntakeForm,props('carol')));await flush()});
-  await act(async()=>press(screen,'Start onboarding'));assert.equal(waiting[2].signal.aborted,true);
-  await act(async()=>{waiting[2].resolve({status:200,json:async()=>trainingState()});await flush()});assert.equal(hasTrainingAccess(screen),false);
-  await act(async()=>press(screen,'Conversation options'));await act(async()=>{press(screen,'Back to greeting');await flush()});await act(async()=>screen.unmount());assert.equal(waiting[3].signal.aborted,true);
-  await act(async()=>{waiting[3].resolve({status:200,json:async()=>trainingState()});await flush()});
-});
+
+
+
 test('completion status 401 ends the session without exposing training',async()=>{
   resetAuth(alice);globalThis.fetch=async url=>({status:url.endsWith('/profile')?200:401,json:async()=>({profile:payload})});
   const screen=await mount();assert.equal(hasTrainingAccess(screen),false);assert.ok(input(screen,'Sign in'));await act(async()=>screen.unmount());
@@ -663,11 +632,11 @@ test('completion status 401 ends the session without exposing training',async()=
 
 test('completion opens planning only after committed summary receipt and local draft cleanup, then requests the entire week once',async()=>{
   resetAuth(alice);globalThis.__fitquestSecure.clear();const mock=trainingServer();const trainingFetch=globalThis.fetch;
-  const saved={...onboardingFixture(),generationEnabled:true};
+  const saved={...onboardingFixture(),generationEnabled:true};let completed=false;
   globalThis.fetch=async(url,options)=>{
-    if(url.includes('/training')){assert.equal(await privateDrafts.read('alice'),null);return trainingFetch(url,options)}
+    if(url.includes('/training')){if(!completed)return{status:200,json:async()=>({summary:null,plans:[]})};assert.equal(await privateDrafts.read('alice'),null);return trainingFetch(url,options)}
     if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};
-    if(url.endsWith('/commands'))return{status:200,json:async()=>({...deletionReceipt(saved.id),summarySaved:true})};
+    if(url.endsWith('/commands')){completed=true;return{status:200,json:async()=>({...deletionReceipt(saved.id),summarySaved:true})}};
     return{status:200,json:async()=>saved};
   };
   const screen=await mount();await act(async()=>press(screen,'Start onboarding'));await act(async()=>{press(screen,'Continue to onboarding');await flush()});
@@ -680,12 +649,9 @@ test('completion opens planning only after committed summary receipt and local d
 
 test('training reopen only reads saved records, one explicit action completes a partial week and edits preserve it',async()=>{
   const initial=trainingState(),p=initial.plans[0];p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:[]};
-  const server=trainingServer(initial),screen=await mountTraining();assert.equal(server.requests.length,1);assert.equal(server.requests[0].method,'GET');assert.match(text(screen),/Week incomplete/);assert.doesNotMatch(text(screen),/Generate 2026/);
+  const server=trainingServer(initial),screen=await mountTraining();assert.equal(server.requests.length,1);assert.equal(server.requests[0].method,'GET');assert.match(text(screen),/Your training/);assert.doesNotMatch(text(screen),/Generate 2026/);
   await act(async()=>{press(screen,'Complete weekly plan');await flush()});assert.equal(server.requests.filter(r=>r.method==='POST').length,1);
-  await act(async()=>press(screen,'Training summary'));await act(async()=>press(screen,'Edit summary'));await act(async()=>input(screen,'availability 2').props.onChangeText('One short day only.'));
-  await act(async()=>{press(screen,'Save summary');await flush()});
-  assert.equal(server.saved.summary.document[1].origin,'user_report');assert.equal(server.saved.plans[0].days.length,7);
-  assert.ok(text(screen).includes('Create week from updated summary'));assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,1);
+  assert.equal(screen.root.findAllByProps({accessibilityLabel:'Training summary'}).length,0);assert.equal(server.saved.plans[0].days.length,7);assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,1);
   await act(async()=>screen.unmount());const reopened=await mountTraining();assert.ok(text(reopened).includes('2026-10-05'));assert.equal(server.requests.filter(r=>r.url.endsWith('/generate')).length,1);await act(async()=>reopened.unmount());
 });
 
@@ -764,7 +730,7 @@ test('training clarification opens the existing minimal conversation, restores i
     if(url.endsWith('/commands'))return{status:200,json:async()=>({...deletionReceipt(conversation.id),summarySaved:true})};
     return{status:200,json:async()=>state};
   };
-  const screen=await mount();await act(async()=>{press(screen,'View training');await flush()});await act(async()=>{press(screen,'Continue clarification');await flush()});
+  const screen=await mount();await act(async()=>{press(screen,'Continue clarification');await flush()});
   assert.match(text(screen),/Does the shoulder/);assert.doesNotMatch(text(screen),/Before we begin|Continue to onboarding/);assert.equal(input(screen,'Onboarding message').props.value,'Only serving overhead.');
   const clarification=requests.filter(r=>r.url.endsWith('/training/clarification'));assert.equal(clarification.length,1);assert.deepEqual(clarification[0].body,{planId:p.id,summaryRevision:1,target:'outline'});
   await act(async()=>{press(screen,'Send');await flush()});assert.equal(requests.find(r=>r.url.endsWith('/commands')).body.text,'Only serving overhead.');assert.equal(await privateDrafts.read('alice'),null);assert.match(text(screen),/Your training/);
@@ -774,7 +740,7 @@ test('training clarification opens the existing minimal conversation, restores i
 test('a clarification arriving after sign-out cannot populate the next account',async()=>{
   resetAuth(alice);globalThis.__fitquestSecure.clear();const saved=trainingState(),p=saved.plans[0];p.outline={days:p.dates.map(date=>({date,sessions:[]})),coverage:['limitations_need_clarification']};let deliver;
   globalThis.fetch=async(url)=>{if(url.endsWith('/profile'))return{status:200,json:async()=>({profile:payload})};if(url.endsWith('/training/clarification'))return new Promise(resolve=>{deliver=resolve});return{status:200,json:async()=>saved}};
-  const screen=await mount();await act(async()=>{press(screen,'View training');await flush()});await act(async()=>{press(screen,'Continue clarification');await flush()});
+  const screen=await mount();await act(async()=>{press(screen,'Continue clarification');await flush()});
   await signOutThroughAccount(screen);await credentials(screen);await act(async()=>{press(screen,'Sign in');await flush()});
   await act(async()=>{deliver({status:200,json:async()=>onboardingFixture()});await flush()});assert.doesNotMatch(text(screen),/Private tennis report|Onboarding message/);assert.equal(await privateDrafts.read('alice'),null);await act(async()=>screen.unmount());
 });
@@ -792,7 +758,7 @@ test('clarification entry accepts a completion receipt, retries lost cleanup res
     if(url.endsWith('/training')){if(completed)assert.equal(await privateDrafts.read('alice'),null);return{status:200,json:async()=>completed?updated:saved}}
     throw Error('Completion recovery must not send another answer or generate again');
   };
-  const screen=await mount();await act(async()=>{press(screen,'View training');await flush()});await act(async()=>{press(screen,'Continue clarification');await flush()});
+  const screen=await mount();await act(async()=>{press(screen,'Continue clarification');await flush()});
   assert.equal((await privateDrafts.read('alice')).text,'Looks good');assert.ok(input(screen,'Load clarification'));
   await act(async()=>{press(screen,'Load clarification');await flush()});
   assert.match(text(screen),/Your training/);assert.match(text(screen),/Rest — no prescribed session/);assert.equal(await privateDrafts.read('alice'),null);
@@ -808,7 +774,7 @@ test('replayed completion never automatically retries failed/pending work or bac
     if(kind==='partial')p.outline={coverage:[],days:p.dates.map(date=>({date,sessions:[]}))};
     else p.jobs=[{target:'week',status:kind,error:kind==='failed'?'incomplete':null,attemptId:'existing-attempt'}];
     const mock=trainingServer(saved),screen=await mountTraining({generateOnOpen:true});
-    assert.equal(mock.requests.length,1);assert.equal(mock.requests[0].method,'GET');assert.match(text(screen),/Week incomplete/);assert.doesNotMatch(text(screen),/7 days|Generate 2026/);
+    assert.equal(mock.requests.length,1);assert.equal(mock.requests[0].method,'GET');assert.match(text(screen),/Your training/);assert.doesNotMatch(text(screen),/7 days|Generate 2026/);
     if(kind==='pending')assert.doesNotMatch(text(screen),/Retry weekly plan|Complete weekly plan|Generate weekly plan/);
     await act(async()=>screen.unmount());
   }
@@ -820,7 +786,7 @@ test('weekly request double press sends once; a completed backfill hides obsolet
   globalThis.fetch=async(url,options)=>url.endsWith('/generate')?new Promise(resolve=>{finish=async()=>resolve(await original(url,options))}):original(url,options);
   const screen=await mountTraining();await act(async()=>{press(screen,'Complete weekly plan');press(screen,'Complete weekly plan');await flush()});
   await act(async()=>{await finish();await flush()});assert.equal(mock.requests.filter(r=>r.url.endsWith('/generate')).length,1);
-  assert.match(text(screen),/7 days/);assert.doesNotMatch(text(screen),/Generation did not finish|Details not generated|Week incomplete/);await act(async()=>screen.unmount());
+  assert.match(text(screen),/Sunday/);assert.doesNotMatch(text(screen),/Generation did not finish|Details not generated|Week incomplete/);await act(async()=>screen.unmount());
 });
 
 test('rendered distributed sessions retain phases, exact distances, optional work and paired recovery counts',async()=>{
@@ -860,7 +826,7 @@ test('recorded synthetic live week renders all seven days, exact miles and goal 
   p.days=w.days.map(d=>({date:d.date,detail:{date:d.date,clarification:null,coverage:[],catalogVersion:p.catalogVersion,sessions:d.sessions.map(({focus,...s})=>s),activities:Object.fromEntries(d.sessions.flatMap(s=>s.activities).map(a=>{const c=catalog.activities.find(c=>c['Activity ID']===a.id);return [a.id,{name:c['Exercise name'],instructions:c['Instructions']}]}))}}));
   const server=trainingServer(saved),screen=await mountTraining();
   const visible=screen.root.findAllByType('Text').map(n=>n.children.join('')).join('\n');
-  assert.match(visible,/7 days/);assert.equal((visible.match(/Outdoor walking — 1 mile/g)??[]).length,3);assert.equal((visible.match(/Rest — no prescribed session/g)??[]).length,4);
+  assert.match(visible,/Sunday/);assert.equal((visible.match(/Outdoor walking — 1 mile/g)??[]).length,3);assert.equal((visible.match(/Rest — no prescribed session/g)??[]).length,4);
   assert.equal((visible.match(/\nMorning\n/g)??[]).length,3);assert.equal((visible.match(/Shoulder mobility\nEvening/g)??[]).length,3);
   assert.match(visible,/Learning acceleration technique:.*run-out/);assert.doesNotMatch(visible,/Details not generated|0\.99|1\.01|Standing-start acceleration —/);
   assert.equal(server.requests.length,1);console.log('Recorded synthetic live rendering:\n'+visible);
@@ -892,10 +858,10 @@ test('actual synthetic revised week renders compact overview then exact rep rang
   p.outline={qualityVersion:2,units:w.units,goalDecisions:w.goalDecisions,arrangementNote:w.arrangementNote,clarification:null,coverage:[],days:w.days.map(d=>({date:d.date,sessions:d.sessions.map(s=>({focus:s.focus,activityIds:[...new Set(s.activities.map(a=>a.id))]}))}))};
   p.days=w.days.map(d=>({date:d.date,detail:{date:d.date,coverage:[],clarification:null,catalogVersion:catalog.version,sessions:d.sessions.map(({focus,...s})=>s),activities:Object.fromEntries(d.sessions.flatMap(s=>s.activities).map(a=>{const source=catalog.activities.find(x=>x['Activity ID']===a.id);return[a.id,{name:source['Exercise name'],instructions:source.Instructions}]}))}}));
   const requests=[];globalThis.fetch=async(url,options)=>{requests.push(url);if(url.endsWith('/accept'))p.reviewState='accepted';return{status:200,json:async()=>structuredClone(saved)}};
-  let screen=await mountTraining();assert.match(text(screen),/Draft plan/);assert.match(text(screen),/Morning/);assert.match(text(screen),/Evening/);assert.doesNotMatch(text(screen),/2 × 8–10/);
-  await act(async()=>{press(screen,'Use this plan');await flush()});let visible=text(screen);
+  let screen=await mountTraining();assert.match(text(screen),/Your training/);assert.match(text(screen),/Morning/);assert.match(text(screen),/Evening/);assert.doesNotMatch(text(screen),/2 × 8–10/);
+  await choosePlan(screen);let visible=text(screen);
   assert.match(visible,/Kneeling push-up — 2 × 8–10 · 3 RIR/);assert.match(visible,/Outdoor walking — 0.7 miles \(easy\)/);assert.match(visible,/Standing-start acceleration — 4 × 20 yd \(moderate\)/);assert.doesNotMatch(visible,/Hands-elevated push-up —|Place your hands|Support yourself/);
-  await act(async()=>screen.unmount());screen=await mountTraining();assert.match(text(screen),/Accepted plan/);assert.equal(requests.filter(url=>url.endsWith('/review')||url.endsWith('/generate')).length,0);await act(async()=>screen.unmount());
+  await act(async()=>screen.unmount());screen=await mountTraining();assert.match(text(screen),/Your training/);assert.equal(requests.filter(url=>url.endsWith('/review')||url.endsWith('/generate')).length,0);await act(async()=>screen.unmount());
 });
 
 function readyRecapFixture(revision=2){
@@ -971,20 +937,20 @@ test('Continue completion opens existing outline generation once after saved-sum
  };
  const screen=await mount();await act(async()=>{press(screen,'Start onboarding');await flush()});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
  await act(async()=>{press(screen,'Continue');press(screen,'Continue');await flush();await flush()});assert.equal(confirmations,1);assert.equal(generations,1);assert.ok(input(screen,'Create workouts from this older outline'));
- await act(async()=>{press(screen,'Back to greeting');await flush()});await act(async()=>{press(screen,'View training');await flush()});assert.equal(generations,1);await act(async()=>screen.unmount());
+ await act(async()=>screen.unmount());const reopened=await mount();assert.equal(generations,1);await act(async()=>reopened.unmount());await act(async()=>screen.unmount());
 });
 test('ready clarification recovery offers the same Continue control; outline confirmation stays blocked after an uncertain request until reload',async()=>{
  globalThis.__fitquestSecure.clear();const ready=readyRecapFixture();globalThis.fetch=async()=>({status:200,json:async()=>ready});let screen;
  await act(async()=>{screen=TestRenderer.create(React.createElement(OnboardingScreen,{userId:'alice',accessToken:async()=>'alice-token',onClose(){},recovery:{summaryRevision:1,planId:'synthetic',target:'outline'}}));await flush()});assert.equal(input(screen,'Continue').props.disabled,false);await act(async()=>screen.unmount());
  const saved=overviewUiState();let attempts=0;globalThis.fetch=async(url)=>{if(url.endsWith('/generate')){attempts++;throw Error('lost response')}return{status:200,json:async()=>saved}};
- screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});assert.equal(attempts,1);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);
+ screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});if(hasTrainingAccess(screen))await act(async()=>press(screen,'Week'));assert.equal(attempts,1);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);
  await act(async()=>{press(screen,screen.root.findAllByProps({accessibilityLabel:'Check status'}).length?'Check status':'Reload saved training');await flush()});assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);await act(async()=>screen.unmount());
 });
 test('legacy Sunday ranges retain training and saved nutrition data without exposing nutrition UI',async()=>{
  for(const count of [1,3,7])for(const status of ['estimate','deferred']){
   const saved=overviewUiState(),p=saved.plans[0];p.dates=Array.from({length:count},(_,i)=>`2026-10-${String(12-count+i).padStart(2,'0')}`);p.outline.days=p.dates.map((date,i)=>({date,sessions:i===0?[{focus:'Easy walking',activityIds:[],timing:'morning',estimatedMinutes:12}]:[]}));
   p.outline.nutrition={status,calories:status==='estimate'?2400:null,proteinGrams:status==='estimate'?120:null,carbohydrateGrams:status==='estimate'?318:null,fatGrams:status==='estimate'?72:null,basis:status==='estimate'?'mifflin-st-jeor-v1':null,rationale:'Supports mixed goals without prescribing meals.',assumptions:'Starting estimate with reported inputs.',reason:status==='deferred'?'Nutrition inputs remain unknown.':null};
-  const server=trainingServer(saved);let screen=await mountTraining();let visible=renderedTrainingText(screen);assert.match(visible,/Draft outline/);assert.match(visible,/Easy walking[\s\S]*Morning[\s\S]*About 12 min/);assert(visible.includes(p.dates.at(-1)));
+  const server=trainingServer(saved);let screen=await mountTraining();let visible=renderedTrainingText(screen);assert.match(visible,/Your training/);assert.match(visible,/Easy walking[\s\S]*Morning[\s\S]*About 12 min/);assert(visible.includes(p.dates.at(-1)));
   assert.doesNotMatch(visible,/2400 kcal|Protein 120 g|Nutrition targets/);assert.equal(server.saved.plans[0].outline.nutrition.status,status);
   assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);
   await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert(renderedTrainingText(screen).includes(p.dates.at(-1)));await act(async()=>screen.unmount());
@@ -1048,7 +1014,7 @@ test('legacy outlines and workouts retain every saved date before, during and af
    const labels=screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Training day ')).map(n=>n.props.accessibilityLabel.slice(13));assert.deepEqual(labels,p.dates);
    const visible=renderedTrainingText(screen);assert(!visible.includes(calendarResponse));assert.match(visible,/About 20–30 minutes/);assert.match(visible,/Build steady capacity/);assert.match(visible,/Optional session/);assert.doesNotMatch(visible,/No remaining days/);
    if(count>1)assert.match(visible,/Rest day/);
-   if(accepted){assert.match(visible,new RegExp(`${count} ${count===1?'day':'days'} · America/New_York`));assert.match(visible,/Outdoor walking/)}
+   if(accepted){assert.doesNotMatch(visible,/days? · America/);assert.match(visible,/Outdoor walking/)}
    else {assert.doesNotMatch(visible,/Outdoor walking/);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);assert.equal(screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Session ')).length,p.outline.days.reduce((n,d)=>n+d.sessions.length,0))}
    assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert.deepEqual(saved.plans[0],original);
   }
@@ -1069,16 +1035,16 @@ test('five answers to actual parsed cards, Use this plan creates all seven saved
  let screen=await mount();await act(async()=>{press(screen,'Start onboarding');await flush()});await act(async()=>{press(screen,'Continue to onboarding');await flush()});
  for(const [i,answer]of ['Stronger','Walk weekly','Floor and route','Five days; coach chooses','None'].entries()){await act(async()=>input(screen,`Answer ${i+1}`).props.onChangeText(answer));await act(async()=>{press(screen,'Send');await flush()});}
  assert.equal(answers,5);assert.equal(outlines,0);await act(async()=>{press(screen,'Generate plan');await flush();await flush()});assert.equal(outlines,1);assert.equal(details,0);assert.equal(input(screen,'Create workouts from this older outline').props.disabled,false);assert.match(renderedTrainingText(screen),/Tuesday/);assert.match(renderedTrainingText(screen),/Monday/);
- await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});assert.equal(details,1);assert.equal(plan.days.length,7);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);assert.match(renderedTrainingText(screen),/Monday/);
- await act(async()=>{press(screen,'Back to greeting');await flush()});await act(async()=>{press(screen,'View training');await flush()});assert.equal(outlines,1);assert.equal(details,1);assert.match(renderedTrainingText(screen),/Outdoor walking/);await act(async()=>screen.unmount());
+ await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});if(hasTrainingAccess(screen))await act(async()=>press(screen,'Week'));assert.equal(details,1);assert.equal(plan.days.length,7);assert.match(renderedTrainingText(screen),/Outdoor walking — 10 min/);assert.match(renderedTrainingText(screen),/Monday/);
+ await act(async()=>screen.unmount());const reopened=await mount();await act(async()=>press(reopened,'Week'));assert.equal(outlines,1);assert.equal(details,1);assert.match(renderedTrainingText(reopened),/Outdoor walking/);await act(async()=>reopened.unmount());await act(async()=>screen.unmount());
 });
 
 test('plain outline workouts fail recoverably, retry the same dated week explicitly, and stale revision needs reload',async t=>{
  t.mock.timers.setTime(new Date('2026-10-06T12:00:00Z').getTime());const saved=calendarState(),p=saved.plans[0],original=structuredClone(p.outline);let calls=0,stale=false;const requests=[];
  globalThis.fetch=async(url,options)=>{if(url.endsWith('/generate')){const body=JSON.parse(options.body);requests.push(body);calls++;if(stale)return{status:409,json:async()=>({code:'plan_changed'})};if(calls===1){p.jobs.push({target:'details:1',status:'failed',error:'incomplete',attemptId:'failed-detail'});p.confirmedOutlineRevision=1;}else {assert.equal(body.retryAttempt,'failed-detail');p.jobs=p.jobs.filter(j=>j.target!=='details:1');calendarDetails(p);}}return{status:200,json:async()=>structuredClone(saved)}};
- let screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});assert.equal(calls,1);assert.deepEqual(p.outline,original);assert.equal(p.days.length,0);assert.equal(input(screen,'Retry creating workouts').props.disabled,false);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —/);
- await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,1);await act(async()=>{press(screen,'Retry creating workouts');press(screen,'Retry creating workouts');await flush()});assert.equal(calls,2);assert.equal(p.days.length,7);assert.deepEqual(p.outline,original);assert.match(renderedTrainingText(screen),/Outdoor walking —/);assert.equal(requests[1].planId,requests[0].planId);assert.equal(requests[1].planRevision,requests[0].planRevision);await act(async()=>screen.unmount());
- p.days=[];p.reviewState='draft';p.confirmedOutlineRevision=null;p.jobs=p.jobs.filter(j=>j.target==='outline');stale=true;screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);assert.match(renderedTrainingText(screen),/This plan changed/);assert.deepEqual(p.outline,original);await act(async()=>screen.unmount());
+ let screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});if(hasTrainingAccess(screen))await act(async()=>press(screen,'Week'));assert.equal(calls,1);assert.deepEqual(p.outline,original);assert.equal(p.days.length,0);assert.equal(input(screen,'Retry creating workouts').props.disabled,false);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking —/);
+ await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,1);await act(async()=>{press(screen,'Retry creating workouts');press(screen,'Retry creating workouts');await flush()});if(hasTrainingAccess(screen))await act(async()=>press(screen,'Week'));assert.equal(calls,2);assert.equal(p.days.length,7);assert.deepEqual(p.outline,original);assert.match(renderedTrainingText(screen),/Outdoor walking —/);assert.equal(requests[1].planId,requests[0].planId);assert.equal(requests[1].planRevision,requests[0].planRevision);await act(async()=>screen.unmount());
+ p.days=[];p.reviewState='draft';p.confirmedOutlineRevision=null;p.jobs=p.jobs.filter(j=>j.target==='outline');stale=true;screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');await flush()});if(hasTrainingAccess(screen))await act(async()=>press(screen,'Week'));assert.equal(input(screen,'Create workouts from this older outline').props.disabled,true);assert.match(renderedTrainingText(screen),/This plan changed/);assert.deepEqual(p.outline,original);await act(async()=>screen.unmount());
 });
 
 test('actual detail wire and validators feed mobile exercises; safe validation failure preserves cards until explicit retry',async t=>{
@@ -1105,11 +1071,11 @@ test('actual detail wire and validators feed mobile exercises; safe validation f
   }
   return{status:200,json:async()=>structuredClone(saved)};
  };
- let screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});
+ let screen=await mountTraining();await act(async()=>{press(screen,'Create workouts from this older outline');press(screen,'Create workouts from this older outline');await flush()});if(hasTrainingAccess(screen))await act(async()=>press(screen,'Week'));
  assert.equal(calls,1);assert.equal(p.jobs[0].error,'invalid_plan:rir:0:0:2');assert.deepEqual(p.outline,original);assert.equal(p.days.length,0);
  assert.match(renderedTrainingText(screen),/repetitions-in-reserve target check/);assert.doesNotMatch(renderedTrainingText(screen),/invalid_plan|:0:0:2/);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,1);
- await act(async()=>{press(screen,'Retry creating workouts');press(screen,'Retry creating workouts');await flush()});assert.equal(calls,2);assert.equal(p.days.length,7);assert.equal(p.reviewState,'accepted');
+ await act(async()=>{press(screen,'Retry creating workouts');press(screen,'Retry creating workouts');await flush()});if(hasTrainingAccess(screen))await act(async()=>press(screen,'Week'));assert.equal(calls,2);assert.equal(p.days.length,7);assert.equal(p.reviewState,'accepted');
  assert.deepEqual(p.outline.days,original.days);assert.match(renderedTrainingText(screen),/Standing arm circles/);assert.match(renderedTrainingText(screen),/3 RIR/);assert.match(renderedTrainingText(screen),/Optional/);assert.match(renderedTrainingText(screen),/Monday/);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(calls,2);assert.match(renderedTrainingText(screen),/Standing arm circles/);await act(async()=>screen.unmount());
  assert(!trainingError('invalid_plan:private_health_text:0').includes('private_health_text'));
@@ -1144,10 +1110,10 @@ test('complete canonical draft renders only overview through reload; one generat
  assert.equal(input(screen,'Use this plan').props.disabled,false);
  await act(async()=>{input(screen,'Plan feedback').props.onChangeText('Unsent correction');await flush()});assert.equal(input(screen,'Use this plan').props.disabled,true);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(dispatches,1);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round/);
- await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});assert.equal(accepts,1);assert.equal(dispatches,1);assert.match(renderedTrainingText(screen),/Outdoor walking · 60–90 sec/);assert.match(renderedTrainingText(screen),/Between rounds \(2 recoveries\): Rest 30–45 sec/);assert.match(renderedTrainingText(screen),/Monday/);assert.deepEqual(p.completePlan,canonical);
+ await choosePlan(screen,true);assert.equal(accepts,1);assert.equal(dispatches,1);assert.match(renderedTrainingText(screen),/Outdoor walking · 60–90 sec/);assert.match(renderedTrainingText(screen),/Between rounds \(2 recoveries\): Rest 30–45 sec/);assert.match(renderedTrainingText(screen),/Monday/);assert.deepEqual(p.completePlan,canonical);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.match(renderedTrainingText(screen),/Outdoor walking/);assert.equal(dispatches,1);assert.equal(accepts,1);
  await act(async()=>input(screen,'Plan feedback').props.onChangeText('Shorten Tuesday; keep the other days unchanged.'));await act(async()=>{press(screen,'Update this week');await flush()});assert.equal(revisionRequests,1);assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking|targets per round/);assert.match(renderedTrainingText(screen),/About 10–15 min/);assert.equal(input(screen,'Use this plan').props.disabled,false);
- await act(async()=>screen.unmount());screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking/);await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(dispatches,1);assert.equal(accepts,2);assert.equal(revisionRequests,1);assert.match(renderedTrainingText(screen),/Outdoor walking/);
+ await act(async()=>screen.unmount());screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen),/Outdoor walking/);await choosePlan(screen);assert.equal(dispatches,1);assert.equal(accepts,2);assert.equal(revisionRequests,1);assert.match(renderedTrainingText(screen),/Outdoor walking/);
  assert.equal(requests.filter(r=>r.url.endsWith('/generate')).length,1);assert(!requests.some(r=>r.body?.target==='outline'||r.body?.confirmOutline));
  await act(async()=>screen.unmount());
  // A malformed draft response carrying exercises is rejected, never rendered.
@@ -1180,7 +1146,7 @@ test('explicit wire minutes and event-count aliases render canonical doses after
   return{status:200,json:async()=>structuredClone(saved)};
  };
  let screen=await mountTraining({generateOnOpen:true});assert.equal(dispatches,1);assert.doesNotMatch(renderedTrainingText(screen),/120–180 sec|5–8 count|Medicine-ball/);
- await act(async()=>{press(screen,'Use this plan');await flush()});let rendered=renderedTrainingText(screen);
+ await choosePlan(screen);let rendered=renderedTrainingText(screen);
  assert.match(rendered,/Outdoor walking · 120–180 sec/);assert.match(rendered,/Between rounds \(2 recoveries\): Outdoor walking · 30–60 sec/);assert.match(rendered,/Rest 30–45 sec/);assert.match(rendered,/5–8 count · each side · 4 kg/);assert.match(rendered,/Optional session/);assert.match(rendered,/Evening/);assert.match(rendered,/Rest — no planned session/);assert.deepEqual(p.completePlan,canonical);
  await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(dispatches,1);assert.equal(accepts,1);assert.match(renderedTrainingText(screen),/120–180 sec/);await act(async()=>screen.unmount());
  // A saved pre-change 2-second target remains 2 seconds; no value-based guessing.
@@ -1202,7 +1168,7 @@ test('complete pending and accepted views show the whole saved week across dates
    if(reopening){await act(async()=>screen.unmount());screen=await mountTraining()}
    const labels=screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Training day ')).map(n=>n.props.accessibilityLabel.slice(13));assert.deepEqual(labels,dates);
    assert.equal(screen.root.findAll(n=>n.type==='View'&&n.props.accessibilityLabel?.startsWith('Session ')).length,canonical.days.reduce((n,d)=>n+d.sessions.length,0));
-   const visible=renderedTrainingText(screen);assert.match(visible,/7 days/);assert.match(visible,/Optional session/);assert.match(visible,/About 20–30 min/);assert.match(visible,/Rest — no planned session/);assert.doesNotMatch(visible,/No remaining days/);
+   const visible=renderedTrainingText(screen);assert.match(visible,/Sunday/);assert.match(visible,/Optional session/);assert.match(visible,/About 20–30 min/);assert.match(visible,/Rest — no planned session/);assert.doesNotMatch(visible,/No remaining days/);
    if(accepted)assert.match(visible,/Outdoor walking/);else{assert.doesNotMatch(visible,/Outdoor walking|targets per round|recoveries/);assert.equal(input(screen,'Use this plan').props.disabled,false)}
    assert.equal(server.requests.filter(r=>r.method==='POST').length,0);assert.deepEqual(p,original);
   }
@@ -1245,10 +1211,10 @@ test('document weeks render all metadata before acceptance, reveal safe Markdown
  };
  let screen=await mountTraining({generateOnOpen:true});assert.equal(generates,1);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Skill and strength/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Later easy practice/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Evening/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/About 10–15 min/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Optional session/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Rest — no planned session/);assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Cushion balance|catalog activities|two requests/i);
  await act(async()=>input(screen,'Plan feedback').props.onChangeText('Unsent change'));assert.equal(input(screen,'Use this plan').props.disabled,true);await act(async()=>screen.unmount());screen=await mountTraining();assert.equal(generates,1);assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach/);
- await act(async()=>{press(screen,'Use this plan');press(screen,'Use this plan');await flush()});assert.equal(accepts,1);assert.equal(generates,1);assert.doesNotMatch(renderedTrainingText(screen),/Crab reach/);await act(async()=>press(screen,'Session 1 on 2026-10-05'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach: 3 sets of 5–8 per side/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Rest 45–60 seconds between sets/);
+ await choosePlan(screen,true);assert.equal(accepts,1);assert.equal(generates,1);assert.doesNotMatch(renderedTrainingText(screen),/Crab reach/);await act(async()=>press(screen,'Session 1 on 2026-10-05'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach: 3 sets of 5–8 per side/);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Rest 45–60 seconds between sets/);
  await act(async()=>screen.unmount());screen=await mountTraining();await act(async()=>press(screen,'Week'));await act(async()=>press(screen,'Session 1 on 2026-10-05'));assert.equal(generates,1);assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Cushion balance/);
  await act(async()=>press(screen,'Back to week'));await act(async()=>input(screen,'Plan feedback').props.onChangeText('Change Tuesday only.'));await act(async()=>{press(screen,'Update this week');await flush()});assert.equal(reviews,1);await act(async()=>press(screen,'Session 1 on 2026-10-05'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Cushion balance/);await act(async()=>press(screen,'Back to week'));await act(async()=>screen.unmount());screen=await mountTraining();await act(async()=>press(screen,'Week'));assert.equal(reviews,1);await act(async()=>press(screen,'Session 1 on 2026-10-05'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Cushion balance/);await act(async()=>press(screen,'Back to week'));failReview=false;
- await act(async()=>{press(screen,'Retry changes');await flush()});assert.equal(reviews,2);assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Gentle floor flow/);await act(async()=>screen.unmount());screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Gentle floor flow/);await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(accepts,2);assert.equal(generates,1);assert.equal(reviews,2);await act(async()=>press(screen,'Session 1 on 2026-10-06'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Gentle floor flow for 10 minutes/);await act(async()=>screen.unmount());
+ await act(async()=>{press(screen,'Retry changes');await flush()});assert.equal(reviews,2);assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Gentle floor flow/);await act(async()=>screen.unmount());screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Crab reach|Gentle floor flow/);await choosePlan(screen);assert.equal(accepts,2);assert.equal(generates,1);assert.equal(reviews,2);await act(async()=>press(screen,'Session 1 on 2026-10-06'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Gentle floor flow for 10 minutes/);await act(async()=>screen.unmount());
  // Even a malformed server response cannot leak a draft's Markdown through either API field.
  p.reviewState='draft';p.acceptedAt=null;screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Gentle floor flow|Crab reach|Skill and strength/);await act(async()=>screen.unmount());p.documentPlan=null;p.documentOverview.days[0].sessions[0].workoutMarkdown='Secret draft prose';screen=await mountTraining();assert.doesNotMatch(renderedTrainingText(screen).replace(/\s+/g,' '),/Secret draft prose|Skill and strength/);await act(async()=>screen.unmount());
 });
@@ -1266,14 +1232,13 @@ test('Today follows saved session order, retains date on workout back, resets fo
  const {documentFixture}=await import('../../backend/src/documentPlanFixture.ts'),{documentOverview}=await import('../../backend/src/documentPlanContract.ts');
  const saved=trainingState(),p=saved.plans[0];p.dates=Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`);const canonical=documentFixture(p.dates);
  Object.assign(p,{schemaVersion:'document-week-v1',outlineFirst:false,reviewState:'accepted',planRevision:1,completeReady:true,documentPlan:canonical,documentOverview:documentOverview(canonical),acceptedAt:'2026-10-05T15:00:00Z'});
- const server=trainingServer(saved),screen=await mountTraining();assert.match(renderedTrainingText(screen),/Today\./);assert.ok(input(screen,'View workout: Skill and strength'));
- await act(async()=>press(screen,'Feature session 2: Later easy practice'));assert.ok(input(screen,'View workout: Later easy practice'));
- await act(async()=>press(screen,'View workout: Later easy practice'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Easy dance practice/);
+ const server=trainingServer(saved),screen=await mountTraining({initialTab:'today'});assert.match(renderedTrainingText(screen),/Today\./);assert.ok(input(screen,'View workout: Skill and strength'));
+ await act(async()=>press(screen,'Open session 2: Later easy practice'));assert.match(renderedTrainingText(screen).replace(/\s+/g,' '),/Easy dance practice/);
  await act(async()=>press(screen,'Back to day'));assert.ok(input(screen,'View workout: Later easy practice'));
  await act(async()=>press(screen,'Select 2026-10-06'));assert.ok(input(screen,'View workout: Skill and strength'));assert.match(renderedTrainingText(screen),/Tue, Oct 6\./);assert.doesNotMatch(renderedTrainingText(screen),/Today\./);
  await act(async()=>press(screen,'Select 2026-10-07'));assert.match(renderedTrainingText(screen),/A rest day/);
  await act(async()=>press(screen,'Week'));assert.equal(screen.root.findAllByType('Pressable').filter(x=>x.props.accessibilityRole==='tab').length,3);assert.equal(screen.root.findAllByType('ScrollView').length,1);assert.doesNotMatch(renderedTrainingText(screen),/Crab reach/);
- await act(async()=>screen.unmount());t.mock.timers.setTime(new Date('2026-10-15T16:00:00Z').getTime());const later=await mountTraining();assert.match(renderedTrainingText(later),/Outside your saved week/);assert.doesNotMatch(renderedTrainingText(later),/A rest day/);assert.equal(server.requests.filter(r=>r.method==='POST').length,0);await act(async()=>later.unmount());
+ await act(async()=>screen.unmount());t.mock.timers.setTime(new Date('2026-10-15T16:00:00Z').getTime());const later=await mountTraining({initialTab:'today'});assert.match(renderedTrainingText(later),/Outside your saved week/);assert.doesNotMatch(renderedTrainingText(later),/A rest day/);assert.equal(server.requests.filter(r=>r.method==='POST').length,0);await act(async()=>later.unmount());
 });
 
 test('unknown acceptance and stale changes block mutations until status read, preserve feedback, and never reveal draft prose',async()=>{
@@ -1283,7 +1248,7 @@ test('unknown acceptance and stale changes block mutations until status read, pr
  const screen=await mountTraining();await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(posts,1);assert.ok(input(screen,'Check status'));assert.equal(input(screen,'Use this plan').props.disabled,true);assert.doesNotMatch(renderedTrainingText(screen),/Crab reach/);
  await act(async()=>{press(screen,'Check status');await flush()});await act(async()=>input(screen,'Plan feedback').props.onChangeText('Keep my exact draft.'));await act(async()=>{press(screen,'Update this week');await flush()});assert.equal(posts,2);assert.equal(input(screen,'Update this week').props.disabled,true);
  await act(async()=>{press(screen,'Check status');await flush()});assert.equal(input(screen,'Plan feedback').props.value,'Keep my exact draft.');assert.equal(input(screen,'Use this plan').props.disabled,true);
- await act(async()=>press(screen,'Back to greeting'));assert.ok(input(screen,'Keep editing'));await act(async()=>press(screen,'Keep editing'));await act(async()=>press(screen,'Today'));await act(async()=>press(screen,'Week'));assert.equal(input(screen,'Plan feedback').props.value,'Keep my exact draft.');assert.equal(posts,2);await act(async()=>screen.unmount());
+ assert.equal(hasTrainingAccess(screen),false);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Back to greeting'}).length,0);assert.equal(input(screen,'Plan feedback').props.value,'Keep my exact draft.');assert.equal(posts,2);await act(async()=>screen.unmount());
 });
 
 test('account navigation preserves intake text, saved profile is read-only, and sign-out cancellation preserves the session',async()=>{
@@ -1326,4 +1291,44 @@ test('unknown library result survives reopen and is recovered without duplicate 
  globalThis.__fitquestSecure.clear();const item={id:'66666666-6666-4666-8666-666666666666',revision:1,document:libraryFromEntry(foodFixture())};let posts=0,receipt;
  globalThis.fetch=async(url,options)=>{if(options.method==='GET')return{status:200,json:async()=>String(url).includes('/operations/')?receipt:{items:[item]}};posts++;const c=JSON.parse(options.body);receipt={id:c.operationId,libraryId:item.id,entryId:'77777777-7777-4777-8777-777777777777'};throw Error('lost acknowledgement')};
  let screen=await mountLibrary();await act(async()=>press(screen,`${item.document.name} · v1`));await act(async()=>press(screen,'Log this meal'));await act(async()=>{press(screen,'Confirm eaten — add to diary');await flush()});assert.equal(posts,1);assert.match(text(screen),/Check library status/);await act(async()=>screen.unmount());screen=await mountLibrary();await act(async()=>{press(screen,'Check library status');await flush()});assert.equal(posts,1);assert.match(text(screen),/Added to your food diary/);assert.equal((await privateLibraryDrafts.read('alice')).pending,null);assert.equal(await privateLibraryDrafts.read('bob'),null);await act(async()=>screen.unmount());await privateDrafts.clear('alice');assert.equal(await privateLibraryDrafts.read('alice'),null);
+});
+
+async function batchDocumentState(kind='draft'){
+ const {documentFixture}=await import('../../backend/src/documentPlanFixture.ts'),{documentOverview}=await import('../../backend/src/documentPlanContract.ts');
+ const saved=trainingState(),p=saved.plans[0];p.dates=Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`);const document=documentFixture(p.dates);
+ Object.assign(p,{schemaVersion:'document-week-v1',outlineFirst:false,reviewState:kind==='accepted'?'accepted':'draft',planRevision:kind==='history'?2:1,completeReady:true,documentPlan:kind==='accepted'?document:null,documentOverview:documentOverview(document),acceptedAt:kind==='accepted'?'2026-10-05T12:00:00Z':null});
+ saved.onboarded=kind==='accepted'||kind==='history';if(kind==='history'){p.acceptedDocument={revision:1,acceptedAt:'2026-10-05T12:00:00Z',plan:structuredClone(document)};p.documentOverview.days[0].sessions[0].title='New draft session';}
+ return {saved,document};
+}
+test('root routes new, summary-only, pending, failed, draft and accepted history from server evidence with no paid requests',async t=>{
+ t.mock.timers.setTime(new Date('2026-10-20T16:00:00Z').getTime());
+ for(const kind of ['new','summary-only','pending','failed','draft','accepted','history']){
+  resetAuth(alice);const {saved}=await batchDocumentState(kind),requests=[];if(kind==='new'){saved.summary=null;saved.plans=[]}else if(kind==='summary-only')saved.plans=[];else if(['pending','failed'].includes(kind)){const p=saved.plans[0];p.documentOverview=null;p.completeReady=false;p.planRevision=0;p.jobs=[{target:'week',status:kind,error:kind==='failed'?'provider_error':null,attemptId:'synthetic'}]}
+  globalThis.fetch=async(url,options)=>{requests.push(options.method??'GET');return{status:200,json:async()=>url.endsWith('/profile')?{profile:payload}:structuredClone(saved)}};
+  let screen=await mount();assert.equal(hasTrainingAccess(screen),['accepted','history'].includes(kind),kind);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Start onboarding'}).length>0,kind==='new',kind);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Open nutrition'}).length,0);
+  if(['accepted','history'].includes(kind))assert.match(renderedTrainingText(screen),/Outside your saved week/);if(kind==='failed')assert.ok(input(screen,'Retry weekly plan'));if(kind==='pending')assert.ok(input(screen,'Check status'));
+  await act(async()=>screen.unmount());screen=await mount();assert.equal(hasTrainingAccess(screen),['accepted','history'].includes(kind));assert(requests.every(m=>m==='GET'));await act(async()=>screen.unmount());
+ }
+});
+test('server-confirmed initial acceptance opens Today; every session tap opens its exact saved workout',async t=>{
+ t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());resetAuth(alice);const {saved,document}=await batchDocumentState();let accepts=0;
+ globalThis.fetch=async(url,options)=>{if(url.endsWith('/accept')){accepts++;Object.assign(saved.plans[0],{reviewState:'accepted',acceptedAt:'2026-10-05T15:00:00Z',documentPlan:document});saved.onboarded=true}else assert.equal(options.method??'GET','GET');return{status:200,json:async()=>url.endsWith('/profile')?{profile:payload}:structuredClone(saved)}};
+ const screen=await mount();assert.equal(hasTrainingAccess(screen),false);const overview=renderedTrainingText(screen);for(const unwanted of ['Training summary','Prescribed work','America/New_York','Back to greeting','Reload saved training','Crab reach'])assert(!overview.includes(unwanted),unwanted);
+ assert.equal(screen.root.findAllByProps({accessibilityLabel:'Training day 2026-10-05'}).length,1);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Session 2 on 2026-10-05'}).length,1);
+ await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(accepts,1);assert.equal(hasTrainingAccess(screen),true);assert.match(renderedTrainingText(screen),/Today\./);
+ await act(async()=>press(screen,'Open session 2: Later easy practice'));assert.match(renderedTrainingText(screen),/Easy dance practice/);assert.doesNotMatch(renderedTrainingText(screen),/Crab reach/);await act(async()=>press(screen,'Back to day'));
+ await act(async()=>press(screen,'Open session 1: Skill and strength'));assert.match(renderedTrainingText(screen),/Crab reach/);assert.equal(accepts,1);await act(async()=>screen.unmount());
+});
+test('accepted history survives a successful pending revision and relaunch without revealing draft workouts',async t=>{
+ t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());resetAuth(alice);const {saved}=await batchDocumentState('history');const requests=[];
+ globalThis.fetch=async(url,options)=>{requests.push(options.method??'GET');return{status:200,json:async()=>url.endsWith('/profile')?{profile:payload}:structuredClone(saved)}};
+ const screen=await mount();assert.equal(hasTrainingAccess(screen),true);assert.match(renderedTrainingText(screen),/Skill and strength/);assert.doesNotMatch(renderedTrainingText(screen),/New draft session/);
+ await act(async()=>press(screen,'Open session 2: Later easy practice'));assert.match(renderedTrainingText(screen),/Easy dance practice/);await act(async()=>press(screen,'Back to day'));await act(async()=>press(screen,'Week'));assert.match(renderedTrainingText(screen),/New draft session/);assert.doesNotMatch(renderedTrainingText(screen),/Crab reach|Easy dance practice/);assert.ok(input(screen,'Use this plan'));assert(requests.every(m=>m==='GET'));await act(async()=>screen.unmount());
+});
+test('root failures cannot masquerade as new onboarding and stale account reads cannot cross the account boundary',async()=>{
+ const {saved}=await batchDocumentState('accepted');let waiting=[];globalThis.fetch=async(url,options)=>url.endsWith('/profile')?{status:200,json:async()=>({profile:payload})}:new Promise(resolve=>waiting.push({resolve,signal:options.signal}));
+ let screen;const props=userId=>({userId,accessToken:async()=>userId});await act(async()=>{screen=TestRenderer.create(React.createElement(ProfileIntakeForm,props('alice')));await flush()});assert.equal(hasTrainingAccess(screen),false);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Start onboarding'}).length,0);
+ await act(async()=>{screen.update(React.createElement(ProfileIntakeForm,props('bob')));await flush()});assert(waiting[0].signal.aborted);
+ await act(async()=>{waiting[0].resolve({status:200,json:async()=>saved});waiting[1].resolve({status:503,json:async()=>({})});await flush()});assert.equal(hasTrainingAccess(screen),false);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Start onboarding'}).length,0);assert.ok(input(screen,'Retry loading saved progress'));
+ globalThis.fetch=async()=>({status:200,json:async()=>saved});await act(async()=>{press(screen,'Retry loading saved progress');await flush()});assert.equal(hasTrainingAccess(screen),true);await act(async()=>screen.unmount());
 });
