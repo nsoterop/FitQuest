@@ -1,5 +1,9 @@
 # FitQuest API
 
+## Usability batch 1 — 2026-10-09
+
+Training reads now include `onboarded`, derived from durable server acceptance across all saved plans, independently of the recent-plan page or current calendar. A pending document revision may include `acceptedDocument`, the last server-recorded accepted revision; the current draft still exposes only its overview. This preserves accepted workouts while requiring acceptance of new details. No schema/storage/provider change or migration is required. The 274-test backend suite, including isolated persistence and ownership checks, passes. Published/live checkpoint and protected reset evidence are recorded in the root README.
+
 ## Saved meals and recipes — Release 3
 
 Authenticated no-store routes: `GET /food-library`, `GET /food-library/operations/:id`, `POST /food-library/commands`. Save an exact owned diary revision, create/update a recipe, or explicitly log servings. Canonical operation digests, session guards, owned revisions and a per-user transaction lock protect replay, concurrency and unknown outcomes. No library action calls AI or changes accounting.
