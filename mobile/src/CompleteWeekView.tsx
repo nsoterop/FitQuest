@@ -1,4 +1,5 @@
-import {WorkoutMarkdown} from './WorkoutMarkdown';
+import {isDocumentVersion} from '../../backend/src/documentPlanContract';
+import {WorkoutContent} from './WorkoutContent';
 import React from 'react';
 import { View,Text,StyleSheet } from 'react-native';
 import { recoveryCount,type Exercise,type Range } from '../../backend/src/completePlanContract';
@@ -12,7 +13,7 @@ export function exerciseText(e:Exercise,names:NonNullable<TrainingPlan['activity
  return [names[e.activityId]?.name??e.activityId,target,e.perSide?'each side':null,e.load?`${e.load.value} ${e.load.unit}${loadScope}`:null,e.loadInstruction,e.effort?.rpe?`RPE ${rangeText(e.effort.rpe)}`:null,e.effort?.rir?`${rangeText(e.effort.rir)} RIR`:null,e.effort?.cue].filter(Boolean).join(' · ');
 }
 export function CompleteWeekView({plan}:{plan:TrainingPlan}){
- const o=plan.schemaVersion==='document-week-v1'?plan.documentOverview:plan.overview;if(!o)return null;
+ const o=isDocumentVersion(plan.schemaVersion)?plan.documentOverview:plan.overview;if(!o)return null;
  return <View style={styles.group}>
   {plan.schemaVersion==='complete-week-v1'&&plan.overview?.catalogGaps.map((g,i)=><Text key={i} style={styles.copy}>{g.goal}: {g.reason}</Text>)}
   {o.days.map(d=><View key={d.date} accessibilityLabel={`Training day ${d.date}`} style={styles.group}>
@@ -24,7 +25,7 @@ export function CompleteWeekView({plan}:{plan:TrainingPlan}){
     <Text style={styles.copy}>{s.goal}</Text>
     {!!s.timing&&<Text style={styles.small}>{s.timing}</Text>}
     <Text style={styles.copy}>About {rangeText(s.durationMinutes)} min</Text>
-    {plan.reviewState==='accepted'&&plan.documentPlan&&<WorkoutMarkdown source={plan.documentPlan.days.find(day=>day.date===d.date)?.sessions[i]?.workoutMarkdown??''}/>}
+    {plan.reviewState==='accepted'&&plan.documentPlan&&<WorkoutContent session={plan.documentPlan.days.find(day=>day.date===d.date)!.sessions[i]!}/>}
     {plan.reviewState==='accepted'&&plan.completePlan?.days.find(day=>day.date===d.date)?.sessions[i]?.blocks.map((b,j)=><View key={j} style={styles.group}>
       <Text style={styles.small}>{b.phase==='warmup'?'Warm-up':b.phase==='cooldown'?'Cool-down':'Main'}{b.optional?' · Optional':''} · {b.rounds} {b.exercises.length===1?'sets':'rounds'} · targets per round</Text>
       {b.exercises.map((e,k)=><Text key={k} style={styles.copy}>{exerciseText(e,plan.activityNames??{})}</Text>)}

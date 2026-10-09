@@ -98,7 +98,7 @@ export function openAIProvider(config: { key: string; model: string; capMicro: n
       let diagnostic:ProviderDiagnostic={};
       try {
         const request=JSON.parse(body);
-        const weekly=['training_week','complete_week','complete_week_units_v2','document_week_v1'].includes(request.text?.format?.name);
+        const weekly=['training_week','complete_week','complete_week_units_v2','document_week_v1','document_week_v2'].includes(request.text?.format?.name);
         const outputLimit=weekly?weeklyLimits.outputTokens:limits.output;
         if(request.max_output_tokens!==outputLimit||Buffer.byteLength(body)>(weekly?weeklyLimits.inputBytes:48000))return {failure:'provider_error'};
         const response = await fetcher('https://api.openai.com/v1/responses', { method: 'POST', signal,

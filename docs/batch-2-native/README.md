@@ -1,0 +1,15 @@
+# Workout-content batch 2 — October 9, 2026
+
+New `document-week-v2` plans show ordered exercise names and concise plain-text prescriptions. Workout detail keeps the session identity, timing, duration and optionality but does not repeat its goal. The [exact formatting-only diff](formatting-diff.md) documents what changed and why the deleted owner example's precise historical cause remains unverified. Existing Markdown documents stay readable; explicit revisions may publish v2 only on success, preserving accepted v1 history.
+
+Verification: **276 backend tests including isolated PostgreSQL, zero skips; 116 mobile tests; both TypeScript checks and self-review pass.** Mocks cover unchanged coaching prefix/settings, one initial/revision dispatch, display bounds, mixed prescriptions, hidden details, free acceptance/reopen, rejected/stale revisions, concurrency/ownership, migration preservation and explicit v1→v2 revisions with untagged legacy history. The tests do not claim provider coaching consistency.
+
+The production components ran in an isolated Expo Go preview on the disposable iOS 26.4 simulator with synthetic responses and external requests blocked. A 375-point-wide layout used the system's extra-extra-large text size:
+
+- [Strength and superset rows](strength-large.png): readable sets/reps/load, reps in reserve and recovery after each pair.
+- [Mixed activities](mixed-large.png): run/walk distance and active recovery, mobility per-side/round pauses, and coordination time/counts.
+- [Second session](second-session-large.png): a direct Today tap opens the optional evening session with its own duration and recovery.
+
+All rows remained readable when brought into view. This verifies a narrow preview at one larger system text setting, not every physical device, maximum accessibility size or VoiceOver interaction. No native build, paid evaluation or owner regeneration was used. The owned Expo process, PostgreSQL fixture and disposable simulator were stopped; no owner-started server was changed.
+
+Phone check: start the normal owner-controlled Metro server and reload FitQuest. A newly generated plan should reveal concise rows only after Use this plan. Open multiple sessions and check units/recovery. Existing saved Markdown remains in its original format until an explicit revision succeeds and is accepted. Phone acceptance and live coaching quality remain unverified. Nutrition targets are batch 3 and remain queued.

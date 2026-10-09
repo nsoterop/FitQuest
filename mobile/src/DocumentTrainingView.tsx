@@ -2,7 +2,7 @@ import {Pressable,StyleSheet,Text,View} from 'react-native';
 import type {TrainingPlan} from './trainingApi';
 import {Action,Notice,colors,ui} from './Design';
 import {rangeText} from './CompleteWeekView';
-import {WorkoutMarkdown} from './WorkoutMarkdown';
+import {WorkoutContent} from './WorkoutContent';
 export const dateLabel=(date:string,long=false)=>new Intl.DateTimeFormat('en-US',{weekday:long?'long':'short',month:'short',day:'numeric',timeZone:'UTC'}).format(new Date(date+'T12:00:00Z'));
 export function localToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 export type WorkoutSelection={date:string;index:number};
@@ -24,6 +24,6 @@ export function DocumentWeek({plan,onOpen}:{plan:TrainingPlan;onOpen:(selection:
 export function DocumentWorkout({plan,selection}:{plan:TrainingPlan;selection:WorkoutSelection}){
  if(plan.reviewState!=='accepted')return null;
  const s=plan.documentPlan?.days.find(d=>d.date===selection.date)?.sessions[selection.index];if(!s)return <Notice>This saved session is no longer available. Return to your week.</Notice>;
- return <><Text style={ui.eyebrow}>{dateLabel(selection.date,true)}{s.timing?` · ${s.timing}`:''}</Text><Text accessibilityRole="header" style={ui.title}>{s.title}</Text><Text style={ui.copy}>{s.goal}</Text><View style={ui.row}><Text style={ui.badge}>{rangeText(s.durationMinutes)} min</Text>{s.optional&&<Text style={ui.badge}>Optional session</Text>}</View><View style={ui.divider}/><WorkoutMarkdown source={s.workoutMarkdown}/></>;
+ return <><Text style={ui.eyebrow}>{dateLabel(selection.date,true)}{s.timing?` · ${s.timing}`:''}</Text><Text accessibilityRole="header" style={ui.title}>{s.title}</Text><View style={ui.row}><Text style={ui.badge}>{rangeText(s.durationMinutes)} min</Text>{s.optional&&<Text style={ui.badge}>Optional session</Text>}</View><View style={ui.divider}/><WorkoutContent session={s}/></>;
 }
 const styles=StyleSheet.create({dates:{flexDirection:'row',flexWrap:'wrap',gap:4},date:{minWidth:38,flexGrow:1,paddingVertical:10,gap:7,alignItems:'center',borderRadius:9},dateSelected:{backgroundColor:colors.hero},dateText:{fontSize:11,color:colors.muted},light:{color:'#FFF'},hero:{padding:22,borderRadius:13,backgroundColor:colors.hero,gap:14},heroTitle:{fontSize:30,lineHeight:36,fontWeight:'700',letterSpacing:-.7,color:'#FFF'},row:{minHeight:70,flexDirection:'row',alignItems:'center',gap:14,paddingVertical:16,borderBottomWidth:1,borderColor:colors.line},number:{fontSize:14,color:colors.muted,backgroundColor:colors.canvas,padding:10,borderRadius:7}});

@@ -73,6 +73,9 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261009172830_document_planning.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   assert.deepEqual((await owner.query("SELECT to_jsonb(p)-'document_plan'-'document_history' AS value FROM fitquest.training_plans p ORDER BY user_id,id")).rows,beforeDocument);
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261009211639_food_diary.sql',import.meta.url),'utf8'));await owner.query(await readFile(new URL('../supabase/migrations/20261009220046_saved_food_library.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  const beforeRows=(await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.training_plans p ORDER BY user_id,id')).rows;
+  await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261009232000_document_exercise_rows.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  assert.deepEqual((await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.training_plans p ORDER BY user_id,id')).rows,beforeRows);
   // Synthetic fixture only. Real evaluation/production accounting is never initialized here.
   await owner.query('UPDATE fitquest.ai_budget SET app_enabled=true');
   const alice={userId:'11111111-1111-4111-8111-111111111111',sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};

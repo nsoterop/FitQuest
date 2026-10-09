@@ -1,5 +1,11 @@
 # FitQuest
 
+## Workout-content corrections — batch 2, 2026-10-09
+
+New document plans use ordered free-text exercise/prescription rows. Essential units, effort, recovery and mixed/superset relationships stay in each prescription. Workout detail omits its repeated session goal; final formatting asks the model to omit unrequested weekly commentary instead of attaching it to Monday. The five-answer coaching request, dates, Sol 6.1 low, rates/bounds, one-request flow and ledger are unchanged. Existing Markdown remains readable without conversion; successful explicit revisions publish the new version while preserving accepted history. [Formatting diff and native evidence](docs/batch-2-native/README.md) distinguish this change from live coaching-quality acceptance.
+
+**276 backend tests with isolated PostgreSQL and zero skips; 116 mobile tests; both TypeScript checks and native compact/large-text inspection pass.** Temporary test processes are stopped. Release and preservation evidence will be recorded after deployment. Nutrition targets remain queued as batch 3.
+
 ## Usability corrections — batch 1, 2026-10-09
 
 After profile setup, new users have only Start onboarding; saved intake/generation/review remains within onboarding. Actual server acceptance opens Today/Week/Nutrition. Server-recorded accepted history remains available during pending revisions and after the saved week expires. Review now has concise week content, distinct weekday/session cards, revision and acceptance controls. Today session taps open the exact selected workout. Native keyboard remeasurement keeps intake controls above the software keyboard.

@@ -1,5 +1,5 @@
 import {prepareDocument,documentPlanVersion} from './documentPlanning.js';
-import {documentOverview,type DocumentPlan} from './documentPlanContract.js';
+import {documentOverview,isDocumentVersion,type SavedDocumentPlan} from './documentPlanContract.js';
 import { prepareComplete,prepareCompleteOutline,completeActivities,completePlanVersion } from './completePlanning.js';
 import { recordPlanDiagnostic } from './planDiagnosticStore.js';
 import { planOverview,type PlanResponse } from './completePlanContract.js';
@@ -58,8 +58,8 @@ export function planningStore(pool:Pool) {
     for(const p of plans) {
       p.days=(await c.query('SELECT date::text,detail FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 ORDER BY date',[a.userId,p.id])).rows;
       p.jobs=(await c.query('SELECT target,status,error_code AS error,attempt_id AS "attemptId",feedback,complete_stage AS stage,raw_response AS "rawResponse" FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND (target NOT LIKE \'review:%\' OR target=$3) AND (target NOT LIKE \'details:%\' OR target=$4)',[a.userId,p.id,`review:${p.planRevision}`,`details:${p.planRevision}`])).rows;
-      if(p.schemaVersion!==documentPlanVersion)delete p.acceptedDocument;
-      if(p.schemaVersion===documentPlanVersion){
+      if(!isDocumentVersion(p.schemaVersion))delete p.acceptedDocument;
+      if(isDocumentVersion(p.schemaVersion)){
         p.completeReady=!!p.documentPlan;
         p.documentOverview=p.documentPlan?documentOverview(p.documentPlan):null;
         if(p.reviewState!=='accepted')p.documentPlan=null;
@@ -164,9 +164,9 @@ export function planningStore(pool:Pool) {
       if(p.review_revision!==r.planRevision)throw new OnboardingError(409,'plan_changed');
       if(s.revision!==r.summaryRevision||p.summary_revision!==s.revision)throw new OnboardingError(409,'summary_changed');
       if((await c.query("SELECT 1 FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND status='pending'",[a.userId,r.planId])).rowCount)throw new OnboardingError(409,'review_pending');
-      if(p.schema_version===documentPlanVersion){
+      if(isDocumentVersion(p.schema_version)){
         if(!p.document_plan||!p.review_revision)throw new OnboardingError(409,'review_unavailable');
-        if(p.review_state!=='accepted')await c.query("UPDATE fitquest.training_plans SET review_state='accepted',accepted_at=now(),document_history=document_history||jsonb_build_array(jsonb_build_object('revision',review_revision,'acceptedAt',now(),'plan',document_plan)) WHERE user_id=$1 AND id=$2",[a.userId,r.planId]);
+        if(p.review_state!=='accepted')await c.query("UPDATE fitquest.training_plans SET review_state='accepted',accepted_at=now(),document_history=document_history||jsonb_build_array(jsonb_build_object('schemaVersion',schema_version,'revision',review_revision,'acceptedAt',now(),'plan',document_plan)) WHERE user_id=$1 AND id=$2",[a.userId,r.planId]);
         await c.query("UPDATE fitquest.training_generations SET feedback=NULL WHERE user_id=$1 AND plan_id=$2 AND status<>'pending'",[a.userId,r.planId]);
         return view(c,a);
       }
@@ -188,7 +188,7 @@ export function planningStore(pool:Pool) {
       await rate(c,a);await recover(c,a);
       const plan=(await c.query('SELECT * FROM fitquest.training_plans WHERE user_id=$1 AND id=$2 FOR UPDATE',[a.userId,r.planId])).rows[0];
       if(!plan)throw new OnboardingError(404,'not_found');
-      if(plan.schema_version===documentPlanVersion)return claimDocument(c,a,plan,r,provider);
+      if(isDocumentVersion(plan.schema_version))return claimDocument(c,a,plan,r,provider);
       if(plan.schema_version===completePlanVersion)return claimComplete(c,a,plan,r,provider);
       const s=await summary(c,a),p=await profile(c,a);
       const target=`review:${r.planRevision}`;
@@ -255,7 +255,7 @@ export function planningStore(pool:Pool) {
         await rate(c,a);await recover(c,a);const s=await summary(c,a),p=await profile(c,a);
         const plan=(await c.query('SELECT * FROM fitquest.training_plans WHERE user_id=$1 AND id=$2 FOR UPDATE',[a.userId,r.planId])).rows[0];
         if(!plan)throw new OnboardingError(404,'not_found');
-        if(plan.schema_version===documentPlanVersion)return claimDocument(c,a,plan,r,provider);
+        if(isDocumentVersion(plan.schema_version))return claimDocument(c,a,plan,r,provider);
         if(plan.schema_version===completePlanVersion)return claimComplete(c,a,plan,r,provider);
         if(s.revision!==r.summaryRevision||plan.summary_revision!==s.revision)throw new OnboardingError(409,'summary_changed');
         if(plan.catalog_version!==catalog.version)throw new OnboardingError(409,'catalog_changed');
@@ -348,7 +348,7 @@ export function planningStore(pool:Pool) {
       // Diagnostics are best-effort and independent of charge settlement.
       if(diagnostic)try{await tx(a,c=>c.query('UPDATE fitquest.onboarding_attempts SET provider_diagnostic=$3 WHERE user_id=$1 AND id=$2',[a.userId,attempt,safeDiagnostic(diagnostic)]),false)}catch{/* Never log private error text. */}
     },
-    finish:(a:Account,w:PlanningWork,value:Outline|Detail|CheckedWeek|ReviewResult|PlanResponse|DocumentPlan|undefined,failure?:string,rawResponse?:string)=>tx(a,async c=>{
+    finish:(a:Account,w:PlanningWork,value:Outline|Detail|CheckedWeek|ReviewResult|PlanResponse|SavedDocumentPlan|undefined,failure?:string,rawResponse?:string)=>tx(a,async c=>{
       const s=await summary(c,a),p=await profile(c,a);
       const job=(await c.query('SELECT * FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND target=$3 FOR UPDATE',[a.userId,w.planId,w.target])).rows[0];
       if(!job||job.status!=='pending'||job.attempt_id!==w.attempt)return;
@@ -358,7 +358,7 @@ export function planningStore(pool:Pool) {
         const plan=(await c.query('SELECT review_revision FROM fitquest.training_plans WHERE user_id=$1 AND id=$2 FOR UPDATE',[a.userId,w.planId])).rows[0];
         if(plan?.review_revision!==w.planRevision){failure='plan_changed';value=undefined;}
         if(value){
-          await c.query("UPDATE fitquest.training_plans SET document_plan=$3,review_revision=review_revision+1,review_state='draft',accepted_at=NULL,review_note=NULL,review_context=NULL WHERE user_id=$1 AND id=$2",[a.userId,w.planId,JSON.stringify(value)]);
+          await c.query("UPDATE fitquest.training_plans SET document_plan=$3,schema_version=$4,review_revision=review_revision+1,review_state='draft',accepted_at=NULL,review_note=NULL,review_context=NULL WHERE user_id=$1 AND id=$2",[a.userId,w.planId,JSON.stringify(value),documentPlanVersion]);
           await c.query('UPDATE fitquest.training_generations SET feedback=NULL WHERE user_id=$1 AND plan_id=$2 AND target=$3',[a.userId,w.planId,w.target]);
         }
         await c.query('UPDATE fitquest.training_generations SET status=$4,error_code=$5 WHERE user_id=$1 AND plan_id=$2 AND target=$3',[a.userId,w.planId,w.target,value?'completed':'failed',value?null:failure??'provider_error']);

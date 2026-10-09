@@ -1332,3 +1332,24 @@ test('root failures cannot masquerade as new onboarding and stale account reads 
  await act(async()=>{waiting[0].resolve({status:200,json:async()=>saved});waiting[1].resolve({status:503,json:async()=>({})});await flush()});assert.equal(hasTrainingAccess(screen),false);assert.equal(screen.root.findAllByProps({accessibilityLabel:'Start onboarding'}).length,0);assert.ok(input(screen,'Retry loading saved progress'));
  globalThis.fetch=async()=>({status:200,json:async()=>saved});await act(async()=>{press(screen,'Retry loading saved progress');await flush()});assert.equal(hasTrainingAccess(screen),true);await act(async()=>screen.unmount());
 });
+
+test('new exercise rows stay private until acceptance, render exact ordered plain text without repeated goals, and reopen free',async t=>{
+ t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());resetAuth(alice);
+ const {rowDocumentFixture}=await import('../../backend/src/documentPlanFixture.ts'),{documentOverview}=await import('../../backend/src/documentPlanContract.ts');
+ const {saved}=await batchDocumentState(),p=saved.plans[0],document=rowDocumentFixture(p.dates);p.schemaVersion='document-week-v2';p.documentOverview=documentOverview(document);let posts=0;
+ document.days[1].sessions[0].exercises=[{exercise:'Literal <script> row',prescription:'<img src="https://example.test/x"> Hold 30 seconds; rest 45 seconds. [No remote link](https://example.test).'}];
+ globalThis.fetch=async(url,options)=>{if(url.endsWith('/accept')){posts++;Object.assign(p,{reviewState:'accepted',acceptedAt:'2026-10-05T15:00:00Z',documentPlan:document});saved.onboarded=true}else assert.equal(options.method??'GET','GET');return{status:200,json:async()=>url.endsWith('/profile')?{profile:payload}:structuredClone(saved)}};
+ let screen=await mount();t.after(async()=>act(async()=>screen.unmount()));assert.doesNotMatch(renderedTrainingText(screen),/Dumbbell squat|prescription|200 m|Crab reach/);assert.equal(input(screen,'Session 1 on 2026-10-05').props.disabled,true);
+ await act(async()=>{press(screen,'Use this plan');await flush()});await act(async()=>press(screen,'Open session 1: Skill and strength'));
+ const content=renderedTrainingText(screen);assert.doesNotMatch(content,/Build confident movement|Weekly approach|workoutMarkdown/);
+ const texts=screen.root.findAllByType('Text').map(n=>n.props.children).filter(x=>typeof x==='string');
+ for(const row of document.days[0].sessions[0].exercises){assert(texts.includes(row.exercise));assert(texts.includes(row.prescription));}
+ assert(texts.indexOf('Dumbbell squat')<texts.indexOf('Run / walk intervals'));
+ await act(async()=>press(screen,'Back to day'));await act(async()=>press(screen,'Open session 2: Later easy practice'));assert.match(renderedTrainingText(screen),/10–15 minutes; pause for 30 seconds/);assert.doesNotMatch(renderedTrainingText(screen),/Dumbbell squat/);
+ await act(async()=>screen.unmount());screen=await mount();await act(async()=>press(screen,'Select 2026-10-06'));await act(async()=>press(screen,'Open session 1: Skill and strength'));assert.match(renderedTrainingText(screen),/Literal <script> row/);assert.equal(screen.root.findAll(n=>typeof n.type==='string'&&['WebView','Image','a'].includes(n.type)).length,0);assert.equal(posts,1);
+});
+test('new pending revision keeps legacy accepted Markdown accessible without confusing the saved versions',async t=>{
+ t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());resetAuth(alice);const {saved}=await batchDocumentState('history');saved.plans[0].schemaVersion='document-week-v2';
+ globalThis.fetch=async(url,options)=>{assert.equal(options.method??'GET','GET');return{status:200,json:async()=>url.endsWith('/profile')?{profile:payload}:structuredClone(saved)}};
+ const screen=await mount();t.after(async()=>act(async()=>screen.unmount()));assert(hasTrainingAccess(screen));await act(async()=>press(screen,'Open session 1: Skill and strength'));assert.match(renderedTrainingText(screen),/Crab reach/);await act(async()=>press(screen,'Back to day'));await act(async()=>press(screen,'Week'));assert.doesNotMatch(renderedTrainingText(screen),/Crab reach/);assert.equal(input(screen,'Session 1 on 2026-10-05').props.disabled,true);
+});

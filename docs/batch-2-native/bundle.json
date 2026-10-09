@@ -1,0 +1,13 @@
+{
+  "bytes": 1944612,
+  "sha256": "fc0aac4f3336c9a263a1a495e10b7ce95b7e5c979039bb1fc21319df7c7957aa",
+  "matchingSourceFiles": [
+    "mobile/src/WorkoutContent.tsx",
+    "mobile/src/DocumentTrainingView.tsx",
+    "mobile/src/CompleteWeekView.tsx",
+    "mobile/src/TrainingScreen.tsx",
+    "mobile/src/trainingApi.ts",
+    "backend/src/documentPlanContract.ts"
+  ],
+  "verification": "Offline production iOS Hermes export; not owner Metro or physical-phone acceptance"
+}
