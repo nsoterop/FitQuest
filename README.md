@@ -1,5 +1,13 @@
 # FitQuest
 
+## Release 1 UI — 2026-10-09
+
+Published `95b7a6e3fc8c2927e6bda1be95f9e570b799b460`: shared 22pt gutters, safe-area/keyboard layouts, account/profile, progressive intake, Today/Week/review and readable saved workouts. [Native screenshots and verification](docs/release-1-native/README.md) include the before/after padding correction. 108 mobile tests, both TypeScript checks and three frozen backend request tests pass. Temporary preview servers and simulators were stopped; owner Metro PID 91062 was verified and left untouched.
+
+Fresh publication/bundle reconciliation at 5:12 PM EDT confirms the remote commit and 19 matching source-map files; bundle 5,011,244 bytes, SHA-256 `c92f84eca63514f242a4ad3efd8b27302f2c11950c0dc14ad2d7c7fc2cd99e3a`. This UI-only release needs no backend redeploy. Existing live backend `3bdd1be` passed health and 26 private-route checks; runtime model/low-effort configuration was freshly verified unchanged.
+
+The previously prepared UI reset had not run. It committed at **5:13:16 PM EDT**; independent **5:13:34 PM** readback confirms all nine scoped content tables empty after removing one plan, generation and summary. One account/one distinct email, profile/Auth, all 139 permanent AI attempts, budget/reservations and all 17 protected groups remain identical. All 1,390 fingerprinted private files are unchanged. No paid AI call or native build. Physical-phone acceptance, VoiceOver and coaching quality remain unverified.
+
 ## Sol 6.1 Low — 2026-10-09
 
 At the owner's request, production and local model/rate configuration now select **`gpt-6.1-sol` with `reasoning.effort: low`**. The exact owner prompt, small display schema, one initial/revision request, 48,000-output-token/timeout bounds, overview-first reveal and free acceptance/reopen are unchanged. [Official model documentation](https://developers.openai.com/api/docs/models/gpt-6.1-sol) confirms low reasoning and structured outputs. [Standard pricing](https://developers.openai.com/api/docs/pricing) is $2 input, $0.10 cached input, $2.50 cache writes and $10 output per million tokens. Configuration now rejects Sol requests priced at Luna rates; the existing conservative reservation calculation and long-context multipliers remain. The single $7 lifetime/$0.25 cumulative evaluation ledger and all historical charges are preserved. Historical Luna fixtures and comparison artifacts are unchanged. Local generation remains disabled as previously configured.
