@@ -1,5 +1,17 @@
 # FitQuest
 
+## Full saved-week visibility — 2026-10-09
+
+Mobile release **`cb0d2501d987f5cca70a3334885f2dbb2229d548`** shows every saved date in pending outlines and accepted workouts, including past dates and entirely elapsed weeks. The date filter and obsolete remaining-days copy are removed; counts use the full saved range. Saved order, rest, separate sessions, timing, duration ranges and optionality remain unchanged. Legacy ranges are shown exactly as saved. Exercise acceptance gating, free reopen, revision protections and generation dates are unchanged. No prompt/model/backend behavior, migration, native build or paid AI call changed.
+
+**102 mobile tests, zero skips, and TypeScript pass**, including actual rendered pending/accepted views before/during/after saved weeks, DST/year boundaries, legacy one/three/seven-day ranges, same-day sessions, hidden exercises before acceptance and free reopen. Existing acceptance/revision/account-isolation checks pass. Offline Expo compatibility reports dependencies up to date, with its offline-validation caveat. Self-review and diff checks pass.
+
+Owner-started Metro **PID 45516** was verified in the mobile checkout at **`192.168.87.230:8081`** and left untouched. Manifest and updated iOS bundle return 200; the **4,964,249-byte** bundle SHA-256 is **`84fe489fb86c6dcd70217ab17e42b4c3c9ab30fc4cd21c2fb4234a4ccb13383a`**, with all 11 inspected source-map files matching. The removed date filter/remaining-days message are absent. No temporary server was started.
+
+The existing backend remains **`fca902aa0cac9cbd1a8711ab896895515bcd8a0f`**, verified in Render's live deployment and runtime instance **`5b548`**, with all **22 compiled-module/catalog hashes** matching. Health returns 200; unauthenticated profile, training and onboarding reads return 401 with no-store. No backend redeploy was needed. The unsuccessful preference candidate remains excluded.
+
+The standing owner-only testing reset committed at **12:11:27 PM EDT**, removing **two plans, two generation records and one retained summary**; the other six scoped tables were empty. Fresh **12:11:48 PM EDT** readback verifies all nine content tables empty, **one account/one distinct email**, no active work and identical preservation fingerprints for Auth/account/sessions, profile, request limits, all **132 independent AI attempts**, budgets/reservations/caps and other-user content. Foreign keys/triggers, catalog and all **81 private baseline/comparison artifact hashes** remain unchanged. Reload → **Start onboarding → Continue to onboarding** uses the existing server revalidation/device-draft cleanup path. Physical-phone reload, device cleanup and phone acceptance remain unverified.
+
 ## Scheduling preference comparison — 2026-10-07
 
 The authorized four-request comparison is complete and **did not meet the release criterion**. Current-prompt samples produced four and five double-session days in the full week (two and three Wednesday onward); candidate samples produced two and three (one and one Wednesday onward). Both candidate samples failed to show useful improvement. All four passed application validation, but qualitative inspection found loose duration estimates and some prescription/cue ambiguity; validity is not verified coaching quality. Two samples per arm do not establish consistency or a causal effect.
