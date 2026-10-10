@@ -5481,6 +5481,84 @@ test('body-profile permission is explicit, revocable and does not auto-generate'
   assert(!requests.some((r) => r.url.endsWith('/generate')));
 });
 
+for (const scenario of [
+  'confirmed',
+  'lost consent reply',
+  'lost generation reply',
+  'stale summary',
+  'settings',
+])
+  test(`initial generation intent: ${scenario}`, async () => {
+    const saved = trainingState();
+    saved.consent = null;
+    const server = trainingServer(saved),
+      originalFetch = globalThis.fetch;
+    let grants = 0;
+    globalThis.fetch = async (url, options) => {
+      if (url.endsWith('/consent')) {
+        grants++;
+        saved.consent = grantedPlanningConsent();
+        if (scenario === 'stale summary') saved.summary.revision++;
+        if (scenario === 'lost consent reply') throw Error('Invented lost consent reply');
+        return { status: 200, json: async () => structuredClone(saved) };
+      }
+      const result = await originalFetch(url, options);
+      if (scenario === 'lost generation reply' && url.endsWith('/generate'))
+        throw Error('Invented lost generation reply');
+      return result;
+    };
+    let screen = await mountTraining({ generateOnOpen: scenario !== 'settings' });
+    await act(async () => {
+      press(screen, 'Allow profile sharing with OpenAI');
+      press(screen, 'Allow profile sharing with OpenAI');
+      await flush();
+    });
+    assert.equal(grants, 1);
+    if (scenario.startsWith('lost')) {
+      await act(async () => {
+        press(screen, 'Check status');
+        await flush();
+      });
+    }
+    assert.equal(
+      server.requests.filter((r) => r.url.endsWith('/generate')).length,
+      ['stale summary', 'settings'].includes(scenario) ? 0 : 1,
+    );
+    if (scenario === 'stale summary') assert.match(text(screen), /summary changed/i);
+    await act(async () => screen.unmount());
+    screen = await mountTraining();
+    assert.equal(
+      server.requests.filter((r) => r.url.endsWith('/generate')).length,
+      ['stale summary', 'settings'].includes(scenario) ? 0 : 1,
+      'reopen is read-only',
+    );
+    await act(async () => screen.unmount());
+  });
+test('leaving an account while its consent reply is pending cannot continue its generation', async () => {
+  const saved = trainingState();
+  saved.consent = null;
+  const server = trainingServer(saved),
+    originalFetch = globalThis.fetch;
+  let reply;
+  globalThis.fetch = (url, options) =>
+    url.endsWith('/consent')
+      ? new Promise((resolve) => {
+          reply = resolve;
+        })
+      : originalFetch(url, options);
+  const screen = await mountTraining({ generateOnOpen: true });
+  await act(async () => {
+    press(screen, 'Allow profile sharing with OpenAI');
+    await flush();
+  });
+  await act(async () => screen.unmount());
+  await act(async () => {
+    reply({ status: 200, json: async () => ({ ...saved, consent: grantedPlanningConsent() }) });
+    await flush();
+  });
+  assert.equal(server.requests.filter((r) => r.url.endsWith('/generate')).length, 0);
+});
+
 test('combined nutrition preview and acceptance keep workouts hidden and retain targets on reopen without generation', async (t) => {
   const { nutritionDocumentFixture } =
       await import('../../backend/src/tests/fixtures/documentPlanFixture.ts'),

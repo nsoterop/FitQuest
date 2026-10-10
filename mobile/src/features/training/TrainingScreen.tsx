@@ -122,6 +122,8 @@ function AccountTrainingScreen({
   const [workoutPlan, setWorkoutPlan] = useState<TrainingPlan | null>(null);
   const initial = useRef(generateOnOpen),
     firstLoad = useRef(true);
+  // Scoped to this mounted account and summary. Consent from Settings has no generation intent.
+  const generationIntent = useRef<number | null>(null);
   const submitted = useRef<{ planId: string; planRevision: number; feedback: string } | null>(null);
   function update(s: TrainingState) {
     if (alive.current) {
@@ -286,17 +288,27 @@ function AccountTrainingScreen({
       retryAttempt: retry && job?.status === 'failed' ? job.attemptId : null,
     });
   }
+  async function continueGeneration(request: Request, s: TrainingState) {
+    if (generationIntent.current === null || !hasPlanningConsent(s.consent)) return;
+    const revision = generationIntent.current;
+    generationIntent.current = null; // Consume before any potentially uncertain paid request.
+    if (s.summary?.revision !== revision) throw new TrainingError('summary_changed');
+    await initialPlan(request, s);
+  }
   useEffect(() => {
     alive.current = true;
     void run(async (request) => {
       const s = await request('', 'GET');
       if (initial.current) {
         initial.current = false;
-        await initialPlan(request, s);
+        if (s.summary && !hasPlanningConsent(s.consent))
+          generationIntent.current = s.summary.revision;
+        else await initialPlan(request, s);
       }
     });
     return () => {
       alive.current = false;
+      generationIntent.current = null;
       pending.current?.abort();
       pending.current = null;
     };
@@ -409,12 +421,14 @@ function AccountTrainingScreen({
   const permitted = hasPlanningConsent(state?.consent);
   const changeConsent = (granted: boolean) =>
     void run(async (request) => {
-      await request('/consent', 'PUT', {
+      if (!granted) generationIntent.current = null;
+      const confirmed = await request('/consent', 'PUT', {
         version: planningConsentVersion,
         scope: planningConsentScope,
         granted,
         expectedRevision: state?.consent?.revision ?? 0,
       });
+      if (granted) await continueGeneration(request, confirmed);
     });
   const nextWeek =
     state && onboarded ? (
@@ -932,7 +946,8 @@ function AccountTrainingScreen({
               blocked || inFlight ? 'Check status' : 'Retry loading saved training',
               () =>
                 void run(async (request) => {
-                  await request('', 'GET');
+                  const confirmed = await request('', 'GET');
+                  await continueGeneration(request, confirmed);
                 }),
               true,
             )}

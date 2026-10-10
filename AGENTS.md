@@ -2,15 +2,15 @@
 
 ## Authority and active scope
 
-The owner's latest explicit instructions control the work. Follow the owner's roadmap; do not invent features, milestones, architecture initiatives or paid evaluations. Feature work is paused.
+The owner's latest explicit instructions control the work. Follow the owner's roadmap; do not invent features, milestones, architecture initiatives or paid evaluations. Feature work is authorized only for the flow simplification below.
 
-The current assignment is the owner's bounded security hardening: separate trusted AI instructions from athlete data, represent explicit non-plan outcomes, close throttling gaps and enforce durable per-account fairness through the existing accounting system. Preserve useful coaching behavior, saved/legacy work, consent, records and global caps. Keep code within existing feature/AI/database boundaries; avoid unrelated refactors and generic policy frameworks. See [security status](docs/reference/security.md).
+The current assignment is the owner's approved UX simplification: generate immediately after confirming sharing permission; automatically enroll Sunday 9 PM planning under explicit recurring/history permission; make the diary today-first with editable past days and honest logged-intake averages; move weight logging/history to a separate Progress destination and simplify weekly nutrition charts. Progress may accommodate future performance sections, but no performance analytics, new metrics or speculative framework is assigned. See [flow implementation](docs/reference/flow-simplification.md). Preserve all completed [security work](docs/reference/security.md) at `b1662e4` and saved/legacy work, consent, records and global caps. Keep existing feature boundaries; avoid unrelated refactors. HQ is read-only; Engineering is the sole writer.
 
 Prior instructions and duplicate release notes were removed from the working tree because Git preserves their historical versions. Git history is evidence, not an active work queue or permission to deploy, migrate, reset or spend. The concise retained release record is under `docs/archive/releases`.
 
 ## Publication boundary
 
-Local scoped edits, proportionate tests, self-review, commits and private publication through `codex/security-hardening`, based on current `main` are authorized. Inspect the actual deployment branch and triggers before pushing. Check for a matching PR before creating one, and verify that it cannot start a preview/deployment or provision a resource. Attach any created PR to this chat. If trigger safety cannot be established, finish safe work and report the precise blocker.
+Local scoped edits, proportionate tests, self-review, commits and private publication through `codex/flow-simplification`, based on the verified security checkpoint `b1662e4`, are authorized. Preserve security PR #1 unchanged and identify that prerequisite in the UX PR. Inspect the actual deployment branch and triggers before pushing. Check for a matching PR before creating one, and verify that it cannot start a preview/deployment or provision a resource. Attach any created PR to this chat. If trigger safety cannot be established, finish safe work and report the precise blocker.
 
 Do not merge, change visibility/default branch/protection, deploy, apply hosted migrations, reset training content, modify credentials/trust/signing, rewrite history, force-push, provision resources or make a native build. No new paid AI call or owner-plan regeneration is assigned. Keep the live service and scheduler unchanged. MIT is selected; no further license-choice approval is required.
 
