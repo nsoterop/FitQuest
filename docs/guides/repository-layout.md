@@ -10,10 +10,11 @@ mobile/
       account/           Sign-in, account/profile, sessions
       onboarding/        Five-question intake and recoverable answers
       training/          Today/Week, plan acceptance, workout presentation
-      weekly-planning/   Upcoming week and Sunday enrollment controls
+      weekly-planning/   Upcoming week recovery and Sunday scheduling status
       journal/           Actual workout records and drafts
       nutrition/         Diary, targets, meals and recipes
       weight/            Dated weight records and drafts
+      progress/          Progress destination composing existing weight tools
     components/          Shared visual layout and keyboard/scroll components
     services/            Cross-feature backend health check
   tests/                 Mobile unit and mocked component regressions

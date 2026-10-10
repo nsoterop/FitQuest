@@ -2,14 +2,15 @@
 
 FitQuest is an iOS-focused training and nutrition app for adults. It turns five written intake answers into a weekly plan, keeps prescribed work separate from actual workout results, and brings food, weight and training history together for the next week.
 
-Repository organization is on `main` at `ccbd00d`. Bounded security work continues separately on **private, non-deploying** `codex/security-hardening`; see [security status](docs/reference/security.md). The deployed application was last verified at `2e779e5` on October 9, 2026; documentation and cleanup commits do not constitute a deployment or App Store release. Feature work is paused during repository preparation.
+Repository organization is on `main` at `ccbd00d`. Completed security work is on **private, non-deploying** `codex/security-hardening`; see [security status](docs/reference/security.md). The four approved [flow simplification batches](docs/reference/flow-simplification.md) are on `codex/flow-simplification`, based on that security checkpoint. The deployed application was last verified at `2e779e5` on October 9, 2026; these source changes do not constitute a deployment or App Store release. Other feature work remains paused.
 
 ## What it does
 
 - **Plan and review:** five progressive intake questions, a complete Monday–Sunday plan with multiple sessions, rest and optional work, explicit revisions, and an overview before acceptance. Accepting or reopening a saved plan makes no AI call.
 - **Train and record:** Today and Week views, readable workout instructions, actual sets/reps/weight or completion, notes, corrections and workout history. Logging does not imply that every prescription was completed.
-- **Track nutrition:** a food diary with manual entry or explicitly requested AI estimates, reviewed candidates, known/unknown nutrient values, daily completion and weekly trends. Saved meals and versioned recipes support fractional servings; later edits preserve earlier diary entries.
-- **Continue across weeks:** dated weight history and progress-informed upcoming plans with separate permission to share workout/weight history and health notes with OpenAI. Optional Sunday 9 PM planning uses the enrolled timezone; generated drafts still require **Use this plan**. Accepted weeks and nutrition targets apply by date.
+- **Track nutrition:** a today-first food diary with manual entry or explicitly requested AI estimates, reviewed candidates, known/unknown nutrient values and logged past-day averages. Past days remain editable. Saved meals and versioned recipes support fractional servings; later edits preserve earlier diary entries.
+- **Record progress:** a separate Progress destination for dated weight logging, history and corrections. Measurements do not overwrite profile weight or accepted targets.
+- **Continue across weeks:** explicit recurring permission covers profile/intake, workout/weight history and health notes shared with OpenAI. After plan acceptance, Sunday 9 PM planning enrolls automatically in the saved timezone; generated drafts still require **Use this plan**. Withdrawal stops future dispatch. Accepted weeks and nutrition targets apply by date.
 
 Logging, meal-library arithmetic and saved-plan acceptance are deterministic. Generation, explicit revisions and AI food interpretation use the same permanent spending ledger. A failed or uncertain paid request is not automatically retried.
 

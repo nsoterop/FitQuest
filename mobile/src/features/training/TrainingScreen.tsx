@@ -11,8 +11,9 @@ import { PlanningPermission } from './PlanningPermission';
 import { NutritionTargets } from '../nutrition/NutritionTargets';
 import { isDocumentVersion } from '../../../../backend/src/shared/documentPlanContract';
 import { NutritionScreen } from '../nutrition/NutritionScreen';
+import { ProgressScreen } from '../progress/ProgressScreen';
 import { CompleteWeekView } from './CompleteWeekView';
-import { Action, Page, ui, Tabs, Notice } from '../../components/Design';
+import { Action, Page, ui, Tabs, Notice, type MainTab } from '../../components/Design';
 import {
   DocumentToday,
   DocumentWeek,
@@ -51,7 +52,7 @@ const coverageText: Record<string, string> = {
 const calendarDate = (date: string) =>
   `${new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))}, ${date}`;
 type TrainingProps = {
-  initialTab?: 'today' | 'week' | 'nutrition';
+  initialTab?: MainTab;
   onAccount?: () => void;
   userId: string;
   accessToken: () => Promise<string>;
@@ -86,7 +87,7 @@ function AccountTrainingScreen({
     ended = useRef(onSessionEnded);
   token.current = accessToken;
   ended.current = onSessionEnded;
-  const [tab, setTab] = useState<'today' | 'week' | 'nutrition'>(initialTab ?? 'week'),
+  const [tab, setTab] = useState<MainTab>(initialTab ?? 'week'),
     [workout, setWorkout] = useState<WorkoutSelection | null>(null),
     [blocked, setBlocked] = useState(false),
     [leaving, setLeaving] = useState(false),
@@ -863,9 +864,11 @@ function AccountTrainingScreen({
   return (
     <View style={{ flex: 1 }}>
       <View
-        style={{ flex: 1, display: tab === 'nutrition' ? 'none' : 'flex' }}
-        accessibilityElementsHidden={tab === 'nutrition'}
-        importantForAccessibility={tab === 'nutrition' ? 'no-hide-descendants' : 'auto'}
+        style={{ flex: 1, display: tab === 'nutrition' || tab === 'progress' ? 'none' : 'flex' }}
+        accessibilityElementsHidden={tab === 'nutrition' || tab === 'progress'}
+        importantForAccessibility={
+          tab === 'nutrition' || tab === 'progress' ? 'no-hide-descendants' : 'auto'
+        }
       >
         <Page
           onAccount={onAccount}
@@ -959,6 +962,15 @@ function AccountTrainingScreen({
       </View>
       {tab === 'nutrition' && onboarded && (
         <NutritionScreen
+          userId={userId}
+          accessToken={accessToken}
+          onSessionEnded={onSessionEnded}
+          onAccount={onAccount}
+          onTab={setTab}
+        />
+      )}
+      {tab === 'progress' && onboarded && (
+        <ProgressScreen
           userId={userId}
           accessToken={accessToken}
           onSessionEnded={onSessionEnded}

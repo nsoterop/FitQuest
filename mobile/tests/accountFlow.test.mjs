@@ -4703,6 +4703,7 @@ test('Today follows saved session order, retains date on workout back, resets fo
   });
   const server = trainingServer(saved),
     screen = await mountTraining({ initialTab: 'today' });
+  t.after(async () => act(async () => screen.unmount()));
   assert.match(renderedTrainingText(screen), /Today\./);
   assert.ok(input(screen, 'View workout: Skill and strength'));
   await act(async () => press(screen, 'Open session 2: Later easy practice'));
@@ -4719,13 +4720,14 @@ test('Today follows saved session order, retains date on workout back, resets fo
   assert.equal(
     screen.root.findAllByType('Pressable').filter((x) => x.props.accessibilityRole === 'tab')
       .length,
-    3,
+    4,
   );
   assert.equal(screen.root.findAllByType('ScrollView').length, 1);
   assert.doesNotMatch(renderedTrainingText(screen), /Crab reach/);
   await act(async () => screen.unmount());
   t.mock.timers.setTime(new Date('2026-10-15T16:00:00Z').getTime());
   const later = await mountTraining({ initialTab: 'today' });
+  t.after(async () => act(async () => later.unmount()));
   assert.match(renderedTrainingText(later), /Outside your saved week/);
   assert.doesNotMatch(renderedTrainingText(later), /A rest day/);
   assert.equal(server.requests.filter((r) => r.method === 'POST').length, 0);
@@ -6096,6 +6098,86 @@ test('journal history is reachable from account before onboarding without genera
 
 const { BodyWeight } = await import('../src/features/weight/BodyWeight.tsx');
 const { privateWeightDrafts } = await import('../src/features/weight/weightStorage.ts');
+test('Progress owns weight tools and preserves its draft across tab navigation without AI or nutrition writes', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const saved = trainingState();
+  saved.onboarded = true;
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url: String(url), method: options.method });
+    assert.equal(options.method, 'GET');
+    const path = new URL(String(url)).pathname;
+    return {
+      status: 200,
+      json: async () =>
+        path === '/training'
+          ? saved
+          : path === '/body-weight'
+            ? { items: [], nextOffset: null }
+            : path === '/food'
+              ? emptyFood()
+              : { target: null },
+    };
+  };
+  const screen = await mountTraining();
+  t.after(async () => act(async () => screen.unmount()));
+  await weightPress(screen, 'Nutrition');
+  assert.doesNotMatch(renderedTrainingText(screen), /Body weight|Log weight|Weight history/);
+  assert.equal(
+    requests.some((r) => r.url.includes('/body-weight')),
+    false,
+  );
+  await weightPress(screen, 'Progress');
+  assert.match(renderedTrainingText(screen), /Progress\./);
+  await weightPress(screen, 'Log weight');
+  await journalEdit(screen, 'Body weight (lb)', '154.75');
+  await weightPress(screen, 'Nutrition');
+  assert.equal((await privateWeightDrafts.read('alice')).value, '154.75');
+  await weightPress(screen, 'Progress');
+  await weightPress(screen, 'Resume weight draft');
+  assert.equal(input(screen, 'Body weight (lb)').props.value, '154.75');
+  assert.equal(await privateWeightDrafts.read('bob'), null);
+  assert.ok(requests.some((r) => r.url.includes('/body-weight')));
+});
+test('simplified weekly charts expose dated unknown, zero, estimated, partial and future states without repeated visual rows', async (t) => {
+  const state = emptyFood();
+  state.today = '2026-10-02';
+  for (const date of ['2026-09-28', '2026-09-29', '2026-10-02', '2026-10-03']) {
+    const document = foodFixture();
+    document.date = date;
+    if (date === '2026-09-29')
+      document.items[0].nutrients.protein = { value: 8, source: 'estimated' };
+    state.entries.push({
+      id: randomUUID(),
+      revision: 1,
+      document,
+      createdAt: 'x',
+      updatedAt: 'x',
+      deletedAt: null,
+      undoUntil: null,
+    });
+  }
+  let screen;
+  await act(async () => {
+    screen = TestRenderer.create(React.createElement(_FoodTrends, { state }));
+  });
+  t.after(async () => act(async () => screen.unmount()));
+  const labels = screen.root
+    .findAllByType('View')
+    .filter((n) => n.props.accessible)
+    .map((n) => n.props.accessibilityLabel);
+  assert.equal(labels.length, 28);
+  assert.ok(labels.includes('Carbs, 2026-09-28: Unknown, excluded from average'));
+  assert.ok(labels.includes('Fat, 2026-09-28: 0 g, past logged intake'));
+  assert.ok(labels.some((l) => l.includes('Protein, 2026-09-29: 8 g, includes estimates')));
+  assert.ok(labels.some((l) => l.includes('2026-10-02:') && l.includes('today partial')));
+  assert.ok(labels.includes('Calories, 2026-10-03: Future, excluded'));
+  assert.ok(labels.includes('Calories, 2026-09-30: Not logged, excluded'));
+  const visible = renderedTrainingText(screen);
+  assert.doesNotMatch(visible, /2026-09-28:|2026-10-02:|Complete|In progress/);
+  assert.match(visible, /10.1 g \/ day/);
+  assert.match(visible, /0 g \/ day/);
+});
 function weightServer() {
   let entries = [],
     receipts = new Map(),

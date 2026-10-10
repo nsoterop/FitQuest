@@ -1,4 +1,3 @@
-import { BodyWeight } from '../weight/BodyWeight';
 import { nutritionTargetRequest, TrainingError } from '../training/trainingApi';
 import type { AcceptedNutrition } from '../../../../backend/src/shared/documentPlanContract';
 import { FoodLibraryScreen } from './FoodLibraryScreen';
@@ -178,6 +177,12 @@ export function FoodTrends({ state }: { state: FoodState }) {
         const average = foodAverage(state, n);
         const days = state.dates.map((date) => ({
           date,
+          known: state.entries.some(
+            (e) =>
+              !e.deletedAt &&
+              e.document.date === date &&
+              e.document.items.some((i) => i.nutrients[n].value !== null),
+          ),
           total: foodTotal(
             state.entries
               .filter((e) => !e.deletedAt && e.document.date === date)
@@ -209,17 +214,17 @@ export function FoodTrends({ state }: { state: FoodState }) {
                 <View
                   key={d.date}
                   accessible
-                  accessibilityLabel={`${labels[n]}, ${d.date}: ${d.date > state.today ? 'Future, excluded' : !d.total.hasEntries ? 'Not logged, excluded' : `${number(d.total.value)} ${unit(n)}${d.total.unknown ? ' known subtotal, unknown values, excluded from average' : ''}${d.total.estimated ? ', includes estimates' : ''}, ${d.ended ? 'past logged intake' : 'today partial, excluded from average'}`}`}
-                  style={{ flex: 1, gap: 6, alignItems: 'center' }}
+                  accessibilityLabel={`${labels[n]}, ${d.date}: ${d.date > state.today ? 'Future, excluded' : !d.total.hasEntries ? 'Not logged, excluded' : !d.known ? 'Unknown, excluded from average' : `${number(d.total.value)} ${unit(n)}${d.total.unknown ? ' known subtotal, unknown values, excluded from average' : ''}${d.total.estimated ? ', includes estimates' : ''}, ${d.ended ? 'past logged intake' : 'today partial, excluded from average'}`}`}
+                  style={{ flex: 1, minWidth: 0, gap: 6, alignItems: 'center' }}
                 >
-                  <Text style={[ui.label, { fontSize: 11 }]}>
-                    {d.date > state.today || !d.total.hasEntries ? '—' : number(d.total.value)}
+                  <Text style={[ui.label, { fontSize: 11, textAlign: 'center', maxWidth: '100%' }]}>
+                    {d.date > state.today || !d.known ? '—' : number(d.total.value)}
                   </Text>
                   <View style={{ height: 90, justifyContent: 'flex-end', width: '75%' }}>
                     <View
                       style={{
                         height:
-                          d.date <= state.today && d.total.hasEntries
+                          d.date <= state.today && d.known
                             ? Math.max(2, (90 * d.total.value) / max)
                             : 1,
                         backgroundColor: d.ended ? colorsBy[n] : colors.line,
@@ -238,16 +243,6 @@ export function FoodTrends({ state }: { state: FoodState }) {
                 </View>
               ))}
             </View>
-            {days.map((d) => (
-              <Text key={d.date} style={ui.copy}>
-                {d.date}:{' '}
-                {d.date > state.today
-                  ? 'Future'
-                  : !d.total.hasEntries
-                    ? 'Not logged'
-                    : `${number(d.total.value)} ${unit(n)}${d.total.unknown ? ' known subtotal · unknown values' : ''}${d.total.estimated ? ' · estimated' : ''} · ${d.ended ? 'Past logged intake' : 'Today · partial'}`}
-              </Text>
-            ))}
           </View>
         );
       })}
@@ -806,13 +801,6 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                   />
                 </>
               )}
-              {view === 'diary' && (
-                <BodyWeight
-                  userId={userId}
-                  accessToken={accessToken}
-                  onSessionEnded={onSessionEnded}
-                />
-              )}
               {foodDraftPresent && (
                 <>
                   <Text style={ui.copy}>
@@ -862,7 +850,7 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                   </Text>
                   <Text style={ui.copy}>
                     {entries.length
-                      ? `${entries.length} entries · ${date < foodToday(zone) ? 'Logged intake for this date' : 'Your day so far'}`
+                      ? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} · ${date < foodToday(zone) ? 'Logged intake for this date' : 'Your day so far'}`
                       : 'No food logged for this date.'}
                   </Text>
                   <View style={ui.row}>

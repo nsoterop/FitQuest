@@ -183,7 +183,7 @@ export function Page({
     </View>
   );
 }
-export type MainTab = 'today' | 'week' | 'nutrition';
+export type MainTab = 'today' | 'week' | 'nutrition' | 'progress';
 export function Tabs({
   value,
   onChange,
@@ -195,36 +195,48 @@ export function Tabs({
 }) {
   return (
     <View style={styles.tabs}>
-      {((nutrition ? ['today', 'week', 'nutrition'] : ['today', 'week']) as MainTab[]).map(
-        (tab) => (
-          <Pressable
-            key={tab}
-            accessibilityRole="tab"
-            accessibilityLabel={tab === 'today' ? 'Today' : tab === 'week' ? 'Week' : 'Nutrition'}
-            accessibilityState={{ selected: value === tab }}
-            onPress={() => onChange(tab)}
-            style={styles.tab}
+      {(
+        (nutrition ? ['today', 'week', 'nutrition', 'progress'] : ['today', 'week']) as MainTab[]
+      ).map((tab) => (
+        <Pressable
+          key={tab}
+          accessibilityRole="tab"
+          accessibilityLabel={
+            tab === 'today'
+              ? 'Today'
+              : tab === 'week'
+                ? 'Week'
+                : tab === 'nutrition'
+                  ? 'Nutrition'
+                  : 'Progress'
+          }
+          accessibilityState={{ selected: value === tab }}
+          onPress={() => onChange(tab)}
+          style={styles.tab}
+        >
+          <View
+            accessibilityElementsHidden
+            style={[
+              styles.tabIcon,
+              tab === 'today' ? { transform: [{ rotate: '45deg' }], borderRadius: 3 } : null,
+              value === tab && { borderColor: colors.action },
+            ]}
           >
-            <View
-              accessibilityElementsHidden
-              style={[
-                styles.tabIcon,
-                tab === 'today' ? { transform: [{ rotate: '45deg' }], borderRadius: 3 } : null,
-                value === tab && { borderColor: colors.action },
-              ]}
-            >
-              <View
-                style={[styles.iconLine, value === tab && { backgroundColor: colors.action }]}
-              />
-            </View>
-            <Text
-              style={[styles.tabText, value === tab && { color: colors.action, fontWeight: '700' }]}
-            >
-              {tab === 'today' ? 'Today' : tab === 'week' ? 'Week' : 'Nutrition'}
-            </Text>
-          </Pressable>
-        ),
-      )}
+            <View style={[styles.iconLine, value === tab && { backgroundColor: colors.action }]} />
+          </View>
+          <Text
+            style={[styles.tabText, value === tab && { color: colors.action, fontWeight: '700' }]}
+          >
+            {tab === 'today'
+              ? 'Today'
+              : tab === 'week'
+                ? 'Week'
+                : tab === 'nutrition'
+                  ? 'Nutrition'
+                  : 'Progress'}
+          </Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -280,8 +292,8 @@ const styles = StyleSheet.create({
   initials: { fontSize: 12, fontWeight: '700', color: colors.ink },
   footer: { borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   tabs: { flexDirection: 'row', justifyContent: 'space-around', paddingTop: 10, paddingBottom: 8 },
-  tab: { minHeight: 48, minWidth: 88, alignItems: 'center', gap: 6 },
-  tabText: { fontSize: 12, color: colors.muted },
+  tab: { minHeight: 48, flex: 1, minWidth: 0, paddingHorizontal: 2, alignItems: 'center', gap: 6 },
+  tabText: { fontSize: 12, color: colors.muted, textAlign: 'center', maxWidth: '100%' },
   tabIcon: {
     width: 18,
     height: 18,
