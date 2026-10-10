@@ -13,6 +13,7 @@ import {
   type IntakeFields,
 } from './profileIntake';
 import { GenderSelect } from './GenderSelect';
+import { BirthdayPicker } from './BirthdayPicker';
 import { OnboardingScreen } from '../onboarding/OnboardingScreen';
 import {
   hasAcceptedTraining,
@@ -235,9 +236,9 @@ function AccountProfileForm({
   }
 
   function field(
-    key: keyof IntakeFields,
+    key: Exclude<keyof IntakeFields, 'birthday' | 'gender'>,
     label: string,
-    keyboardType: 'default' | 'number-pad' | 'decimal-pad' | 'numbers-and-punctuation' = 'default',
+    keyboardType: 'default' | 'number-pad' | 'decimal-pad' = 'default',
   ) {
     return (
       <View style={styles.field} key={key}>
@@ -351,7 +352,11 @@ function AccountProfileForm({
         {field('heightFeet', 'Height (feet)', 'number-pad')}
         {field('heightInches', 'Height (inches)', 'number-pad')}
       </View>
-      {field('birthday', 'Birthday (YYYY-MM-DD)', 'numbers-and-punctuation')}
+      <BirthdayPicker
+        value={fields.birthday}
+        disabled={submitting}
+        onChange={(value) => update('birthday', value)}
+      />
       <Text style={styles.hint}>
         Your birthday stays private. Only your age is used for planning.
       </Text>

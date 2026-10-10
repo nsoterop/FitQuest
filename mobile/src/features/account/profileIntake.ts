@@ -37,7 +37,7 @@ export function validateIntake(
     return { error: 'Enter a height up to 10 feet; inches must be 0–11.' };
   const birthday = fields.birthday.trim();
   if (birthdayAge(birthday) === null)
-    return { error: 'Enter a real birthday as YYYY-MM-DD, not in the future (up to age 130).' };
+    return { error: 'Choose a valid birthday, not in the future (up to age 130).' };
   const weight = Number(fields.weight);
   if (
     !/^\d+(\.\d+)?$/.test(fields.weight.trim()) ||

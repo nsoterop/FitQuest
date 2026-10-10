@@ -60,7 +60,7 @@ globalThis.__fitquestTestClient = {
     },
   },
 };
-const native = `export const View='View', Text='Text', TextInput='TextInput', Pressable='Pressable', ScrollView='ScrollView', KeyboardAvoidingView='KeyboardAvoidingView';
+const native = `export const View='View', Text='Text', TextInput='TextInput', Pressable='Pressable', ScrollView='ScrollView', Modal='Modal', KeyboardAvoidingView='KeyboardAvoidingView';
   export const Platform={OS:'ios'}; export const useWindowDimensions=()=>({width:375,height:812,fontScale:1});
   export const StyleSheet={create:x=>x}; export const Keyboard={dismiss(){},addListener(){return {remove(){}}}};
   export const AppState={currentState:'active',addEventListener:(_event,callback)=>{globalThis.__fitquestAppStateListeners.add(callback);return {remove(){globalThis.__fitquestAppStateListeners.delete(callback)}}}};
@@ -140,6 +140,7 @@ registerHooks({
   },
 });
 const { ProfileIntakeForm } = await import('../src/features/account/ProfileIntakeForm.tsx');
+const { BirthdayPicker } = await import('../src/features/account/BirthdayPicker.tsx');
 const { AccountPanel } = await import('../src/features/account/AccountPanel.tsx');
 const { default: App } = await import('../App.tsx');
 const { OnboardingScreen } = await import('../src/features/onboarding/OnboardingScreen.tsx');
@@ -171,6 +172,18 @@ function text(screen) {
   return JSON.stringify(screen.toJSON());
 }
 const press = (screen, label) => input(screen, label).props.onPress();
+async function chooseBirthday(screen, date) {
+  const [year, month, day] = date.split('-').map(Number);
+  const monthName = new Date(Date.UTC(year, month - 1, day)).toLocaleString('en-US', {
+    month: 'long',
+    timeZone: 'UTC',
+  });
+  await act(async () => press(screen, 'Choose birthday'));
+  await act(async () => press(screen, `Year ${year}`));
+  await act(async () => press(screen, `Month ${monthName}`));
+  await act(async () => press(screen, `Day ${day}`));
+  await act(async () => press(screen, 'Done'));
+}
 async function signOutThroughAccount(screen) {
   await act(async () => press(screen, 'Account'));
   await act(async () => press(screen, 'Sign out'));
@@ -231,13 +244,13 @@ test('profile loading hides the form; failed save keeps fields and confirmed sav
     ['Last name', 'Example'],
     ['Height (feet)', '5'],
     ['Height (inches)', '8'],
-    ['Birthday (YYYY-MM-DD)', '1997-01-01'],
     ['Weight (lb)', '155.5'],
   ]) {
     await act(async () => {
       input(screen, label).props.onChangeText(value);
     });
   }
+  await chooseBirthday(screen, '1997-01-01');
   await act(async () => press(screen, 'Select gender'));
   await act(async () => press(screen, 'Male'));
   globalThis.fetch = async () => ({ status: 503, json: async () => ({}) });
@@ -252,6 +265,7 @@ test('profile loading hides the form; failed save keeps fields and confirmed sav
     if (options.method === 'GET')
       return { status: 200, json: async () => ({ summary: null, plans: [] }) };
     assert.equal(JSON.parse(options.body).firstName, 'Renée');
+    assert.equal(JSON.parse(options.body).birthday, '1997-01-01');
     return new Promise((resolve) => {
       finishSave = resolve;
     });
@@ -2000,10 +2014,10 @@ test('a newly saved profile and an unconfirmed recap do not grant training acces
     ['Last name', 'Example'],
     ['Height (feet)', '5'],
     ['Height (inches)', '8'],
-    ['Birthday (YYYY-MM-DD)', '1997-01-01'],
     ['Weight (lb)', '155'],
   ])
     await act(async () => input(screen, label).props.onChangeText(value));
+  await chooseBirthday(screen, '1997-01-01');
   await act(async () => press(screen, 'Select gender'));
   await act(async () => press(screen, 'Male'));
   await act(async () => {
@@ -6717,7 +6731,7 @@ test('fresh profile has no selected gender and offers only Male/Female; legacy p
   globalThis.fetch = async () => ({ status: 200, json: async () => ({ profile: null }) });
   let screen = await mount();
   t.after(async () => act(async () => screen.unmount()));
-  assert.equal(input(screen, 'Birthday (YYYY-MM-DD)').props.value, '');
+  assert.equal(input(screen, 'Choose birthday').props.accessibilityValue.text, 'Not selected');
   assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Age (years)' }).length, 0);
   await act(async () => press(screen, 'Select gender'));
   const choices = screen.root
@@ -6742,7 +6756,7 @@ test('fresh profile has no selected gender and offers only Male/Female; legacy p
   });
   assert.match(renderedTrainingText(screen), /Prefer not to say|Birthday|Not recorded/i);
   await act(async () => press(screen, 'Edit profile'));
-  assert.equal(input(screen, 'Birthday (YYYY-MM-DD)').props.value, '');
+  assert.equal(input(screen, 'Choose birthday').props.accessibilityValue.text, 'Not selected');
   await act(async () => press(screen, 'Select gender'));
   assert(
     screen.root
@@ -6826,4 +6840,82 @@ test('five reviewed answers lead directly to sharing, one consent-driven generat
   await act(async () => screen.unmount());
   screen = await mount();
   assert.equal(server.requests.filter((r) => r.url.endsWith('/generate')).length, 1);
+});
+
+test('birthday picker commits only on Done and cancels without changing saved or missing birthdays', async (t) => {
+  const changes = [];
+  let screen;
+  await act(async () => {
+    screen = TestRenderer.create(
+      React.createElement(BirthdayPicker, {
+        value: '',
+        disabled: false,
+        onChange: (value) => changes.push(value),
+      }),
+    );
+  });
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(screen.root.findAllByType('TextInput').length, 0);
+  await act(async () => press(screen, 'Choose birthday'));
+  await act(async () => press(screen, 'Year 2000'));
+  await act(async () => press(screen, 'Cancel'));
+  assert.deepEqual(changes, []);
+  assert.equal(input(screen, 'Choose birthday').props.accessibilityValue.text, 'Not selected');
+  await chooseBirthday(screen, '2000-02-29');
+  assert.deepEqual(changes, ['2000-02-29']);
+  await act(async () =>
+    screen.update(
+      React.createElement(BirthdayPicker, {
+        value: '2000-02-29',
+        disabled: false,
+        onChange: (value) => changes.push(value),
+      }),
+    ),
+  );
+  assert.equal(input(screen, 'Choose birthday').props.accessibilityValue.text, 'February 29, 2000');
+  await act(async () => press(screen, 'Choose birthday'));
+  assert.equal(input(screen, 'Day 29').props.accessibilityState.checked, true);
+  await act(async () => press(screen, 'Year 1999'));
+  await act(async () => screen.root.findByType('Modal').props.onRequestClose());
+  assert.deepEqual(changes, ['2000-02-29']);
+  await act(async () => press(screen, 'Choose birthday'));
+  assert.equal(input(screen, 'Year 2000').props.accessibilityState.checked, true);
+});
+
+test('birthday picker clamps leap days and short months and excludes future and over-age dates', async (t) => {
+  const changes = [];
+  let screen;
+  await act(async () => {
+    screen = TestRenderer.create(
+      React.createElement(BirthdayPicker, {
+        value: '2000-02-29',
+        disabled: false,
+        onChange: (value) => changes.push(value),
+      }),
+    );
+  });
+  t.after(async () => act(async () => screen.unmount()));
+  await act(async () => press(screen, 'Choose birthday'));
+  await act(async () => press(screen, 'Year 2001'));
+  assert.equal(input(screen, 'Day 28').props.accessibilityState.checked, true);
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Day 29' }).length, 0);
+  await act(async () => press(screen, 'Done'));
+  assert.deepEqual(changes, ['2001-02-28']);
+  await act(async () => press(screen, 'Choose birthday'));
+  await act(async () => press(screen, 'Month March'));
+  await act(async () => press(screen, 'Day 31'));
+  await act(async () => press(screen, 'Month April'));
+  await act(async () => press(screen, 'Done'));
+  assert.equal(changes.at(-1), '2000-04-30');
+  await act(async () => press(screen, 'Choose birthday'));
+  await act(async () => press(screen, 'Year 2026'));
+  await act(async () => press(screen, 'Month October'));
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Month November' }).length, 0);
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Day 5' }).length, 0);
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Year 1894' }).length, 0);
+  await act(async () => press(screen, 'Year 1895'));
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Day 4' }).length, 0);
+  await act(async () => press(screen, 'Day 5'));
+  await act(async () => press(screen, 'Done'));
+  assert.equal(changes.at(-1), '1895-10-05');
 });
