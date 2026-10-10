@@ -7270,3 +7270,270 @@ test('native app icon stays opaque while header density exports preserve transpa
     }
   }
 });
+
+function nutritionCacheFixture(name, date = foodDay) {
+  const document = { ...foodFixture(), name, date };
+  return {
+    dates: foodWeek(date),
+    today: date,
+    days: [],
+    entries: [
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        revision: 1,
+        document,
+        createdAt: '2026-10-04T12:00:00Z',
+        updatedAt: '2026-10-04T12:00:00Z',
+        deletedAt: null,
+        undoUntil: null,
+      },
+    ],
+  };
+}
+
+test('nutrition tab retains loaded data, avoids repeat reads for 30 seconds and refreshes without a loading flash', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const { saved } = await batchDocumentState('accepted');
+  let diary = nutritionCacheFixture('Cached synthetic meal'),
+    calories = 2400,
+    delay = false;
+  const reads = { diary: 0, target: 0 },
+    waiting = [];
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.method, 'GET', 'tab visits never send commands or AI requests');
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith('/training/nutrition')) reads.target++;
+    else if (path.endsWith('/food')) reads.diary++;
+    else return { status: 200, json: async () => structuredClone(saved) };
+    if (delay)
+      await new Promise((resolve, reject) => {
+        waiting.push(resolve);
+        options.signal.addEventListener('abort', () => reject(Error('aborted')), { once: true });
+      });
+    return {
+      status: 200,
+      json: async () =>
+        path.endsWith('/food')
+          ? structuredClone(diary)
+          : {
+              target: {
+                planId: saved.plans[0].id,
+                planRevision: 1,
+                schemaVersion: 'document-week-v3',
+                acceptedAt: '2026-10-04T12:00:00Z',
+                dates: foodWeek(foodDay),
+                timeZone: 'America/New_York',
+                nutrition: {
+                  version: 1,
+                  status: 'available',
+                  caloriesKcal: calories,
+                  proteinGrams: 150,
+                  carbohydrateGrams: 300,
+                  fatGrams: 70,
+                  rationale: null,
+                },
+              },
+            },
+    };
+  };
+  const screen = await mountTraining({ initialState: saved, initialTab: 'today' });
+  t.after(async () => act(async () => screen.unmount()));
+  assert.deepEqual(reads, { diary: 0, target: 0 }, 'nutrition loads lazily');
+  await act(async () => {
+    press(screen, 'Nutrition');
+    await flush();
+    await flush();
+  });
+  const mounted = screen.root.findByType(NutritionScreen);
+  assert.match(text(screen), /Cached synthetic meal/);
+  assert.match(text(screen), /2400/);
+  assert.deepEqual(reads, { diary: 1, target: 1 });
+  await act(async () => press(screen, 'Today'));
+  assert.equal(mounted.props.active, false);
+  assert.equal(mounted.parent.props.accessibilityElementsHidden, true);
+  assert.equal(mounted.parent.props.style.display, 'none');
+  await act(async () => {
+    press(screen, 'Nutrition');
+    await flush();
+  });
+  assert.equal(screen.root.findByType(NutritionScreen), mounted);
+  assert.deepEqual(reads, { diary: 1, target: 1 });
+  assert.doesNotMatch(text(screen), /Restoring your food draft|Loading your food diary/);
+  await act(async () => press(screen, 'Today'));
+  delay = true;
+  t.mock.timers.setTime(Date.now() + 30_001);
+  await act(async () => {
+    press(screen, 'Nutrition');
+    await flush();
+  });
+  assert.deepEqual(reads, { diary: 2, target: 2 });
+  assert.match(text(screen), /Cached synthetic meal/);
+  assert.match(text(screen), /2400/);
+  assert.doesNotMatch(text(screen), /Restoring your food draft|Loading your food diary/);
+  await act(async () => press(screen, 'Today'));
+  await act(async () => {
+    press(screen, 'Nutrition');
+    await flush();
+  });
+  assert.deepEqual(reads, { diary: 2, target: 2 }, 'pending refreshes are reused');
+  diary = nutritionCacheFixture('Refreshed synthetic meal');
+  calories = 2500;
+  await act(async () => {
+    for (const resolve of waiting) resolve();
+    await flush();
+    await flush();
+  });
+  assert.match(text(screen), /Refreshed synthetic meal/);
+  assert.match(text(screen), /2500/);
+  assert.doesNotMatch(text(screen), /Cached synthetic meal/);
+  assert.deepEqual(reads, { diary: 2, target: 2 }, 'no duplicate refresh is queued');
+  delay = false;
+  await act(async () => {
+    screen.update(
+      React.createElement(TrainingScreen, {
+        initialState: saved,
+        initialTab: 'today',
+        userId: 'alice',
+        accessToken: async () => 'alice-token',
+        onClose() {},
+        refreshVersion: 1,
+      }),
+    );
+    await flush();
+    await flush();
+  });
+  assert.deepEqual(reads, { diary: 2, target: 3 }, 'profile/plan refresh revalidates targets');
+});
+
+test('nutrition refresh failure keeps saved data visible and a retry checks the server', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  let fail = false,
+    reads = 0;
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.method, 'GET');
+    if (String(url).includes('/training/nutrition'))
+      return { status: 200, json: async () => ({ target: null }) };
+    reads++;
+    return {
+      status: fail ? 503 : 200,
+      json: async () =>
+        fail ? { code: 'unavailable' } : nutritionCacheFixture('Still saved meal'),
+    };
+  };
+  const screen = await mountFood();
+  t.after(async () => act(async () => screen.unmount()));
+  fail = true;
+  await act(async () => {
+    for (const fn of globalThis.__fitquestAppStateListeners) fn('active');
+    await flush();
+  });
+  assert.match(text(screen), /Still saved meal/);
+  assert.doesNotMatch(text(screen), /Loading your food diary/);
+  assert.match(text(screen), /result could not be confirmed/);
+  fail = false;
+  await act(async () => {
+    press(screen, 'Reload food diary');
+    await flush();
+  });
+  assert.equal(reads, 3);
+  assert.doesNotMatch(text(screen), /result could not be confirmed/);
+});
+
+test('returning to nutrition after midnight loads the new day without presenting yesterday as today', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const queries = [],
+    waiting = [];
+  let delay = false;
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.method, 'GET');
+    const u = new URL(String(url));
+    if (u.pathname.endsWith('/training/nutrition'))
+      return { status: 200, json: async () => ({ target: null }) };
+    const date = u.searchParams.get('date');
+    queries.push(date);
+    if (delay)
+      await new Promise((resolve, reject) => {
+        waiting.push(resolve);
+        options.signal.addEventListener('abort', () => reject(Error('aborted')), { once: true });
+      });
+    return {
+      status: 200,
+      json: async () =>
+        nutritionCacheFixture(date === foodDay ? 'Yesterday meal' : 'New day meal', date),
+    };
+  };
+  const props = { userId: 'alice', accessToken: async () => 'alice-token', onTab() {} };
+  const screen = await mountFood(props);
+  t.after(async () => act(async () => screen.unmount()));
+  await act(async () =>
+    screen.update(React.createElement(NutritionScreen, { ...props, active: false })),
+  );
+  t.mock.timers.setTime(new Date('2026-10-05T18:00:00Z').getTime());
+  delay = true;
+  await act(async () => {
+    screen.update(React.createElement(NutritionScreen, props));
+    await flush();
+  });
+  assert.match(text(screen), /2026-10-05/);
+  assert.doesNotMatch(text(screen), /Yesterday meal/);
+  await act(async () => {
+    delay = false;
+    for (const resolve of waiting) resolve();
+    await flush();
+    await flush();
+  });
+  assert.equal(queries.at(-1), '2026-10-05');
+  assert.match(text(screen), /New day meal/);
+  assert.doesNotMatch(text(screen), /Yesterday meal/);
+});
+
+test('nutrition memory belongs to the mounted account and late refreshes cannot cross an account switch', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  let delayAlice = false,
+    late;
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.method, 'GET');
+    if (String(url).includes('/training/nutrition'))
+      return { status: 200, json: async () => ({ target: null }) };
+    const isAlice = options.headers.Authorization === 'Bearer alice-token';
+    if (isAlice && delayAlice)
+      await new Promise((resolve) => {
+        late = resolve;
+      });
+    return {
+      status: 200,
+      json: async () =>
+        nutritionCacheFixture(isAlice ? 'Alice synthetic meal' : 'Bob synthetic meal'),
+    };
+  };
+  const screen = await mountFood();
+  t.after(async () => {
+    if (late) late();
+    await act(async () => screen.unmount());
+  });
+  assert.match(text(screen), /Alice synthetic meal/);
+  delayAlice = true;
+  await act(async () => {
+    press(screen, 'Reload food diary');
+    await flush();
+  });
+  await act(async () => {
+    screen.update(
+      React.createElement(NutritionScreen, {
+        userId: 'bob',
+        accessToken: async () => 'bob-token',
+        onTab() {},
+      }),
+    );
+    await flush();
+    await flush();
+  });
+  assert.doesNotMatch(text(screen), /Alice synthetic meal/);
+  assert.match(text(screen), /Bob synthetic meal/);
+  await act(async () => {
+    late();
+    await flush();
+  });
+  assert.doesNotMatch(text(screen), /Alice synthetic meal/);
+  assert.match(text(screen), /Bob synthetic meal/);
+});

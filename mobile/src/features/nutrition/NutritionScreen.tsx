@@ -3,7 +3,7 @@ import { nutritionTargetRequest, TrainingError } from '../training/trainingApi';
 import type { AcceptedNutrition } from '../../../../backend/src/shared/documentPlanContract';
 import { FoodLibraryScreen } from './FoodLibraryScreen';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AppState, Pressable, Text, TextInput, View } from 'react-native';
+import { AppState, Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import { Action, Page, Notice, ui, colors, type MainTab } from '../../components/Design';
 import { useConversationScroll } from '../../components/ConversationScrollView';
 import {
@@ -256,20 +256,22 @@ type Props = {
   onSessionEnded?: () => void;
   onAccount?: () => void;
   onTab: (tab: MainTab) => void;
+  active?: boolean;
+  targetVersion?: string;
 };
-export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount, onTab }: Props) {
-  return (
-    <AccountNutritionScreen
-      key={userId}
-      userId={userId}
-      accessToken={accessToken}
-      onSessionEnded={onSessionEnded}
-      onAccount={onAccount}
-      onTab={onTab}
-    />
-  );
+export function NutritionScreen(props: Props) {
+  return <AccountNutritionScreen key={props.userId} {...props} />;
 }
-function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount, onTab }: Props) {
+const refreshAfterMs = 30_000;
+function AccountNutritionScreen({
+  userId,
+  accessToken,
+  onSessionEnded,
+  onAccount,
+  onTab,
+  active = true,
+  targetVersion = '',
+}: Props) {
   const [library, setLibrary] = useState(false),
     [librarySource, setLibrarySource] = useState<FoodEntry | null>(null);
   const [zone, setZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -295,7 +297,14 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
   const followToday = useRef(true),
     refreshDue = useRef(false),
     dateRef = useRef(date),
-    zoneRef = useRef(zone);
+    zoneRef = useRef(zone),
+    diaryScope = useRef({ date, zone }),
+    diaryReadAt = useRef(0),
+    targetReadAt = useRef(0),
+    targetPending = useRef<AbortController | null>(null),
+    diaryLoading = useRef(false),
+    targetScope = useRef(`${date}:${targetVersion}`),
+    visited = useRef(false);
   dateRef.current = date;
   zoneRef.current = zone;
   function selectDate(d: string) {
@@ -306,16 +315,22 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
   }
   const [targetRefresh, setTargetRefresh] = useState(0);
   const [target, setTarget] = useState<AcceptedNutrition | null>(null),
-    [_targetStatus, setTargetStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+    [targetStatus, setTargetStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   useEffect(() => {
     const controller = new AbortController();
-    setTarget(null);
+    targetPending.current = controller;
+    const scope = `${date}:${targetVersion}`;
+    if (scope !== targetScope.current) {
+      targetScope.current = scope;
+      setTarget(null);
+    }
     setTargetStatus('loading');
     void accessToken()
       .then((t) => nutritionTargetRequest(date, t, controller.signal))
       .then((t) => {
         if (!controller.signal.aborted) {
           setTarget(t);
+          targetReadAt.current = Date.now();
           setTargetStatus('ready');
         }
       })
@@ -324,9 +339,15 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
           setTargetStatus('error');
           if (e instanceof TrainingError && e.code === 'session_ended') onSessionEnded?.();
         }
+      })
+      .finally(() => {
+        if (targetPending.current === controller) targetPending.current = null;
       });
-    return () => controller.abort();
-  }, [userId, date, targetRefresh]);
+    return () => {
+      controller.abort();
+      if (targetPending.current === controller) targetPending.current = null;
+    };
+  }, [userId, date, targetRefresh, targetVersion]);
   const daily = target?.nutrition.status === 'available' ? target.nutrition : null;
   const live = useRef(true),
     pending = useRef<AbortController | null>(null),
@@ -373,6 +394,17 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
   useEffect(() => {
     live.current = true;
     void restoreDraft();
+    return () => {
+      live.current = false;
+      pending.current?.abort();
+      pending.current = null;
+    };
+  }, [userId]);
+  useEffect(() => {
+    if (!active) {
+      Keyboard.dismiss();
+      return;
+    }
     const refresh = (foreground = false) => {
       const nextZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       zoneRef.current = nextZone;
@@ -384,18 +416,26 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
         else setReload((n) => n + 1);
       }
     };
+    refresh();
+    if (visited.current) {
+      if (!targetPending.current && Date.now() - targetReadAt.current >= refreshAfterMs)
+        setTargetRefresh((n) => n + 1);
+      if (Date.now() - diaryReadAt.current >= refreshAfterMs) {
+        if (pending.current) {
+          if (!diaryLoading.current) refreshDue.current = true;
+        } else setReload((n) => n + 1);
+      }
+    }
+    visited.current = true;
     const timer = setInterval(() => refresh(), 1000);
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') refresh(true);
     });
     return () => {
-      live.current = false;
-      pending.current?.abort();
-      pending.current = null;
       clearInterval(timer);
       sub.remove();
     };
-  }, [userId]);
+  }, [active]);
   useEffect(() => {
     const today = foodToday(zone, new Date(now));
     if (
@@ -413,7 +453,10 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
   }, [draft, ready, draftError, restoreFailed]);
   useEffect(() => {
     if (ready) {
-      setState(null);
+      if (diaryScope.current.date !== date || diaryScope.current.zone !== zone) {
+        diaryScope.current = { date, zone };
+        setState(null);
+      }
       if (pending.current) refreshDue.current = true;
       else void load();
     }
@@ -472,14 +515,22 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
     const d = dateRef.current,
       z = zoneRef.current;
     const result = await r<FoodState>(`?date=${d}&timeZone=${encodeURIComponent(z)}`);
-    if (d === dateRef.current && z === zoneRef.current) setState(result);
-    else refreshDue.current = true;
+    if (d === dateRef.current && z === zoneRef.current) {
+      diaryReadAt.current = Date.now();
+      setState(result);
+    } else refreshDue.current = true;
   }
   async function load() {
-    await run(async (r) => {
-      await readDiary(r);
-      if (!draftRef.current.pending) setBlocked(false);
-    });
+    if (pending.current) return;
+    diaryLoading.current = true;
+    try {
+      await run(async (r) => {
+        await readDiary(r);
+        if (!draftRef.current.pending) setBlocked(false);
+      });
+    } finally {
+      diaryLoading.current = false;
+    }
   }
   async function receipt(
     result: FoodOperation,
@@ -895,6 +946,12 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                   </View>
                   {target?.nutrition.status === 'unavailable' && (
                     <Text style={ui.copy}>Targets unavailable: {target.nutrition.rationale}</Text>
+                  )}
+                  {targetStatus === 'error' && (
+                    <Text style={ui.copy}>
+                      Couldn’t refresh nutrition targets.
+                      {target ? ' Showing the last loaded targets.' : ''}
+                    </Text>
                   )}
                   {nutrients.map((n) => {
                     const t = foodTotal(

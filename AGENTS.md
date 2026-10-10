@@ -10,6 +10,8 @@ The mobile implementation/delivery is complete at application source `9a5b42f`, 
 
 The owner's subsequent October 10 correction uses Design's transparent blue-and-lime logo in the existing shared in-app header. Preserve the opaque native home-screen icon and build 2; finish scoped checks, private publication and delivery through the existing owner Metro. This correction does not authorize another native build.
 
+The current follow-up improves repeat Nutrition tab visits using mounted-account memory and background refresh. Preserve drafts, receipts, revision checks, account isolation and calendar handling. Scoped mobile checks/private publication and owner-Metro delivery are authorized; no new native build, hosted change or AI dispatch is assigned.
+
 Other feature work remains paused. Preserve completed organization, security, birthday/profile/onboarding corrections and all existing behavior. Design artwork and synthetic simulator evidence are separate from physical-phone acceptance. HQ is not editing and no routine HQ review gate applies.
 
 Prior instructions and duplicate release notes were removed from the working tree because Git preserves their historical versions. Git history is evidence, not an active work queue or permission to deploy, migrate, reset or spend. The concise retained release record is under `docs/archive/releases`.

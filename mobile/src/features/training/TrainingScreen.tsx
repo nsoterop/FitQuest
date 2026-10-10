@@ -101,6 +101,10 @@ function AccountTrainingScreen({
       index: 0,
     });
   const lastToday = useRef(localToday(initialState?.summary?.timeZone));
+  const [nutritionOpened, setNutritionOpened] = useState(initialTab === 'nutrition');
+  useEffect(() => {
+    if (tab === 'nutrition') setNutritionOpened(true);
+  }, [tab]);
   const calendarRefresh = useRef(() => {}),
     calendarZone = useRef<string | undefined>(undefined);
   calendarZone.current = state?.summary?.timeZone;
@@ -969,14 +973,25 @@ function AccountTrainingScreen({
             )}
         </Page>
       </View>
-      {tab === 'nutrition' && onboarded && (
-        <NutritionScreen
-          userId={userId}
-          accessToken={accessToken}
-          onSessionEnded={onSessionEnded}
-          onAccount={onAccount}
-          onTab={setTab}
-        />
+      {(nutritionOpened || tab === 'nutrition') && onboarded && (
+        <View
+          style={{ flex: 1, display: tab === 'nutrition' ? 'flex' : 'none' }}
+          accessibilityElementsHidden={tab !== 'nutrition'}
+          importantForAccessibility={tab === 'nutrition' ? 'auto' : 'no-hide-descendants'}
+        >
+          <NutritionScreen
+            userId={userId}
+            accessToken={accessToken}
+            onSessionEnded={onSessionEnded}
+            onAccount={onAccount}
+            onTab={setTab}
+            active={tab === 'nutrition'}
+            targetVersion={`${refreshVersion}:${state?.plans
+              .filter((p) => p.reviewState === 'accepted')
+              .map((p) => `${p.id}:${p.planRevision}`)
+              .join(',')}`}
+          />
+        </View>
       )}
       {tab === 'progress' && onboarded && (
         <ProgressScreen
