@@ -1,3 +1,4 @@
+import { Icon } from '../../components/Icon';
 import { useRef, useState } from 'react';
 import { Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -80,10 +81,12 @@ export function BirthdayPicker({
           setToday(now);
           setDraft(selection(value, now));
         }}
-        style={[ui.input, ui.row, disabled && ui.disabled]}
+        style={[ui.input, ui.row, { flexWrap: 'nowrap' }, disabled && ui.disabled]}
       >
-        <Text style={ui.copy}>{recorded ? display(value) : 'Choose birthday'}</Text>
-        <Text style={ui.copy}>⌄</Text>
+        <Text style={[ui.copy, { flexShrink: 1 }]}>
+          {recorded ? display(value) : 'Choose birthday'}
+        </Text>
+        <Icon name="chevron-down" />
       </Pressable>
       {draft && (
         <Modal transparent animationType="fade" onRequestClose={() => setDraft(null)}>

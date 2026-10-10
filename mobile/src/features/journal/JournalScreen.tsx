@@ -1,3 +1,4 @@
+import { Icon } from '../../components/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Action, Notice, Page, colors, ui } from '../../components/Design';
@@ -521,6 +522,7 @@ function JournalEditor({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Options for ${r.name}`}
+                    accessibilityState={{ expanded: menu === r.id, disabled: blocked }}
                     disabled={blocked}
                     onPress={() => setMenu(menu === r.id ? null : r.id)}
                     style={{
@@ -530,7 +532,7 @@ function JournalEditor({
                       justifyContent: 'center',
                     }}
                   >
-                    <Text style={ui.section}>•••</Text>
+                    <Icon name="ellipsis" />
                   </Pressable>
                 </View>
                 {original && <Text style={ui.copy}>Planned: {original.prescription}</Text>}
@@ -581,7 +583,10 @@ function JournalEditor({
                     }
                     style={[ui.row, { minHeight: 48, justifyContent: 'flex-start' }]}
                   >
-                    <Text style={ui.section}>{r.completed === true ? '☑' : '☐'}</Text>
+                    <Icon
+                      name={r.completed === true ? 'square-check' : 'square'}
+                      color={r.completed === true ? colors.action : colors.muted}
+                    />
                     <Text style={ui.copy}>
                       Completed{r.completed === null ? ' · Not logged' : ''}
                     </Text>

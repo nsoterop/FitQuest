@@ -342,6 +342,7 @@ export function AccountPanel() {
         <Notice>Keep this app installed so the link can bring you back to FitQuest.</Notice>
         <Action
           label="Back to sign in"
+          icon="chevron-left"
           onPress={() => {
             setConfirmation(false);
             setMode('signIn');

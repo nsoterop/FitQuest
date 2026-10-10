@@ -1,6 +1,7 @@
+import { Icon } from '../../components/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Action, Notice, Page, ui } from '../../components/Design';
+import { Action, Notice, Page, colors, ui } from '../../components/Design';
 import { loadProfile, type SavedProfile } from './profileIntake';
 import { PlanningSettings } from './PlanningSettings';
 import { ProfileIntakeForm } from './ProfileIntakeForm';
@@ -193,8 +194,8 @@ function AccountLink({ label, onPress }: { label: string; onPress: () => void })
       onPress={onPress}
       style={[ui.row, { minHeight: 56, paddingVertical: 12 }]}
     >
-      <Text style={ui.copy}>{label}</Text>
-      <Text style={ui.copy}>›</Text>
+      <Text style={[ui.copy, { flexShrink: 1 }]}>{label}</Text>
+      <Icon name="chevron-right" color={colors.action} />
     </Pressable>
   );
 }

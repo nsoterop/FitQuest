@@ -9,6 +9,7 @@ Start here. Current documentation is separated from dated verification evidence.
 | Run tests, lint and CI checks | [Development checks](guides/development.md) |
 | Release the completed source and see outstanding dependencies | [Release dependencies and rollout](guides/release.md) |
 | Understand data, planning and scheduling boundaries | [Architecture](reference/architecture.md) |
+| Understand branding and UI icons | [Mobile branding and icons](reference/icons.md) |
 | Understand the illustrative screenshots | [Screenshot provenance](reference/screenshots.md) |
 | Investigate private plan-validation failures | [Diagnostic reference](reference/plan-validation-diagnostics.md) |
 | Read long-term product aspirations | [Product goals](reference/product-goals.md); not an implementation checklist |

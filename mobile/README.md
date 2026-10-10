@@ -43,3 +43,5 @@ Batch 2 recorded 128 passing mobile tests and a finite offline iOS export of 682
 The two unresolved upstream tooling advisories and CI exception expiry are documented in [security guidance](../SECURITY.md). Existing [Expo MIT attribution](LICENSE) remains unchanged; FitQuest's project license is at [the repository root](../LICENSE).
 
 [Historical mobile releases](https://github.com/nsoterop/FitQuest/blob/a297e2d/docs/history/mobile-release-notes-2026-10-10.md) retain earlier checkpoints without making them current instructions.
+
+The approved v3 brand and Lucide control artwork are documented in [mobile branding](../docs/reference/icons.md). In-app changes load through owner Metro. The home-screen icon requires the replacement development build linked in the current [release record](../docs/archive/releases/2026-10-10.md); update the existing app without uninstalling it. This scoped build exception does not authorize new signing credentials or additional charges.

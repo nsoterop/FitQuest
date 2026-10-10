@@ -1,3 +1,4 @@
+import { Icon } from '../../components/Icon';
 import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { useConversationScroll } from '../../components/ConversationScrollView';
@@ -91,14 +92,15 @@ export function FixedIntakeForm(p: FixedIntakeFormProps) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={history ? 'Hide earlier answers' : 'Earlier answers'}
-                accessibilityState={{ expanded: history }}
+                accessibilityState={{ expanded: history, disabled: p.disabled }}
                 disabled={p.disabled}
                 onPress={() => setHistory(!history)}
-                style={{ minHeight: 44, justifyContent: 'center' }}
+                style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 }}
               >
-                <Text style={[ui.label, { color: colors.action }]}>
-                  {history ? 'Hide earlier answers' : 'Earlier answers'} {history ? '−' : '+'}
+                <Text style={[ui.label, { color: colors.action, flexShrink: 1 }]}>
+                  {history ? 'Hide earlier answers' : 'Earlier answers'}
                 </Text>
+                <Icon name={history ? 'chevron-up' : 'chevron-down'} color={colors.action} />
               </Pressable>
               {history && previous}
             </>

@@ -1,3 +1,4 @@
+import { Icon } from '../../components/Icon';
 import { Page, ui } from '../../components/Design';
 import { FixedIntakeForm } from './FixedIntakeForm';
 import { useEffect, useRef, useState } from 'react';
@@ -396,7 +397,7 @@ function AccountOnboardingScreen({
           }}
           style={styles.optionsButton}
         >
-          <Text style={styles.optionsText}>···</Text>
+          <Icon name="ellipsis" />
         </Pressable>
       </View>
       {optionsOpen && (
@@ -672,7 +673,6 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#244DE5', fontSize: 16 },
   optionsRow: { alignItems: 'flex-end' },
   optionsButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  optionsText: { fontSize: 24, color: '#626670' },
   menu: {
     borderWidth: 1,
     borderColor: '#DCDFE4',

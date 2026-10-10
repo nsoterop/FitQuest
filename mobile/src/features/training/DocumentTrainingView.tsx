@@ -1,3 +1,4 @@
+import { Icon } from '../../components/Icon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { TrainingPlan } from './trainingApi';
 import { Action, Notice, colors, ui } from '../../components/Design';
@@ -127,7 +128,10 @@ export function DocumentToday({
                 <Text style={[ui.label, styles.light]}>
                   {rangeText(session.durationMinutes)} min
                 </Text>
-                <Text style={[ui.label, { color: colors.highlight }]}>View workout →</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={[ui.label, { color: colors.highlight }]}>View workout</Text>
+                  <Icon name="chevron-right" color={colors.highlight} />
+                </View>
               </View>
             </Pressable>
           )}
@@ -142,7 +146,7 @@ export function DocumentToday({
                 onSelect({ date: selectedDate, index: i });
                 onOpen({ date: selectedDate, index: i });
               }}
-              style={styles.row}
+              style={[styles.row, featured === i && { backgroundColor: colors.actionWash }]}
             >
               <Text style={styles.number}>{String(i + 1).padStart(2, '0')}</Text>
               <View style={{ flex: 1, gap: 5 }}>
@@ -153,7 +157,7 @@ export function DocumentToday({
                     .join(' · ')}
                 </Text>
               </View>
-              <Text style={{ color: colors.action }}>{featured === i ? '●' : '›'}</Text>
+              <Icon name="chevron-right" color={colors.action} />
             </Pressable>
           ))}
           <Text style={ui.copy}>Saved prescriptions. Completion is not tracked here.</Text>
@@ -216,7 +220,7 @@ export function DocumentWeek({
                 </View>
               </View>
               {plan.reviewState === 'accepted' && (
-                <Text style={{ fontSize: 24, color: colors.action }}>›</Text>
+                <Icon name="chevron-right" color={colors.action} />
               )}
             </Pressable>
           ))}

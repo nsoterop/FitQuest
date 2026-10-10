@@ -1,3 +1,4 @@
+import { Icon } from '../../components/Icon';
 import { nutritionTargetRequest, TrainingError } from '../training/trainingApi';
 import type { AcceptedNutrition } from '../../../../backend/src/shared/documentPlanContract';
 import { FoodLibraryScreen } from './FoodLibraryScreen';
@@ -761,9 +762,11 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Change diary date"
-                  style={{ minHeight: 44, justifyContent: 'center' }}
+                  accessibilityState={{ expanded: editingDate }}
+                  style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 }}
                   onPress={() => setEditingDate((v) => !v)}
                 >
+                  <Icon name="calendar-days" color={colors.action} />
                   <Text style={ui.label}>
                     {new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', {
                       month: 'short',
@@ -771,6 +774,7 @@ function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                       timeZone: 'UTC',
                     })}
                   </Text>
+                  <Icon name="chevron-down" color={colors.action} />
                 </Pressable>
                 <Action
                   label="Next day"

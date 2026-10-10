@@ -60,7 +60,7 @@ globalThis.__fitquestTestClient = {
     },
   },
 };
-const native = `export const View='View', Text='Text', TextInput='TextInput', Pressable='Pressable', ScrollView='ScrollView', Modal='Modal', KeyboardAvoidingView='KeyboardAvoidingView';
+const native = `export const Image='Image', View='View', Text='Text', TextInput='TextInput', Pressable='Pressable', ScrollView='ScrollView', Modal='Modal', KeyboardAvoidingView='KeyboardAvoidingView';
   export const Platform={OS:'ios'}; export const useWindowDimensions=()=>({width:375,height:812,fontScale:1});
   export const StyleSheet={create:x=>x}; export const Keyboard={dismiss(){},addListener(){return {remove(){}}}};
   export const AppState={currentState:'active',addEventListener:(_event,callback)=>{globalThis.__fitquestAppStateListeners.add(callback);return {remove(){globalThis.__fitquestAppStateListeners.delete(callback)}}}};
@@ -93,6 +93,12 @@ registerHooks({
     return next(specifier, context);
   },
   load(url, context, next) {
+    if (url.endsWith('.png'))
+      return {
+        format: 'module',
+        source: `export default ${JSON.stringify(url)};`,
+        shortCircuit: true,
+      };
     if (url === 'fitquest-test:native')
       return { format: 'module', source: native, shortCircuit: true };
     if (url === 'fitquest-test:status')
@@ -5627,7 +5633,15 @@ test('new exercise rows stay private until acceptance, render exact ordered plai
   assert.match(renderedTrainingText(screen), /Literal <script> row/);
   assert.equal(
     screen.root.findAll(
-      (n) => typeof n.type === 'string' && ['WebView', 'Image', 'a'].includes(n.type),
+      (n) =>
+        typeof n.type === 'string' &&
+        (['WebView', 'a'].includes(n.type) ||
+          (n.type === 'Image' &&
+            !(
+              typeof n.props.source === 'string' &&
+              (n.props.source.startsWith(new URL('../assets/icons/', import.meta.url).href) ||
+                n.props.source === new URL('../assets/branding/mark.png', import.meta.url).href)
+            ))),
     ).length,
     0,
   );
@@ -6709,7 +6723,15 @@ test('current saved plans render hostile exercise and nutrition text literally w
   assert(strings().includes(prescription));
   assert.equal(
     screen.root.findAll(
-      (n) => typeof n.type === 'string' && ['WebView', 'Image', 'a'].includes(n.type),
+      (n) =>
+        typeof n.type === 'string' &&
+        (['WebView', 'a'].includes(n.type) ||
+          (n.type === 'Image' &&
+            !(
+              typeof n.props.source === 'string' &&
+              (n.props.source.startsWith(new URL('../assets/icons/', import.meta.url).href) ||
+                n.props.source === new URL('../assets/branding/mark.png', import.meta.url).href)
+            ))),
     ).length,
     0,
   );
@@ -7001,4 +7023,233 @@ test('failed profile reload from Before we begin retries into setup instead of a
   assert.equal(input(screen, 'First name').props.value, 'Alex');
   assert.match(renderedTrainingText(screen), /Female/);
   assert.doesNotMatch(renderedTrainingText(screen), /Before we begin/);
+});
+
+test('Lucide navigation keeps visible labels, semantic selection, decorative images and exact destinations', async (t) => {
+  const { Tabs, Page, colors } = await import('../src/components/Design.tsx');
+  const { Icon } = await import('../src/components/Icon.tsx');
+  const expected = {
+    Today: 'sun',
+    Week: 'calendar-days',
+    Nutrition: 'utensils',
+    Progress: 'chart-column',
+  };
+  const selected = [];
+  let screen;
+  await act(async () => {
+    screen = TestRenderer.create(
+      React.createElement(
+        Page,
+        {
+          onBack: () => selected.push('back'),
+          backLabel: 'Back to day',
+          onAccount: () => selected.push('account'),
+        },
+        React.createElement(Tabs, {
+          value: 'today',
+          nutrition: true,
+          onChange: (v) => selected.push(v),
+        }),
+      ),
+    );
+  });
+  t.after(async () => act(async () => screen.unmount()));
+  for (const [label, name] of Object.entries(expected)) {
+    const tab = input(screen, label);
+    const icon = tab.findByType(Icon);
+    assert.equal(icon.props.name, name);
+    assert.equal(icon.props.size, 24);
+    assert.equal(tab.props.accessibilityRole, 'tab');
+    assert.equal(tab.props.accessibilityState.selected, label === 'Today');
+    assert(tab.findAllByType('Text').some((n) => n.props.children === label));
+    await act(async () => press(screen, label));
+  }
+  await act(async () => press(screen, 'Back to day'));
+  await act(async () => press(screen, 'Account'));
+  assert.deepEqual(selected, ['today', 'week', 'nutrition', 'progress', 'back', 'account']);
+  for (const image of screen.root.findAllByType('Image')) {
+    assert.equal(image.props.accessible, false);
+    assert.equal(image.props.accessibilityElementsHidden, true);
+    assert.equal(image.props.importantForAccessibility, 'no-hide-descendants');
+    assert(image.props.source.startsWith(new URL('../assets/icons/', import.meta.url).href));
+  }
+  for (const value of ['today', 'week', 'nutrition', 'progress']) {
+    await act(async () =>
+      screen.update(React.createElement(Tabs, { value, nutrition: true, onChange: () => {} })),
+    );
+    const checked = screen.root
+      .findAllByType('Pressable')
+      .filter((n) => n.props.accessibilityState.selected);
+    assert.equal(checked.length, 1);
+    assert.equal(checked[0].findByType(Icon).props.color, colors.action);
+    assert.match(JSON.stringify(checked[0].props.style), /minHeight/);
+  }
+});
+
+test('completion icon reflects explicit journal input without recording prescribed or unsaved work', async (t) => {
+  const { Icon } = await import('../src/components/Icon.tsx');
+  const journal = journalFixture();
+  const server = journalServer(journal);
+  let screen;
+  await act(async () => {
+    screen = TestRenderer.create(
+      React.createElement(JournalScreen, {
+        userId: 'icon-journal',
+        journalId: journal.id,
+        accessToken: async () => 'synthetic',
+        onBack: () => {},
+        onSessionEnded: () => {},
+      }),
+    );
+    await flush();
+  });
+  t.after(async () => act(async () => screen.unmount()));
+  const checkbox = () => input(screen, 'Completed Easy walk');
+  assert.equal(checkbox().props.accessibilityState.checked, false);
+  assert.equal(checkbox().findByType(Icon).props.name, 'square');
+  await act(async () => {
+    press(screen, 'Completed Easy walk');
+    await flush();
+  });
+  assert.equal(checkbox().props.accessibilityState.checked, true);
+  assert.equal(checkbox().findByType(Icon).props.name, 'square-check');
+  assert.equal(server.commands.length, 0);
+  assert.equal(server.current.document.results[2].completed, null);
+  await act(async () => {
+    press(screen, 'Completed Easy walk');
+    await flush();
+  });
+  assert.equal(checkbox().findByType(Icon).props.name, 'square');
+  assert.equal(server.commands.length, 0);
+});
+
+test('earlier-answer chevrons follow the actual expanded state without changing saved answers', async (t) => {
+  const { FixedIntakeForm } = await import('../src/features/onboarding/FixedIntakeForm.tsx');
+  const { Icon } = await import('../src/components/Icon.tsx');
+  const answers = ['Synthetic original answer'];
+  let screen;
+  await act(async () => {
+    screen = TestRenderer.create(
+      React.createElement(FixedIntakeForm, {
+        questions: ['Goals?', 'Activity?', 'Equipment?', 'Schedule?', 'Limits?'],
+        answers,
+        text: '',
+        editIndex: null,
+        disabled: false,
+        canContinue: true,
+        onText: () => {},
+        onEdit: () => {},
+        onCancel: () => {},
+        onSave: () => {},
+        onContinue: () => {},
+      }),
+    );
+  });
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(input(screen, 'Earlier answers').props.accessibilityState.expanded, false);
+  assert.equal(input(screen, 'Earlier answers').findByType(Icon).props.name, 'chevron-down');
+  await act(async () => press(screen, 'Earlier answers'));
+  assert.equal(input(screen, 'Hide earlier answers').props.accessibilityState.expanded, true);
+  assert.equal(input(screen, 'Hide earlier answers').findByType(Icon).props.name, 'chevron-up');
+  assert.match(renderedTrainingText(screen), /Synthetic original answer/);
+  assert.deepEqual(answers, ['Synthetic original answer']);
+});
+
+test('every bundled icon has crisp point-size density variants and retained upstream notices', () => {
+  const dir = new URL('../assets/icons/', import.meta.url);
+  const names = [
+    'sun',
+    'calendar-days',
+    'utensils',
+    'chart-column',
+    'user-round',
+    'chevron-left',
+    'chevron-right',
+    'chevron-down',
+    'chevron-up',
+    'ellipsis',
+    'square',
+    'square-check',
+  ];
+  for (const name of names)
+    for (const size of [20, 24])
+      for (const scale of [1, 2, 3]) {
+        const file = readFileSync(
+          new URL(`${name}-${size}${scale === 1 ? '' : `@${scale}x`}.png`, dir),
+        );
+        assert.equal(file.readUInt32BE(16), size * scale);
+        assert.equal(file.readUInt32BE(20), size * scale);
+        assert.equal(file[25], 6, 'RGBA alpha mask');
+      }
+  const license = readFileSync(new URL('LICENSE', dir), 'utf8');
+  assert.match(license, /Lucide Icons and Contributors/);
+  assert.match(license, /Cole Bemis/);
+});
+
+test('approved brand has one accessible header label and preserves the existing account and back controls', async (t) => {
+  const { Page } = await import('../src/components/Design');
+  let back = 0,
+    account = 0;
+  let renderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(Page, { onAccount: () => account++ }, 'Synthetic'),
+    );
+  });
+  t.after(() => act(() => renderer.unmount()));
+  const brand = renderer.root.findAll(
+    (n) => n.type === 'View' && n.props.accessible && n.props.accessibilityLabel === 'FitQuest',
+  );
+  assert.equal(brand.length, 1);
+  const mark = brand[0].findByType('Image');
+  assert.equal(mark.props.source, new URL('../assets/branding/mark.png', import.meta.url).href);
+  assert.equal(mark.props.accessible, false);
+  assert.equal(mark.props.style.width, 36);
+  assert.equal(mark.props.style.tintColor, undefined);
+  await act(() =>
+    renderer.root
+      .findByProps({ accessibilityLabel: 'Account', accessibilityRole: 'button' })
+      .props.onPress(),
+  );
+  assert.equal(account, 1);
+  await act(() =>
+    renderer.update(
+      React.createElement(
+        Page,
+        { onBack: () => back++, backLabel: 'Back to profile setup' },
+        'Synthetic',
+      ),
+    ),
+  );
+  assert.equal(
+    renderer.root.findAll((n) => n.type === 'View' && n.props.accessibilityLabel === 'FitQuest')
+      .length,
+    0,
+  );
+  await act(() =>
+    renderer.root
+      .findByProps({ accessibilityLabel: 'Back to profile setup', accessibilityRole: 'button' })
+      .props.onPress(),
+  );
+  assert.equal(back, 1);
+});
+
+test('native app icon and header density exports are square RGB images with the existing app identity', () => {
+  const config = JSON.parse(readFileSync(new URL('../app.json', import.meta.url))).expo;
+  assert.equal(config.icon, './assets/branding/app-icon.png');
+  assert.equal(config.ios.bundleIdentifier, 'com.nsoterop.fitquest.dev');
+  assert.equal(config.scheme, 'fitquest-dev');
+  assert.equal(config.extra.eas.projectId, 'ee3a68db-3a8a-4bed-9472-01e90acdc1da');
+  for (const [name, size] of [
+    ['source-v3', 1254],
+    ['app-icon', 1024],
+    ['mark', 36],
+    ['mark@2x', 72],
+    ['mark@3x', 108],
+  ]) {
+    const png = readFileSync(new URL(`../assets/branding/${name}.png`, import.meta.url));
+    assert.equal(png.readUInt32BE(16), size);
+    assert.equal(png.readUInt32BE(20), size);
+    assert.equal(png[25], 2, 'RGB without alpha, including the native icon corners');
+  }
 });

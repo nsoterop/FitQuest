@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import brandMark from '../../assets/branding/mark.png';
+import { Icon, type IconName } from './Icon';
 import { ConversationScrollView } from './ConversationScrollView';
 export const colors = {
   canvas: '#F2F3F5',
@@ -56,6 +58,8 @@ export const ui = StyleSheet.create({
   },
   button: {
     minHeight: 52,
+    flexDirection: 'row',
+    gap: 8,
     paddingHorizontal: 18,
     paddingVertical: 14,
     borderRadius: 9,
@@ -105,12 +109,14 @@ export function Action({
   disabled = false,
   secondary = false,
   busy = false,
+  icon,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   secondary?: boolean;
   busy?: boolean;
+  icon?: IconName;
 }) {
   return (
     <Pressable
@@ -125,7 +131,8 @@ export function Action({
         (disabled || busy || pressed) && ui.disabled,
       ]}
     >
-      <Text style={[ui.buttonText, secondary && ui.secondaryText]}>{label}</Text>
+      {icon && <Icon name={icon} color={secondary ? colors.action : colors.surface} />}
+      <Text style={[ui.buttonText, secondary && ui.secondaryText, { flexShrink: 1 }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -156,12 +163,23 @@ export function Page({
             onPress={onBack}
             style={styles.back}
           >
-            <Text style={styles.backText}>‹ {backLabel}</Text>
+            <Icon name="chevron-left" color={colors.ink} />
+            <Text style={styles.backText}>{backLabel}</Text>
           </Pressable>
         ) : (
-          <Text accessibilityLabel="FitQuest" style={styles.brand}>
-            fitquest<Text style={{ color: colors.action }}>.</Text>
-          </Text>
+          <View accessible accessibilityLabel="FitQuest" style={styles.brandRow}>
+            <Image
+              source={brandMark}
+              accessible={false}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              resizeMode="contain"
+              style={styles.brandMark}
+            />
+            <Text accessible={false} maxFontSizeMultiplier={1.3} style={styles.brand}>
+              fitquest<Text style={{ color: colors.action }}>.</Text>
+            </Text>
+          </View>
         )}
         {onAccount ? (
           <Pressable
@@ -170,7 +188,7 @@ export function Page({
             onPress={onAccount}
             style={styles.account}
           >
-            <Text style={styles.initials}>FQ</Text>
+            <Icon name="user-round" size={24} color={colors.ink} />
           </Pressable>
         ) : context ? (
           <Text style={styles.context}>{context}</Text>
@@ -215,16 +233,24 @@ export function Tabs({
           style={styles.tab}
         >
           <View
-            accessibilityElementsHidden
-            style={[
-              styles.tabIcon,
-              tab === 'today' ? { transform: [{ rotate: '45deg' }], borderRadius: 3 } : null,
-              value === tab && { borderColor: colors.action },
-            ]}
+            style={[styles.tabBacking, value === tab && { backgroundColor: colors.actionWash }]}
           >
-            <View style={[styles.iconLine, value === tab && { backgroundColor: colors.action }]} />
+            <Icon
+              name={
+                tab === 'today'
+                  ? 'sun'
+                  : tab === 'week'
+                    ? 'calendar-days'
+                    : tab === 'nutrition'
+                      ? 'utensils'
+                      : 'chart-column'
+              }
+              size={24}
+              color={value === tab ? colors.action : colors.muted}
+            />
           </View>
           <Text
+            maxFontSizeMultiplier={1.3}
             style={[styles.tabText, value === tab && { color: colors.action, fontWeight: '700' }]}
           >
             {tab === 'today'
@@ -276,9 +302,11 @@ const styles = StyleSheet.create({
     maxWidth: 640,
     alignSelf: 'center',
   },
+  brandRow: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandMark: { width: 36, height: 36, flexShrink: 0 },
   brand: { flexShrink: 1, fontSize: 25, fontWeight: '800', letterSpacing: -1.4, color: colors.ink },
-  back: { flexShrink: 1, minHeight: 44, justifyContent: 'center' },
-  backText: { fontSize: 15, color: colors.ink },
+  back: { flexShrink: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  backText: { flexShrink: 1, fontSize: 15, color: colors.ink },
   context: { fontSize: 12, color: colors.muted, flexShrink: 1, textAlign: 'right' },
   account: {
     minHeight: 44,
@@ -289,19 +317,15 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: 24,
   },
-  initials: { fontSize: 12, fontWeight: '700', color: colors.ink },
   footer: { borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   tabs: { flexDirection: 'row', justifyContent: 'space-around', paddingTop: 10, paddingBottom: 8 },
   tab: { minHeight: 48, flex: 1, minWidth: 0, paddingHorizontal: 2, alignItems: 'center', gap: 6 },
   tabText: { fontSize: 12, color: colors.muted, textAlign: 'center', maxWidth: '100%' },
-  tabIcon: {
-    width: 18,
-    height: 18,
-    borderWidth: 1.5,
-    borderColor: colors.muted,
-    borderRadius: 2,
+  tabBacking: {
+    width: 46,
+    height: 32,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconLine: { height: 2, width: 7, backgroundColor: colors.muted },
 });
