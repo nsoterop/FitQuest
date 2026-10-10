@@ -1,0 +1,64 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      EXPO_OFFLINE: '1'
+      ONBOARDING_AI_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            mobile/package-lock.json
+      - name: Install locked dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix backend --ignore-scripts
+          npm ci --prefix mobile --ignore-scripts
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Install disposable PostgreSQL tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql
+      - name: Backend tests including real isolated PostgreSQL
+        run: npm run check:database
+      - name: Mobile tests and Expo compatibility
+        run: npm run check --prefix mobile
+      - name: Packaging and publication safety
+        run: node --test scripts/*.test.mjs
+      - name: Dependency advisories (only reviewed exceptions allowed)
+        run: npm run audit:dependencies
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download checksum-pinned official Gitleaks
+        run: |
+          curl --fail --silent --show-error --location https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o /tmp/gitleaks.tar.gz
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  /tmp/gitleaks.tar.gz' | sha256sum --check
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+      - name: Scan all fetched history with fully redacted output
+        run: /tmp/gitleaks git . --log-opts='--all --full-history' --redact=100 --no-banner

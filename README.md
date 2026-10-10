@@ -2,6 +2,8 @@
 
 Repository preparation: [publication-safety batch 1](docs/publication-safety-2026-10-09.md) is a separate private cleanup checkpoint. The historical release evidence below does not describe a new deployment. Fresh databases use the [safe installer](backend/setup/README.md).
 
+Developer verification: [repeatable local and CI checks](docs/development-checks.md); [batch 2 evidence](docs/code-quality-2026-10-10.md).
+
 ## Automatic Sunday planning — batch 3, 2026-10-09
 
 Automatic planning is now available through **Generate next week → Enable Sunday 9 PM planning** after an accepted initial week and explicit sharing permissions. Enrollment stays off until chosen. The existing Render process prepares one upcoming week around Sunday 9 PM in the enrolled saved timezone, even with the mobile app closed. Pause stops future requests. Saved drafts still require Use this plan; accepted upcoming workouts/nutrition apply by date on Monday. Undispatched restart recovery, no automatic uncertain/failed retry, manual-week deduplication and skipped obsolete backlog preserve the existing single ledger. [Mechanics, retention, tests, native evidence and limitations](docs/sunday-scheduler-native/README.md).

@@ -1,0 +1,8 @@
+# Exact historical false positives reviewed in publication-safety batch 1.
+# Database role / SQL identifiers and a synthetic fixture marker; no broad rule suppression.
+1cb7572935c786fc6f1371a755d30a2b8f67dd44:rebuild/scripts/m1c4b-preflight.mjs:generic-api-key:52
+1cb7572935c786fc6f1371a755d30a2b8f67dd44:rebuild/services/api/migrations/005_simulated_exchange.sql:generic-api-key:148
+f2b97feef47ba45b04633848d2a688f9dd7c532f:rebuild/scripts/m1c3-local-db.mjs:generic-api-key:54
+f2b97feef47ba45b04633848d2a688f9dd7c532f:rebuild/scripts/m1c3-local-db.mjs:generic-api-key:85
+f2b97feef47ba45b04633848d2a688f9dd7c532f:rebuild/services/api/src/auth-postgres.integration.test.ts:generic-api-key:342
+04c8465a1e64ea6973b59e186d5eab6af6403bff:docs/ENGINEERING_M1C2_HANDOFF.md:generic-api-key:26
