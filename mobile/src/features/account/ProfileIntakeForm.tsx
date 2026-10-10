@@ -1,11 +1,17 @@
 import { Page, ui, Action, Notice } from '../../components/Design';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import type { RecoveryRequest } from '../onboarding/onboardingApi';
 import { TrainingScreen } from '../training/TrainingScreen';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { submitIntake, validateIntake, loadProfile, type IntakeFields } from './profileIntake';
 import { OnboardingScreen } from '../onboarding/OnboardingScreen';
-import { hasAcceptedTraining, TrainingError, trainingRequest } from '../training/trainingApi';
+import {
+  hasAcceptedTraining,
+  TrainingError,
+  trainingRequest,
+  type TrainingState,
+} from '../training/trainingApi';
 
 const emptyFields: IntakeFields = {
   firstName: '',
@@ -51,6 +57,7 @@ function AccountProfileForm({
   const [onboarding, setOnboarding] = useState(false);
   const [onboardingNotice, setOnboardingNotice] = useState('');
   const [training, setTraining] = useState(false);
+  const [initialTraining, setInitialTraining] = useState<TrainingState | undefined>();
   const [generateOnOpen, setGenerateOnOpen] = useState(false);
   const [trainingAccess, setTrainingAccess] = useState<'checking' | 'saved' | 'empty' | 'failed'>(
     'checking',
@@ -79,6 +86,7 @@ function AccountProfileForm({
         if (active && controller === current && !current.signal.aborted) {
           setTrainingAccess(hasAcceptedTraining(saved) ? 'saved' : 'empty');
           if (saved.summary || saved.plans.length || hasAcceptedTraining(saved)) {
+            setInitialTraining(saved);
             setGenerateOnOpen(false);
             setTraining(true);
           }
@@ -111,6 +119,7 @@ function AccountProfileForm({
   }, [userId, savedFirstName, onboarding, training, accessCheck]);
 
   function returnToGreeting() {
+    setInitialTraining(undefined);
     setTrainingAccess('checking');
     setTraining(false);
     setGenerateOnOpen(false);
@@ -237,6 +246,7 @@ function AccountProfileForm({
           accessToken={accessToken}
           onSessionEnded={onSessionEnded}
           generateOnOpen={generateOnOpen}
+          initialState={initialTraining}
           onClarify={(request) => {
             setRecovery(request);
             setTraining(false);
@@ -255,6 +265,7 @@ function AccountProfileForm({
           accessToken={accessToken}
           onSessionEnded={onSessionEnded}
           onClose={(message, summarySaved) => {
+            setInitialTraining(undefined);
             setTrainingAccess('checking');
             setOnboarding(false);
             setRecovery(undefined);
@@ -265,6 +276,19 @@ function AccountProfileForm({
             }
           }}
         />
+      );
+    if (userId && trainingAccess === 'checking') return <LoadingProgress onAccount={onAccount} />;
+    if (userId && trainingAccess === 'failed')
+      return (
+        <Page onAccount={onAccount}>
+          <Notice error>
+            Couldn’t load your saved progress. Retry to continue where you left off.
+          </Notice>
+          <Action
+            label="Retry loading saved progress"
+            onPress={() => setAccessCheck((value) => value + 1)}
+          />
+        </Page>
       );
     return (
       <Page onAccount={onAccount}>
@@ -280,20 +304,6 @@ function AccountProfileForm({
             {onboardingNotice}
           </Text>
         )}
-        {userId && trainingAccess === 'checking' && (
-          <Text style={ui.copy}>Loading your saved progress…</Text>
-        )}
-        {userId && trainingAccess === 'failed' && (
-          <>
-            <Notice error>
-              Couldn’t load your saved progress. Retry to continue where you left off.
-            </Notice>
-            <Action
-              label="Retry loading saved progress"
-              onPress={() => setAccessCheck((value) => value + 1)}
-            />
-          </>
-        )}
         {userId && trainingAccess === 'empty' && (
           <Action
             label="Start onboarding"
@@ -307,14 +317,7 @@ function AccountProfileForm({
       </Page>
     );
   }
-  if (reading)
-    return (
-      <Page onAccount={onAccount}>
-        <Text accessibilityLiveRegion="polite" style={ui.copy}>
-          Loading your profile…
-        </Text>
-      </Page>
-    );
+  if (reading) return <LoadingProgress onAccount={onAccount} />;
   if (loadError)
     return (
       <Page onAccount={onAccount}>

@@ -1,4 +1,5 @@
 import { NextWeek } from '../weekly-planning/NextWeek';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { hasHistoryConsent } from '../../../../backend/src/shared/progressConsent';
 import { JournalScreen } from '../journal/JournalScreen';
 import {
@@ -52,6 +53,7 @@ const coverageText: Record<string, string> = {
 const calendarDate = (date: string) =>
   `${new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))}, ${date}`;
 type TrainingProps = {
+  initialState?: TrainingState;
   initialTab?: MainTab;
   onAccount?: () => void;
   userId: string;
@@ -66,6 +68,7 @@ export function TrainingScreen(props: TrainingProps) {
   return <AccountTrainingScreen key={props.userId} {...props} />;
 }
 function AccountTrainingScreen({
+  initialState,
   initialTab,
   onAccount,
   userId,
@@ -76,7 +79,7 @@ function AccountTrainingScreen({
   generateOnOpen = false,
   refreshVersion = 0,
 }: TrainingProps) {
-  const [state, setState] = useState<TrainingState | null>(null),
+  const [state, setState] = useState<TrainingState | null>(initialState ?? null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [selected, setSelected] = useState(''),
@@ -87,12 +90,17 @@ function AccountTrainingScreen({
     ended = useRef(onSessionEnded);
   token.current = accessToken;
   ended.current = onSessionEnded;
-  const [tab, setTab] = useState<MainTab>(initialTab ?? 'week'),
+  const [tab, setTab] = useState<MainTab>(
+      initialTab ?? (initialState && hasAcceptedTraining(initialState) ? 'today' : 'week'),
+    ),
     [workout, setWorkout] = useState<WorkoutSelection | null>(null),
     [blocked, setBlocked] = useState(false),
     [leaving, setLeaving] = useState(false),
-    [daySelection, setDaySelection] = useState<WorkoutSelection>({ date: localToday(), index: 0 });
-  const lastToday = useRef(localToday());
+    [daySelection, setDaySelection] = useState<WorkoutSelection>({
+      date: localToday(initialState?.summary?.timeZone),
+      index: 0,
+    });
+  const lastToday = useRef(localToday(initialState?.summary?.timeZone));
   const calendarRefresh = useRef(() => {}),
     calendarZone = useRef<string | undefined>(undefined);
   calendarZone.current = state?.summary?.timeZone;
@@ -125,7 +133,7 @@ function AccountTrainingScreen({
   const [journalOpen, setJournalOpen] = useState<false | 'resume' | 'repeat'>(false);
   const [workoutPlan, setWorkoutPlan] = useState<TrainingPlan | null>(null);
   const initial = useRef(generateOnOpen),
-    firstLoad = useRef(true);
+    firstLoad = useRef(!initialState);
   // Scoped to this mounted account and summary. Consent from Settings has no generation intent.
   const generationIntent = useRef<number | null>(null);
   const submitted = useRef<{ planId: string; planRevision: number; feedback: string } | null>(null);
@@ -845,6 +853,7 @@ function AccountTrainingScreen({
       )}
     </View>
   );
+  if (!state && !error) return <LoadingProgress onAccount={onAccount} />;
   if (journalOpen && workout && workoutPlan)
     return (
       <JournalScreen

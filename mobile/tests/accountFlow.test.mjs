@@ -215,7 +215,7 @@ test('profile loading hides the form; failed save keeps fields and confirmed sav
     );
     await flush();
   });
-  assert.ok(text(screen).includes('Loading your profile'));
+  assert.ok(text(screen).includes('Loading your saved progress'));
   assert.equal(text(screen).includes('First name'), false);
   await act(async () => {
     deliver({ status: 200, json: async () => ({ profile: null }) });
@@ -278,7 +278,7 @@ test('actual account screen clears profile on logout and rejects old response af
     await flush();
   });
   assert.equal(requests[0].token, 'Bearer alice-token');
-  assert.ok(text(screen).includes('Loading your profile'));
+  assert.ok(text(screen).includes('Loading your saved progress'));
   await signOutThroughAccount(screen);
   assert.equal(text(screen).includes('Private Alice Draft'), false);
   assert.equal(text(screen).includes('First name'), false);
@@ -521,7 +521,11 @@ test('failed profile read cannot open the greeting or empty form; retry opens th
   const screen = await mount();
   assert.equal(text(screen).includes('Hi '), false);
   assert.equal(text(screen).includes('First name'), false);
-  globalThis.fetch = async () => ({ status: 200, json: async () => ({ profile: payload }) });
+  globalThis.fetch = async (url) => ({
+    status: 200,
+    json: async () =>
+      url.endsWith('/profile') ? { profile: payload } : { summary: null, plans: [] },
+  });
   await act(async () => {
     press(screen, 'Retry profile loading');
     await flush();
@@ -5466,6 +5470,104 @@ test('root failures cannot masquerade as new onboarding and stale account reads 
     await flush();
   });
   assert.equal(hasTrainingAccess(screen), true);
+  await act(async () => screen.unmount());
+});
+
+test('sign-in and session restoration show one loading screen then Today without greeting or week flashes', async (t) => {
+  t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
+  for (const restored of [false, true]) {
+    resetAuth(restored ? alice : null);
+    const { saved } = await batchDocumentState('accepted');
+    const waiting = [],
+      frames = [],
+      requests = [];
+    globalThis.fetch = async (url, options) => {
+      requests.push({ url, method: options.method ?? 'GET' });
+      return new Promise((resolve) => waiting.push({ url, resolve }));
+    };
+    let screen;
+    await act(async () => {
+      screen = TestRenderer.create(
+        React.createElement(
+          React.Profiler,
+          {
+            id: 'routing',
+            onRender: () => {
+              if (screen) frames.push(text(screen));
+            },
+          },
+          React.createElement(AccountPanel),
+        ),
+      );
+      await flush();
+    });
+    if (!restored) {
+      await credentials(screen);
+      await act(async () => {
+        press(screen, 'Sign in');
+        await flush();
+      });
+    }
+    assert.match(text(screen), /Loading your saved progress/);
+    assert.equal(waiting.length, 1);
+    assert.match(waiting[0].url, /\/profile$/);
+    await act(async () => {
+      waiting.shift().resolve({ status: 200, json: async () => ({ profile: payload }) });
+      await flush();
+    });
+    assert.match(text(screen), /Loading your saved progress/);
+    assert.equal(waiting.length, 1);
+    await act(async () => {
+      waiting.shift().resolve({ status: 200, json: async () => structuredClone(saved) });
+      await flush();
+    });
+    // The training screen can reconcile in the background without reverting to Week.
+    assert.match(renderedTrainingText(screen), /Today\./);
+    assert.equal(hasTrainingAccess(screen), true);
+    assert.equal(waiting.length, 1);
+    for (const frame of frames)
+      assert.doesNotMatch(
+        frame,
+        /Hi Alex|LET’S MAKE A START|YOUR TRAINING|Your week\.|Review your week\./,
+      );
+    await act(async () => press(screen, 'Week'));
+    assert.match(renderedTrainingText(screen), /Your week\./);
+    await act(async () => {
+      waiting.shift().resolve({ status: 200, json: async () => structuredClone(saved) });
+      await flush();
+    });
+    // A late background read must respect navigation made after the initial destination loaded.
+    assert.match(renderedTrainingText(screen), /Your week\./);
+    assert(requests.every((r) => r.method === 'GET'));
+    await act(async () => screen.unmount());
+  }
+});
+
+test('training opened without a preloaded state hides Week until its saved status is known', async () => {
+  const { saved } = await batchDocumentState('accepted');
+  let resolve;
+  globalThis.fetch = async () =>
+    new Promise((done) => {
+      resolve = done;
+    });
+  let screen;
+  await act(async () => {
+    screen = TestRenderer.create(
+      React.createElement(TrainingScreen, {
+        userId: 'alice',
+        accessToken: async () => 'alice-token',
+        onClose() {},
+      }),
+    );
+    await flush();
+  });
+  assert.match(text(screen), /Loading your saved progress/);
+  assert.doesNotMatch(text(screen), /YOUR TRAINING|Your training|Review your week/);
+  await act(async () => {
+    resolve({ status: 200, json: async () => saved });
+    await flush();
+  });
+  assert.match(renderedTrainingText(screen), /Today\./);
   await act(async () => screen.unmount());
 });
 
