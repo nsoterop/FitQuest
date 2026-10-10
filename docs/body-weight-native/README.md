@@ -14,4 +14,4 @@ Migration `20261010021546_body_weight.sql` is applied hosted as `20261010022238_
 
 Phone checks: reload the app, open Nutrition → Log weight, enter a reading/date and save; reopen Weight history, correct it and verify the latest dated value. Close/reopen an unsaved entry to verify recovery. Delete only a disposable entry using the explicit confirmation. Upcoming-week history integration and automatic Sunday generation are later approved batches, not part of this release.
 
-Publication and live verification are recorded in the root README after deployment.
+Application `dbf185c` is Live on the existing Render service. All 35 runtime hashes and 58 private-route checks pass. Guarded training reset at 10:34:31 PM EDT and independent 10:34:44 PM readback preserve all real journal/food/weight/account/profile/accounting records and 146 permanent attempts; all nine scoped training tables are empty. Complete release evidence is in the root README.
