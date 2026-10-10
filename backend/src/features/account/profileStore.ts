@@ -7,6 +7,7 @@ export type ProfileInput = {
   lastName: string;
   height: { value: number; unit: 'in' };
   age: number;
+  birthday?: string | null;
   weight: { value: number; unit: 'lb' };
   gender: string;
 };
@@ -71,11 +72,12 @@ export function postgresProfileStore(pool: Pool): ProfileStore {
         if (!(await sessionActiveInTransaction(account, client))) throw new Error('Session ended.');
         await client.query(
           `INSERT INTO fitquest.profiles
-          (user_id, first_name, last_name, height_inches, age, weight_lb, gender, age_captured_at, updated_at)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,now(),now())
+          (user_id, first_name, last_name, height_inches, age, weight_lb, gender, birthday, age_captured_at, updated_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now(),now())
           ON CONFLICT (user_id) DO UPDATE SET first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name,
           height_inches=EXCLUDED.height_inches, age=EXCLUDED.age, weight_lb=EXCLUDED.weight_lb,
-          gender=EXCLUDED.gender, age_captured_at=EXCLUDED.age_captured_at, updated_at=EXCLUDED.updated_at`,
+          gender=EXCLUDED.gender, birthday=COALESCE(EXCLUDED.birthday,profiles.birthday),
+          age_captured_at=EXCLUDED.age_captured_at, updated_at=EXCLUDED.updated_at`,
           [
             account.userId,
             profile.firstName,
@@ -84,6 +86,7 @@ export function postgresProfileStore(pool: Pool): ProfileStore {
             profile.age,
             profile.weight.value,
             profile.gender,
+            profile.birthday ?? null,
           ],
         );
       });
@@ -91,16 +94,18 @@ export function postgresProfileStore(pool: Pool): ProfileStore {
     async read(account) {
       return ownedTransaction(account, async (client) => {
         if (!(await sessionActiveInTransaction(account, client))) throw new Error('Session ended.');
-        const result = await client.query('SELECT * FROM fitquest.profiles WHERE user_id=$1', [
-          account.userId,
-        ]);
+        const result = await client.query(
+          "SELECT *,fitquest.profile_age(age,birthday) AS current_age,to_char(birthday,'YYYY-MM-DD') AS birthday_date FROM fitquest.profiles WHERE user_id=$1",
+          [account.userId],
+        );
         const row = result.rows[0];
         return row
           ? {
               firstName: row.first_name,
               lastName: row.last_name,
               height: { value: row.height_inches, unit: 'in' as const },
-              age: row.age,
+              age: row.current_age,
+              ...(row.birthday_date ? { birthday: row.birthday_date } : {}),
               weight: { value: Number(row.weight_lb), unit: 'lb' as const },
               gender: row.gender,
               ageCapturedAt: row.age_captured_at.toISOString(),

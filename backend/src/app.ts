@@ -1,3 +1,4 @@
+import { birthdayAge, profileGenders } from './shared/profileBirthday.js';
 import type { AccountRequestGuard } from './features/account/requestLimits.js';
 import type { FoodService } from './features/nutrition/food.js';
 import type { FoodCommand } from './shared/foodContract.js';
@@ -102,11 +103,20 @@ export function buildApp(
         body: {
           type: 'object',
           additionalProperties: false,
-          required: ['firstName', 'lastName', 'height', 'age', 'weight', 'gender'],
+          required: ['firstName', 'lastName', 'height', 'weight', 'gender'],
+          oneOf: [
+            { required: ['age'], not: { required: ['birthday'] } },
+            {
+              required: ['birthday'],
+              not: { required: ['age'] },
+              properties: { gender: { enum: profileGenders } },
+            },
+          ],
           properties: {
             firstName: textField,
             lastName: textField,
             gender: textField,
+            birthday: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
             age: { type: 'integer', minimum: 1, maximum: 130 },
             height: {
               type: 'object',
@@ -146,7 +156,13 @@ export function buildApp(
     async (request, reply) => {
       try {
         if (!options.store) throw new Error('Profile storage unavailable.');
-        await options.store.save(accounts.get(request)!, request.body);
+        const age =
+          request.body.birthday !== undefined
+            ? birthdayAge(request.body.birthday)
+            : request.body.age;
+        if (age === null)
+          return reply.code(400).send({ message: 'Enter a valid, nonfuture birthday.' });
+        await options.store.save(accounts.get(request)!, { ...request.body, age });
         return { message: 'User Data Saved' };
       } catch {
         return reply.code(503).send({ message: 'Unable to save your profile. Please try again.' });

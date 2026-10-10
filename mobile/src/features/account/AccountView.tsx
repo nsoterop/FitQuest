@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Action, Notice, Page, ui } from '../../components/Design';
 import { loadProfile, type SavedProfile } from './profileIntake';
 import { PlanningSettings } from './PlanningSettings';
+import { ProfileIntakeForm } from './ProfileIntakeForm';
 export function AccountView({
   email,
   userId,
@@ -26,6 +27,7 @@ export function AccountView({
     [loading, setLoading] = useState(false),
     [retry, setRetry] = useState(0);
   const token = useRef(accessToken);
+  const [editing, setEditing] = useState(false);
   token.current = accessToken;
   const ended = useRef(onSessionEnded);
   ended.current = onSessionEnded;
@@ -61,6 +63,20 @@ export function AccountView({
       clearTimeout(timer);
     };
   }, [view, retry]);
+  if (editing && profile)
+    return (
+      <ProfileIntakeForm
+        userId={userId}
+        accessToken={accessToken}
+        onSessionEnded={onSessionEnded}
+        editingProfile={profile}
+        onCancel={() => setEditing(false)}
+        onSaved={() => {
+          setEditing(false);
+          setRetry((n) => n + 1);
+        }}
+      />
+    );
   if (view === 'sharing')
     return (
       <PlanningSettings
@@ -116,7 +132,7 @@ export function AccountView({
           <Text accessibilityRole="header" style={ui.title}>
             Saved profile.
           </Text>
-          <Text style={ui.copy}>Your details as recorded. This view is read-only.</Text>
+          <Text style={ui.copy}>Your saved details.</Text>
           {loading ? (
             <Text style={ui.copy}>Loading your profile…</Text>
           ) : error ? (
@@ -132,7 +148,15 @@ export function AccountView({
                   'Height',
                   `${Math.floor(profile.height.value / 12)} ft ${profile.height.value % 12} in`,
                 ],
-                ['Age as recorded', `${profile.age} years`],
+                ...(profile.birthday
+                  ? [
+                      ['Birthday', profile.birthday],
+                      ['Age', `${profile.age} years`],
+                    ]
+                  : [
+                      ['Age as recorded', `${profile.age} years`],
+                      ['Birthday', 'Not recorded'],
+                    ]),
                 ['Weight as recorded', `${profile.weight.value} lb`],
                 ['Gender', profile.gender],
                 ['Last saved', new Date(profile.updatedAt).toLocaleDateString()],
@@ -150,6 +174,7 @@ export function AccountView({
                   <Text style={ui.copy}>{value}</Text>
                 </View>
               ))}
+              <Action label="Edit profile" onPress={() => setEditing(true)} />
             </>
           ) : (
             <Notice>Complete your profile to save these details.</Notice>

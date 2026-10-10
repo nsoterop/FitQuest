@@ -155,7 +155,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
   async function profile(c: PoolClient, a: Account) {
     const p = (
       await c.query(
-        'SELECT age,height_inches,weight_lb,gender,planning_consent,history_consent,first_name,last_name,updated_at::text AS version FROM fitquest.profiles WHERE user_id=$1 FOR SHARE',
+        'SELECT fitquest.profile_age(age,birthday) AS age,height_inches,weight_lb,gender,planning_consent,history_consent,first_name,last_name,updated_at::text AS version FROM fitquest.profiles WHERE user_id=$1 FOR SHARE',
         [a.userId],
       )
     ).rows[0];

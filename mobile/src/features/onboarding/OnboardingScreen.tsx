@@ -19,6 +19,7 @@ import type { OnboardingDraftStore } from './onboardingDraft';
 
 type OnboardingProps = {
   onAccount?: () => void;
+  notice?: string;
   recovery?: RecoveryRequest;
   userId: string;
   accessToken: () => Promise<string>;
@@ -28,13 +29,18 @@ type OnboardingProps = {
 };
 export function OnboardingScreen(props: OnboardingProps) {
   return (
-    <Page onAccount={props.onAccount} onBack={() => props.onClose()} backLabel="Back to greeting">
+    <Page
+      onAccount={props.onAccount}
+      onBack={() => props.onClose()}
+      backLabel={props.recovery ? 'Back to training' : 'Back to onboarding'}
+    >
       <AccountOnboardingScreen key={props.userId} {...props} />
     </Page>
   );
 }
 function AccountOnboardingScreen({
   userId,
+  notice,
   accessToken,
   onSessionEnded,
   onClose,
@@ -414,6 +420,11 @@ function AccountOnboardingScreen({
       )}
       {!accepted ? (
         <>
+          {!!notice && (
+            <Text accessibilityLiveRegion="polite" style={styles.copy}>
+              {notice}
+            </Text>
+          )}
           <Text accessibilityRole="header" style={styles.title}>
             Before we begin
           </Text>
@@ -436,7 +447,7 @@ function AccountOnboardingScreen({
             text={text}
             editIndex={editIndex}
             disabled={busy || !!pending || needsRefresh}
-            canGenerate={!draftError && !needsRefresh}
+            canContinue={!draftError && !needsRefresh}
             onText={(next) => {
               unsent.current = next;
               setText(next);
@@ -467,7 +478,7 @@ function AccountOnboardingScreen({
                 expectedRevision: conversation.revision,
               })
             }
-            onGenerate={() => {
+            onContinue={() => {
               if (
                 unsent.current.trim() ||
                 editRef.current !== null ||

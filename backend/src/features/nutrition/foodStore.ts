@@ -238,7 +238,10 @@ export function foodStore(pool: Pool, clock = () => new Date()) {
         if (date && zone && date > foodToday(zone, clock())) fail('future_food', 422);
         if (cmd.kind === 'interpret') {
           const age = (
-            await c.query('SELECT age FROM fitquest.profiles WHERE user_id=$1', [a.userId])
+            await c.query(
+              'SELECT fitquest.profile_age(age,birthday) AS age FROM fitquest.profiles WHERE user_id=$1',
+              [a.userId],
+            )
           ).rows[0]?.age;
           if (!age || age < 18) fail('adults_only', 422);
           if (

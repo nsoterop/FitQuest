@@ -86,5 +86,9 @@
   {
     "file": "20261010154615_recurring_consent_enrollment.sql",
     "sha256": "ced671452cf0cddb24c24630884eb6ff806e6a07f4a48e06a941bd38e4ae17c0"
+  },
+  {
+    "file": "20261010190000_profile_birthday.sql",
+    "sha256": "a5f9ccd9d99c4d8c0e9423ecb834d6ca486fd781e753f5fc76895ac1f066c69b"
   }
 ]

@@ -12,17 +12,17 @@ const fields = {
   lastName: ' Example ',
   heightFeet: '5',
   heightInches: '8',
-  age: '29',
+  birthday: '1997-01-01',
   weight: '155.5',
-  gender: ' Prefer not to say ',
+  gender: ' Male ',
 };
 const payload = {
   firstName: 'Alex',
   lastName: 'Example',
   height: { value: 68, unit: 'in' },
-  age: 29,
+  birthday: '1997-01-01',
   weight: { value: 155.5, unit: 'lb' },
-  gender: 'Prefer not to say',
+  gender: 'Male',
 };
 const apiUrl = 'https://fitquest-api.example';
 const response = (status, body) => async () => ({ status, json: async () => body });
@@ -35,18 +35,18 @@ test('current form fields become six explicit API fields with total inches and p
       firstName: 'Renée',
       heightFeet: '6',
       heightInches: '0',
-      age: '31',
+      birthday: '1995-01-01',
       weight: '180',
-      gender: 'Nonbinary',
+      gender: 'Female',
     }),
     {
       payload: {
         ...payload,
         firstName: 'Renée',
         height: { value: 72, unit: 'in' },
-        age: 31,
+        birthday: '1995-01-01',
         weight: { value: 180, unit: 'lb' },
-        gender: 'Nonbinary',
+        gender: 'Female',
       },
     },
   );
@@ -58,8 +58,17 @@ test('each field is required and invalid numbers cannot become a successful payl
   const invalid = {
     firstName: ['   ', 'a'.repeat(101)],
     lastName: ['   ', 'a'.repeat(101)],
-    gender: ['   ', 'a'.repeat(101)],
-    age: ['0', '-1', '131', '29.5', 'abc', 'Infinity'],
+    gender: ['   ', 'Nonbinary', 'Prefer not to say', 'a'.repeat(101)],
+    birthday: [
+      '0000-01-01',
+      '2026-02-30',
+      '2025-02-29',
+      '9999-01-01',
+      '1800-01-01',
+      '01/01/1997',
+      'abc',
+      'Infinity',
+    ],
     heightFeet: ['-1', '5.5', '11', 'abc', 'Infinity'],
     heightInches: ['12', '-1', '1.5', 'abc'],
     weight: ['0', '-1', '1501', '1e2', 'NaN', 'Infinity', 'abc'],
@@ -178,6 +187,7 @@ test('aborted submissions cannot show success even if a late response arrives', 
 test('saved profile restores display units and validates server shape', async () => {
   const saved = {
     ...payload,
+    age: 29,
     ageCapturedAt: '2026-10-02T12:00:00Z',
     updatedAt: '2026-10-02T12:00:00Z',
   };
@@ -186,7 +196,7 @@ test('saved profile restores display units and validates server shape', async ()
     ...fields,
     firstName: 'Alex',
     lastName: 'Example',
-    gender: 'Prefer not to say',
+    gender: 'Male',
   });
   const fetcher = async (url, options) => {
     assert.equal(url, `${apiUrl}/profile`);
@@ -246,4 +256,30 @@ test('missing auth cannot transmit profile fields', async () => {
       })),
   );
   assert.equal(calls, 0);
+});
+
+test('legacy profiles restore without inventing a birthday or replacing their saved gender', async () => {
+  const saved = {
+    ...payload,
+    age: 29,
+    gender: 'Prefer not to say',
+    ageCapturedAt: '2026-10-02T12:00:00Z',
+    updatedAt: '2026-10-02T12:00:00Z',
+  };
+  delete saved.birthday;
+  assert.equal(profileFields(saved).birthday, '');
+  assert.equal(profileFields(saved).gender, saved.gender);
+  assert.deepEqual(
+    await loadProfile(
+      apiUrl,
+      new AbortController().signal,
+      'test-token',
+      response(200, { profile: saved }),
+    ),
+    { profile: saved },
+  );
+  assert(
+    'error' in validateIntake(profileFields(saved)),
+    'editing asks for the actual birthday and one current selection',
+  );
 });

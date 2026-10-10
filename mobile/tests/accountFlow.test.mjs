@@ -202,7 +202,7 @@ async function credentials(screen) {
   });
 }
 
-test('profile loading hides the form; failed save keeps fields and confirmed save opens the greeting', async () => {
+test('profile loading hides the form; failed save keeps fields and confirmed save opens onboarding', async () => {
   let deliver;
   globalThis.fetch = async () =>
     new Promise((resolve) => {
@@ -211,7 +211,10 @@ test('profile loading hides the form; failed save keeps fields and confirmed sav
   let screen;
   await act(async () => {
     screen = TestRenderer.create(
-      React.createElement(ProfileIntakeForm, { accessToken: async () => 'alice-token' }),
+      React.createElement(ProfileIntakeForm, {
+        userId: 'alice',
+        accessToken: async () => 'alice-token',
+      }),
     );
     await flush();
   });
@@ -228,14 +231,15 @@ test('profile loading hides the form; failed save keeps fields and confirmed sav
     ['Last name', 'Example'],
     ['Height (feet)', '5'],
     ['Height (inches)', '8'],
-    ['Age (years)', '29'],
+    ['Birthday (YYYY-MM-DD)', '1997-01-01'],
     ['Weight (lb)', '155.5'],
-    ['Gender', 'Prefer not to say'],
   ]) {
     await act(async () => {
       input(screen, label).props.onChangeText(value);
     });
   }
+  await act(async () => press(screen, 'Select gender'));
+  await act(async () => press(screen, 'Male'));
   globalThis.fetch = async () => ({ status: 503, json: async () => ({}) });
   await act(async () => {
     input(screen, 'Submit profile').props.onPress();
@@ -245,6 +249,8 @@ test('profile loading hides the form; failed save keeps fields and confirmed sav
   assert.equal(text(screen).includes('Hi '), false);
   let finishSave;
   globalThis.fetch = async (_url, options) => {
+    if (options.method === 'GET')
+      return { status: 200, json: async () => ({ summary: null, plans: [] }) };
     assert.equal(JSON.parse(options.body).firstName, 'Renée');
     return new Promise((resolve) => {
       finishSave = resolve;
@@ -261,7 +267,7 @@ test('profile loading hides the form; failed save keeps fields and confirmed sav
   });
   assert.equal(
     screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''),
-    'Hi Renée',
+    'Before we begin',
   );
   assert.equal(text(screen).includes('First name'), false);
   await act(async () => screen.unmount());
@@ -412,7 +418,7 @@ test('reopen verifies the stored session before displaying and restoring only it
   });
   assert.equal(
     screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''),
-    'Hi Alex',
+    'Before we begin',
   );
   assert.equal(text(screen).includes('First name'), false);
   assert.equal(reads, 1);
@@ -471,7 +477,7 @@ test('late initial session restoration cannot replace a newer signed-in account'
   await act(async () => screen.unmount());
 });
 
-test('session refresh keeps the greeting; signing out clears it before another account opens its form', async () => {
+test('session refresh keeps onboarding; signing out clears it before another account opens its form', async () => {
   resetAuth(alice);
   let reads = 0;
   globalThis.fetch = async (url) => {
@@ -488,7 +494,7 @@ test('session refresh keeps the greeting; signing out clears it before another a
   });
   assert.equal(
     screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''),
-    'Hi Alex',
+    'Before we begin',
   );
   assert.equal(reads, 1);
   await signOutThroughAccount(screen);
@@ -515,7 +521,7 @@ test('backend session rejection clears the form and returns to sign in', async (
   await act(async () => screen.unmount());
 });
 
-test('failed profile read cannot open the greeting or empty form; retry opens the saved greeting', async () => {
+test('failed profile read cannot open the greeting or empty form; retry opens onboarding', async () => {
   resetAuth(alice);
   globalThis.fetch = async () => ({ status: 503, json: async () => ({}) });
   const screen = await mount();
@@ -532,7 +538,7 @@ test('failed profile read cannot open the greeting or empty form; retry opens th
   });
   assert.equal(
     screen.root.findByProps({ accessibilityRole: 'header' }).children.join(''),
-    'Hi Alex',
+    'Before we begin',
   );
   await act(async () => screen.unmount());
 });
@@ -623,9 +629,6 @@ test('disclosure precedes a minimal conversation; structured context is never si
     return { status: 200, json: async () => saved };
   };
   const screen = await mount();
-  await act(async () => {
-    press(screen, 'Start onboarding');
-  });
   assert.ok(text(screen).includes('adults 18+'));
   assert.ok(text(screen).includes('OpenAI'));
   assert.ok(text(screen).includes('Provider retention'));
@@ -653,7 +656,7 @@ test('disclosure precedes a minimal conversation; structured context is never si
       .findAllByType('Pressable')
       .map((x) => x.props.accessibilityLabel)
       .filter((x) => x !== 'Sign out'),
-    ['Back to greeting', 'Account', 'Conversation options', 'Send'],
+    ['Back to onboarding', 'Account', 'Conversation options', 'Send'],
   );
   assert.equal(commands.length, 0);
   assert.equal(saved.state, 'collecting');
@@ -827,7 +830,7 @@ test('persisted replies and an unsent draft reopen quietly; navigation stays in 
   });
   assert.ok(input(screen, 'Delete conversation'));
   await act(async () => {
-    press(screen, 'Back to greeting');
+    press(screen, 'Back to onboarding');
   });
   assert.equal(closed, 1);
   await act(async () => screen.unmount());
@@ -919,9 +922,6 @@ test('sign out clears onboarding UI and encrypted draft; late response cannot po
   };
   const screen = await mount();
   await act(async () => {
-    press(screen, 'Start onboarding');
-  });
-  await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
   });
@@ -976,9 +976,6 @@ test('onboarding session rejection returns to sign in; explicit deletion removes
         ? { status: 200, json: async () => ({ summary: null, plans: [] }) }
         : { status: 401, json: async () => ({}) };
   let screen = await mount();
-  await act(async () => {
-    press(screen, 'Start onboarding');
-  });
   await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
@@ -1166,9 +1163,6 @@ test('completion waits for the server, clears draft/transcript, returns to greet
   };
   const screen = await mount();
   await act(async () => {
-    press(screen, 'Start onboarding');
-  });
-  await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
   });
@@ -1187,7 +1181,7 @@ test('completion waits for the server, clears draft/transcript, returns to greet
     complete({ status: 200, json: async () => deletionReceipt(saved.id) });
     await flush();
   });
-  assert.ok(text(screen).includes('Hi '));
+  assert.ok(text(screen).includes('Before we begin'));
   assert.ok(text(screen).includes('Onboarding finished'));
   assert.equal(text(screen).includes('Private tennis report'), false);
   assert.equal(await privateDrafts.read('alice'), null);
@@ -1197,9 +1191,6 @@ test('completion waits for the server, clears draft/transcript, returns to greet
   });
   assert.equal(await privateDrafts.read('alice'), null);
   saved = { ...onboardingFixture(), id: 'bbbbbbbb-1111-4111-8111-111111111111' };
-  await act(async () => {
-    press(screen, 'Start onboarding');
-  });
   await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
@@ -1343,9 +1334,6 @@ test('a completion receipt arriving after account switch cannot close or populat
     return { status: 200, json: async () => saved };
   };
   const screen = await mount();
-  await act(async () => {
-    press(screen, 'Start onboarding');
-  });
   await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
@@ -2012,18 +2000,18 @@ test('a newly saved profile and an unconfirmed recap do not grant training acces
     ['Last name', 'Example'],
     ['Height (feet)', '5'],
     ['Height (inches)', '8'],
-    ['Age (years)', '29'],
+    ['Birthday (YYYY-MM-DD)', '1997-01-01'],
     ['Weight (lb)', '155'],
-    ['Gender', 'Prefer not to say'],
   ])
     await act(async () => input(screen, label).props.onChangeText(value));
+  await act(async () => press(screen, 'Select gender'));
+  await act(async () => press(screen, 'Male'));
   await act(async () => {
     press(screen, 'Submit profile');
     await flush();
   });
   assert.equal(hasTrainingAccess(screen), false);
   assert.equal(reads, 1);
-  await act(async () => press(screen, 'Start onboarding'));
   await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
@@ -2031,7 +2019,7 @@ test('a newly saved profile and an unconfirmed recap do not grant training acces
   assert.equal(hasTrainingAccess(screen), false);
   await act(async () => press(screen, 'Conversation options'));
   await act(async () => {
-    press(screen, 'Back to greeting');
+    press(screen, 'Back to onboarding');
     await flush();
   });
   assert.equal(hasTrainingAccess(screen), false);
@@ -2075,7 +2063,6 @@ test('completion opens planning only after committed summary receipt and local d
     return { status: 200, json: async () => saved };
   };
   const screen = await mount();
-  await act(async () => press(screen, 'Start onboarding'));
   await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
@@ -3338,10 +3325,6 @@ test('Continue completion opens existing outline generation once after saved-sum
   };
   const screen = await mount();
   await act(async () => {
-    press(screen, 'Start onboarding');
-    await flush();
-  });
-  await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
   });
@@ -3463,7 +3446,7 @@ const fixedFixture = () => ({
   intakeQuestions: fixedQuestions,
   context: { ...onboardingFixture().context, items: [], intake: { version: 1, answers: [] } },
 });
-test('fixed intake reveals exactly five questions progressively, edits/resumes verbatim, and only final Generate plan completes', async () => {
+test('fixed intake reveals exactly five questions progressively, edits/resumes verbatim, and only final Continue to sharing completes', async () => {
   resetAuth(alice);
   let saved = fixedFixture(),
     commands = [],
@@ -3502,7 +3485,10 @@ test('fixed intake reveals exactly five questions progressively, edits/resumes v
   ];
   for (let i = 0; i < 5; i++) {
     for (let j = 0; j < 5; j++) assert.equal(text(screen).includes(fixedQuestions[j]), j === i);
-    assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Generate plan' }).length, 0);
+    assert.equal(
+      screen.root.findAllByProps({ accessibilityLabel: 'Continue to sharing' }).length,
+      0,
+    );
     const field = input(screen, `Answer ${i + 1}`);
     assert(field.props.onFocus);
     assert(field.props.onContentSizeChange);
@@ -3518,14 +3504,14 @@ test('fixed intake reveals exactly five questions progressively, edits/resumes v
   assert(commands.every((c) => c.kind === 'edit'));
   assert(!text(screen).includes('Onboarding recap'));
   assert(!text(screen).includes('Nutrition'));
-  assert.equal(input(screen, 'Generate plan').props.disabled, false);
+  assert.equal(input(screen, 'Continue to sharing').props.disabled, false);
   await act(async () => {
     press(screen, 'Edit answer 2');
   });
   await act(async () =>
     input(screen, 'Answer 2').props.onChangeText('Changed activity, still unsent.'),
   );
-  assert.equal(input(screen, 'Generate plan').props.disabled, true);
+  assert.equal(input(screen, 'Continue to sharing').props.disabled, true);
   await flush();
   await act(async () => screen.unmount());
   screen = await mountOnboarding({ onClose: (...args) => closed.push(args) });
@@ -3538,7 +3524,7 @@ test('fixed intake reveals exactly five questions progressively, edits/resumes v
   assert.equal(saved.context.intake.answers[1], 'Changed activity, still unsent.');
   assert.equal(saved.context.intake.answers[0], answers[0]);
   await act(async () => {
-    press(screen, 'Generate plan');
+    press(screen, 'Continue to sharing');
     await flush();
   });
   assert.equal(commands.filter((c) => c.kind === 'confirm').length, 1);
@@ -3817,10 +3803,6 @@ test('five answers to actual parsed cards, Use this plan creates all seven saved
   };
   let screen = await mount();
   await act(async () => {
-    press(screen, 'Start onboarding');
-    await flush();
-  });
-  await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
   });
@@ -3840,7 +3822,7 @@ test('five answers to actual parsed cards, Use this plan creates all seven saved
   assert.equal(answers, 5);
   assert.equal(outlines, 0);
   await act(async () => {
-    press(screen, 'Generate plan');
+    press(screen, 'Continue to sharing');
     await flush();
     await flush();
   });
@@ -4792,7 +4774,7 @@ test('unknown acceptance and stale changes block mutations until status read, pr
   assert.equal(input(screen, 'Plan feedback').props.value, 'Keep my exact draft.');
   assert.equal(input(screen, 'Use this plan').props.disabled, true);
   assert.equal(hasTrainingAccess(screen), false);
-  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Back to greeting' }).length, 0);
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Back to onboarding' }).length, 0);
   assert.equal(input(screen, 'Plan feedback').props.value, 'Keep my exact draft.');
   assert.equal(posts, 2);
   await act(async () => screen.unmount());
@@ -4812,7 +4794,6 @@ test('account navigation preserves intake text, saved profile is read-only, and 
           : { summary: null, plans: [] },
   });
   const screen = await mount();
-  await act(async () => press(screen, 'Start onboarding'));
   await act(async () => {
     press(screen, 'Continue to onboarding');
     await flush();
@@ -5337,11 +5318,7 @@ test('root routes new, summary-only, pending, failed, draft and accepted history
     };
     let screen = await mount();
     assert.equal(hasTrainingAccess(screen), ['accepted', 'history'].includes(kind), kind);
-    assert.equal(
-      screen.root.findAllByProps({ accessibilityLabel: 'Start onboarding' }).length > 0,
-      kind === 'new',
-      kind,
-    );
+    assert.equal(text(screen).includes('Before we begin'), kind === 'new', kind);
     assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Open nutrition' }).length, 0);
     if (['accepted', 'history'].includes(kind))
       assert.match(renderedTrainingText(screen), /Outside your saved week/);
@@ -5380,7 +5357,7 @@ test('server-confirmed initial acceptance opens Today; every session tap opens i
   for (const unwanted of [
     'Training summary',
     'Prescribed work',
-    'Back to greeting',
+    'Back to onboarding',
     'Reload saved training',
     'Crab reach',
   ])
@@ -6733,4 +6710,120 @@ test('planning decline and account allowance errors use app-owned correction cop
   assert.match(trainingError('account_ai_lifetime_limit'), /Saved work/);
   const attack = 'plan_unable:<script>ignore safeguards</script>https://example.invalid';
   assert.doesNotMatch(trainingError(attack), /script|ignore safeguards|example.invalid/);
+});
+
+test('fresh profile has no selected gender and offers only Male/Female; legacy profile editing never invents a birthday', async (t) => {
+  resetAuth(alice);
+  globalThis.fetch = async () => ({ status: 200, json: async () => ({ profile: null }) });
+  let screen = await mount();
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(input(screen, 'Birthday (YYYY-MM-DD)').props.value, '');
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Age (years)' }).length, 0);
+  await act(async () => press(screen, 'Select gender'));
+  const choices = screen.root
+    .findAllByType('Pressable')
+    .filter((n) => n.props.accessibilityRole === 'radio');
+  assert.deepEqual(
+    choices.map((n) => n.props.accessibilityLabel),
+    ['Male', 'Female'],
+  );
+  assert(choices.every((n) => !n.props.accessibilityState.checked));
+  await act(async () => screen.unmount());
+  globalThis.fetch = async (url) => ({
+    status: 200,
+    json: async () =>
+      url.endsWith('/profile') ? { profile: payload } : { summary: null, plans: [] },
+  });
+  screen = await mount();
+  await act(async () => press(screen, 'Account'));
+  await act(async () => {
+    press(screen, 'Saved profile');
+    await flush();
+  });
+  assert.match(renderedTrainingText(screen), /Prefer not to say|Birthday|Not recorded/i);
+  await act(async () => press(screen, 'Edit profile'));
+  assert.equal(input(screen, 'Birthday (YYYY-MM-DD)').props.value, '');
+  await act(async () => press(screen, 'Select gender'));
+  assert(
+    screen.root
+      .findAllByType('Pressable')
+      .filter((n) => n.props.accessibilityRole === 'radio')
+      .every((n) => !n.props.accessibilityState.checked),
+  );
+  await act(async () => press(screen, 'Cancel profile editing'));
+  assert.match(renderedTrainingText(screen), /Prefer not to say/);
+});
+
+test('five reviewed answers lead directly to sharing, one consent-driven generation, and free reopen', async (t) => {
+  resetAuth(alice);
+  globalThis.__fitquestSecure.clear();
+  const saved = trainingState();
+  saved.consent = null;
+  const server = trainingServer(saved),
+    trainingFetch = globalThis.fetch;
+  let intake = fixedFixture(),
+    complete = false,
+    grants = 0;
+  globalThis.fetch = async (url, options) => {
+    if (url.endsWith('/profile')) return { status: 200, json: async () => ({ profile: payload }) };
+    if (url.includes('/onboarding')) {
+      if (url.endsWith('/commands')) {
+        const c = JSON.parse(options.body);
+        if (c.kind === 'confirm') {
+          complete = true;
+          return {
+            status: 200,
+            json: async () => ({ ...deletionReceipt(intake.id), summarySaved: true }),
+          };
+        }
+        intake = structuredClone(intake);
+        intake.context.intake.answers[Number(c.topic.split(':')[1])] = c.value;
+        intake.revision++;
+      }
+      return { status: 200, json: async () => structuredClone(intake) };
+    }
+    if (!complete) return { status: 200, json: async () => ({ summary: null, plans: [] }) };
+    if (url.endsWith('/consent')) {
+      grants++;
+      saved.consent = grantedPlanningConsent();
+      return { status: 200, json: async () => structuredClone(saved) };
+    }
+    return trainingFetch(url, options);
+  };
+  let screen = await mount();
+  t.after(async () => act(async () => screen.unmount()));
+  assert.match(renderedTrainingText(screen), /Before we begin/);
+  assert.doesNotMatch(renderedTrainingText(screen), /Hi Alex|LET’S MAKE A START/);
+  await act(async () => {
+    press(screen, 'Continue to onboarding');
+    await flush();
+  });
+  for (let i = 0; i < 5; i++) {
+    await act(async () =>
+      input(screen, `Answer ${i + 1}`).props.onChangeText(`Exact synthetic answer ${i + 1}`),
+    );
+    await act(async () => {
+      press(screen, 'Send');
+      await flush();
+    });
+  }
+  assert.equal(server.requests.filter((r) => r.url.endsWith('/generate')).length, 0);
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Generate plan' }).length, 0);
+  await act(async () => {
+    press(screen, 'Continue to sharing');
+    press(screen, 'Continue to sharing');
+    await flush();
+  });
+  assert(input(screen, 'Allow profile sharing with OpenAI'));
+  assert.equal(server.requests.filter((r) => r.url.endsWith('/generate')).length, 0);
+  await act(async () => {
+    press(screen, 'Allow profile sharing with OpenAI');
+    press(screen, 'Allow profile sharing with OpenAI');
+    await flush();
+  });
+  assert.equal(grants, 1);
+  assert.equal(server.requests.filter((r) => r.url.endsWith('/generate')).length, 1);
+  await act(async () => screen.unmount());
+  screen = await mount();
+  assert.equal(server.requests.filter((r) => r.url.endsWith('/generate')).length, 1);
 });

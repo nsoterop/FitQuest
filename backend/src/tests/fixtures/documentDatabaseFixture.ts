@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { birthdayAge } from '../../shared/profileBirthday.js';
 import { randomUUID } from 'node:crypto';
 import type { TestContext } from 'node:test';
 import type { Pool } from 'pg';
@@ -30,7 +31,8 @@ export async function verifyDocumentDatabase(
     await profiles.save(a, {
       firstName: 'Synthetic',
       lastName: 'Documents',
-      age: 30,
+      age: birthdayAge('1996-01-01')!,
+      birthday: '1996-01-01',
       height: { value: 68, unit: 'in' },
       weight: { value: 155, unit: 'lb' },
       gender: 'Unspecified',
@@ -68,6 +70,8 @@ export async function verifyDocumentDatabase(
       },
       cost: (u) => (u.input + u.output === 0 ? 0 : 10),
       call: async (body) => {
+        assert(!body.includes('1996-01-01'));
+        assert(!body.includes('birthday'));
         bodies.push(body);
         const req = JSON.parse(body);
         assert.deepEqual(req.reasoning, { effort: 'low' });

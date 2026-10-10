@@ -63,6 +63,15 @@ test(
     );
     await owner.query('BEGIN');
     await owner.query(baseline);
+    await owner.query(
+      await readFile(
+        new URL(
+          '../../../../database/migrations/20261010190000_profile_birthday.sql',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    );
     await owner.query('COMMIT');
     const alice = {
       userId: '11111111-1111-4111-8111-111111111111',
@@ -85,7 +94,7 @@ test(
       height: { value: 68, unit: 'in' as const },
       age: 29,
       weight: { value: 155.5, unit: 'lb' as const },
-      gender: 'Prefer not to say',
+      gender: 'Male',
     };
     url.username = 'fitquest_app';
     const restricted = new Pool({ connectionString: url.toString(), max: 1 });
@@ -212,6 +221,7 @@ test(
     assert.equal((await owner.query('SELECT FROM fitquest.profiles')).rowCount, 2);
     assert.equal((await owner.query('SELECT FROM auth.users')).rowCount, 2);
     await owner.query('DROP TABLE fitquest.unexpected_dependency');
+    await owner.query('DROP FUNCTION fitquest.profile_age(integer,date,date)');
     await owner.query('BEGIN');
     await owner.query(baseline);
     await owner.query('COMMIT');
@@ -252,6 +262,32 @@ test(
       casey.sessionId,
       casey.userId,
     ]);
+    await owner.query(
+      "INSERT INTO fitquest.profiles(user_id,first_name,last_name,height_inches,age,weight_lb,gender) VALUES($1,'Alex','Example',68,29,155.5,'Prefer not to say')",
+      [casey.userId],
+    );
+    const beforeBirthday = (
+      await owner.query('SELECT to_jsonb(p) AS data FROM fitquest.profiles p ORDER BY user_id')
+    ).rows.map((row) => row.data);
+    await owner.query('BEGIN');
+    await owner.query(
+      await readFile(
+        new URL(
+          '../../../../database/migrations/20261010190000_profile_birthday.sql',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    );
+    await owner.query('COMMIT');
+    const afterBirthday = (
+      await owner.query(
+        "SELECT to_jsonb(p)-'birthday' AS data FROM fitquest.profiles p ORDER BY user_id",
+      )
+    ).rows.map((row) => row.data);
+    assert.deepEqual(afterBirthday, JSON.parse(JSON.stringify(beforeBirthday)));
+    assert.equal((await durable.read(casey))?.gender, 'Prefer not to say');
+    assert.equal((await durable.read(casey))?.birthday, undefined);
     await durable.save(casey, input);
     assert.equal((await durable.read(casey))?.firstName, 'Alex');
     for (const role of ['anon', 'authenticated', 'service_role']) {
@@ -274,5 +310,53 @@ test(
       { rls: true, forced: true },
     );
     await verifyOnboardingDatabase(t, owner, reopened, durable);
+    await t.test(
+      'birthday persistence, age boundaries and legacy writes preserve isolation and grants',
+      async () => {
+        const { birthdayAge } = await import('../../shared/profileBirthday.js');
+        const birthday = '2000-02-29';
+        const next = { ...input, birthday, age: birthdayAge(birthday)! };
+        await durable.save(casey, next);
+        const read = await durable.read(casey);
+        assert.equal(read?.birthday, birthday);
+        assert.equal(read?.age, birthdayAge(birthday));
+        // An old client's age-only save must not erase an actual recorded birthday.
+        await durable.save(casey, { ...input, age: 40 });
+        assert.equal((await durable.read(casey))?.birthday, birthday);
+        assert.equal((await durable.read(casey))?.age, birthdayAge(birthday));
+        const ages = await owner.query(
+          "SELECT fitquest.profile_age(30,NULL,DATE '2025-02-28') AS legacy,fitquest.profile_age(30,DATE '2000-02-29',DATE '2025-02-28') AS before,fitquest.profile_age(30,DATE '2000-02-29',DATE '2025-03-01') AS after",
+        );
+        assert.deepEqual(ages.rows[0], { legacy: 30, before: 24, after: 25 });
+        for (const role of ['anon', 'authenticated', 'service_role'])
+          assert.equal(
+            (
+              await owner.query(
+                "SELECT has_function_privilege($1,'fitquest.profile_age(integer,date,date)','EXECUTE') AS allowed",
+                [role],
+              )
+            ).rows[0].allowed,
+            false,
+          );
+        assert.equal(
+          (
+            await owner.query(
+              "SELECT has_function_privilege('fitquest_app','fitquest.profile_age(integer,date,date)','EXECUTE') AS allowed",
+            )
+          ).rows[0].allowed,
+          true,
+        );
+        const isolated = {
+          userId: '99999999-9999-4999-8999-999999999999',
+          sessionId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        };
+        await owner.query('INSERT INTO auth.users(id) VALUES($1)', [isolated.userId]);
+        await owner.query('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)', [
+          isolated.sessionId,
+          isolated.userId,
+        ]);
+        assert.equal(await durable.read(isolated), null);
+      },
+    );
   },
 );

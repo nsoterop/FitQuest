@@ -62,7 +62,7 @@ const intake = {
   height: { value: 68, unit: 'in' },
   age: 29,
   weight: { value: 155.5, unit: 'lb' },
-  gender: 'Prefer not to say',
+  gender: 'Male',
 };
 
 test('training permission HTTP route preserves both revisions and validates history revision', async (t) => {
@@ -574,4 +574,49 @@ test('private training, food, journal and weight requests never log input, crede
   await app.inject({ url: '/health' });
   assert(logs.includes('incoming request'), 'the logger must capture the public control request');
   assert(!logs.includes(marker));
+});
+
+test('birthday intake derives age, rejects invalid dates and ambiguous age, and keeps old clients compatible', async (t) => {
+  const deps = dependencies(),
+    app = buildApp(false, deps);
+  t.after(() => app.close());
+  const { age: _age, ...profile } = intake;
+  const valid = { ...profile, birthday: '1997-01-01' };
+  assert.equal(
+    (await app.inject({ method: 'POST', url: '/profile-intake', headers, payload: valid }))
+      .statusCode,
+    200,
+  );
+  const saved = await deps.store.read(accounts.alice);
+  assert.equal(saved?.birthday, valid.birthday);
+  assert.equal(saved?.age, new Date().getUTCFullYear() - 1997);
+  for (const body of [
+    { ...valid, birthday: '2026-02-30' },
+    { ...valid, birthday: '2025-02-29' },
+    { ...valid, birthday: '9999-01-01' },
+    { ...valid, birthday: '0000-01-01' },
+    { ...valid, age: 29 },
+    { ...valid, gender: 'Unspecified' },
+  ]) {
+    const reply = await app.inject({
+      method: 'POST',
+      url: '/profile-intake',
+      headers,
+      payload: body,
+    });
+    assert.equal(reply.statusCode, 400);
+    assert.deepEqual(await deps.store.read(accounts.alice), saved);
+    assert(!reply.body.includes(body.birthday));
+  }
+  assert.equal(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/profile-intake',
+        headers,
+        payload: { ...intake, gender: 'Prefer not to say' },
+      })
+    ).statusCode,
+    200,
+  );
 });

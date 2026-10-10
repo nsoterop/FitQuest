@@ -53,6 +53,9 @@ test(
         IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role; END IF;
       END $$;`);
     }
+    const manifest = JSON.parse(
+      await readFile(new URL('./manifest.json', import.meta.url), 'utf8'),
+    );
     const fresh = databases[0].client,
       legacy = databases[1].client;
     await t.test('mid-install failure rolls back schema, role and ledger changes', async () => {
@@ -106,7 +109,7 @@ test(
       );
       assert.equal(
         (await fresh.query('SELECT FROM supabase_migrations.schema_migrations')).rowCount,
-        23,
+        manifest.length + 1,
       );
       assert.deepEqual(
         (
@@ -119,9 +122,6 @@ test(
       await assert.rejects(installFresh(fresh), /no existing FitQuest schema/);
       assert.equal((await fresh.query('SELECT FROM auth.users')).rowCount, 1);
     });
-    const manifest = JSON.parse(
-      await readFile(new URL('./manifest.json', import.meta.url), 'utf8'),
-    );
     await legacy.query('BEGIN');
     for (const { file } of manifest)
       await legacy.query(await readFile(new URL('../migrations/' + file, import.meta.url), 'utf8'));

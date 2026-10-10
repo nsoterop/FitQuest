@@ -119,7 +119,7 @@ export function postgresOnboardingStore(pool: Pool) {
   async function profile(c: PoolClient, account: Account) {
     const row = (
       await c.query(
-        'SELECT first_name,last_name,age,height_inches,weight_lb,gender,updated_at::text AS version FROM fitquest.profiles WHERE user_id=$1 FOR SHARE',
+        'SELECT first_name,last_name,fitquest.profile_age(age,birthday) AS age,height_inches,weight_lb,gender,updated_at::text AS version FROM fitquest.profiles WHERE user_id=$1 FOR SHARE',
         [account.userId],
       )
     ).rows[0];

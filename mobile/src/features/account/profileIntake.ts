@@ -1,9 +1,10 @@
+import { birthdayAge, profileGenders } from '../../../../backend/src/shared/profileBirthday.ts';
 export type IntakeFields = {
   firstName: string;
   lastName: string;
   heightFeet: string;
   heightInches: string;
-  age: string;
+  birthday: string;
   weight: string;
   gender: string;
 };
@@ -12,7 +13,7 @@ export type IntakePayload = {
   firstName: string;
   lastName: string;
   height: { value: number; unit: 'in' };
-  age: number;
+  birthday: string;
   weight: { value: number; unit: 'lb' };
   gender: string;
 };
@@ -34,9 +35,9 @@ export function validateIntake(
   const height = feet * 12 + inches;
   if (inches > 11 || height < 1 || height > 120)
     return { error: 'Enter a height up to 10 feet; inches must be 0–11.' };
-  if (!/^\d+$/.test(fields.age.trim()) || Number(fields.age) < 1 || Number(fields.age) > 130) {
-    return { error: 'Enter age as a whole number from 1 to 130.' };
-  }
+  const birthday = fields.birthday.trim();
+  if (birthdayAge(birthday) === null)
+    return { error: 'Enter a real birthday as YYYY-MM-DD, not in the future (up to age 130).' };
   const weight = Number(fields.weight);
   if (
     !/^\d+(\.\d+)?$/.test(fields.weight.trim()) ||
@@ -46,14 +47,14 @@ export function validateIntake(
   ) {
     return { error: 'Enter weight in pounds, greater than 0 and up to 1,500.' };
   }
-  if (!gender || gender.length > 100)
-    return { error: 'Enter gender (1–100 characters); “Prefer not to say” is accepted.' };
+  if (!profileGenders.some((option) => option === gender))
+    return { error: 'Select Male or Female.' };
   return {
     payload: {
       firstName,
       lastName,
       height: { value: height, unit: 'in' },
-      age: Number(fields.age),
+      birthday,
       weight: { value: weight, unit: 'lb' },
       gender,
     },
@@ -129,14 +130,19 @@ export async function submitIntake(
   }
 }
 
-export type SavedProfile = IntakePayload & { ageCapturedAt: string; updatedAt: string };
+export type SavedProfile = Omit<IntakePayload, 'birthday'> & {
+  age: number;
+  birthday?: string | null;
+  ageCapturedAt: string;
+  updatedAt: string;
+};
 export function profileFields(profile: SavedProfile): IntakeFields {
   return {
     firstName: profile.firstName,
     lastName: profile.lastName,
     heightFeet: String(Math.floor(profile.height.value / 12)),
     heightInches: String(profile.height.value % 12),
-    age: String(profile.age),
+    birthday: profile.birthday ?? '',
     weight: String(profile.weight.value),
     gender: profile.gender,
   };
@@ -175,6 +181,9 @@ export async function loadProfile(
       typeof p.lastName !== 'string' ||
       typeof p.gender !== 'string' ||
       !Number.isInteger(p.age) ||
+      p.age < 0 ||
+      p.age > 130 ||
+      (p.birthday != null && birthdayAge(p.birthday) === null) ||
       !Number.isInteger(p.height?.value) ||
       p.height?.unit !== 'in' ||
       p.weight?.unit !== 'lb' ||
@@ -183,7 +192,16 @@ export async function loadProfile(
       typeof p.updatedAt !== 'string' ||
       !Number.isFinite(Date.parse(p.ageCapturedAt)) ||
       !Number.isFinite(Date.parse(p.updatedAt)) ||
-      'error' in validateIntake(profileFields(p))
+      !p.firstName.trim() ||
+      p.firstName.length > 100 ||
+      !p.lastName.trim() ||
+      p.lastName.length > 100 ||
+      !p.gender.trim() ||
+      p.gender.length > 100 ||
+      p.height.value < 1 ||
+      p.height.value > 120 ||
+      p.weight.value <= 0 ||
+      p.weight.value > 1500
     )
       throw new Error();
     return { profile: p };

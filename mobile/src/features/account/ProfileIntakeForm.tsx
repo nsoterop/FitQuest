@@ -4,7 +4,15 @@ import type { RecoveryRequest } from '../onboarding/onboardingApi';
 import { TrainingScreen } from '../training/TrainingScreen';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { submitIntake, validateIntake, loadProfile, type IntakeFields } from './profileIntake';
+import {
+  submitIntake,
+  validateIntake,
+  loadProfile,
+  profileFields,
+  type SavedProfile,
+  type IntakeFields,
+} from './profileIntake';
+import { GenderSelect } from './GenderSelect';
 import { OnboardingScreen } from '../onboarding/OnboardingScreen';
 import {
   hasAcceptedTraining,
@@ -18,7 +26,7 @@ const emptyFields: IntakeFields = {
   lastName: '',
   heightFeet: '',
   heightInches: '',
-  age: '',
+  birthday: '',
   weight: '',
   gender: '',
 };
@@ -29,6 +37,9 @@ type Props = {
   userId?: string;
   onAccount?: () => void;
   trainingRefresh?: number;
+  editingProfile?: SavedProfile;
+  onSaved?: () => void;
+  onCancel?: () => void;
 };
 export function ProfileIntakeForm(props: Props) {
   return <AccountProfileForm key={props.userId ?? 'signed-out'} {...props} />;
@@ -39,8 +50,13 @@ function AccountProfileForm({
   userId,
   onAccount,
   trainingRefresh,
+  editingProfile,
+  onSaved,
+  onCancel,
 }: Props) {
-  const [fields, setFields] = useState(emptyFields);
+  const [fields, setFields] = useState(() =>
+    editingProfile ? profileFields(editingProfile) : emptyFields,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const pending = useRef<AbortController | null>(null);
@@ -65,7 +81,7 @@ function AccountProfileForm({
   const [accessCheck, setAccessCheck] = useState(0);
 
   useEffect(() => {
-    if (!userId || savedFirstName === null || onboarding || training) return;
+    if (editingProfile || !userId || savedFirstName === null || onboarding || training) return;
     let active = true;
     let controller: AbortController | undefined;
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -89,6 +105,9 @@ function AccountProfileForm({
             setInitialTraining(saved);
             setGenerateOnOpen(false);
             setTraining(true);
+          } else {
+            setRecovery(undefined);
+            setOnboarding(true);
           }
         }
       } catch (error) {
@@ -159,7 +178,8 @@ function AccountProfileForm({
 
   useEffect(() => {
     mounted.current = true;
-    void restore();
+    if (editingProfile) setReading(false);
+    else void restore();
     return () => {
       mounted.current = false;
       pending.current?.abort();
@@ -208,14 +228,16 @@ function AccountProfileForm({
       sessionEnded.current?.();
       return;
     }
-    if ('success' in result) setSavedFirstName(validation.payload.firstName);
-    else setFeedback(result.error);
+    if ('success' in result) {
+      if (editingProfile) onSaved?.();
+      else setSavedFirstName(validation.payload.firstName);
+    } else setFeedback(result.error);
   }
 
   function field(
     key: keyof IntakeFields,
     label: string,
-    keyboardType: 'default' | 'number-pad' | 'decimal-pad' = 'default',
+    keyboardType: 'default' | 'number-pad' | 'decimal-pad' | 'numbers-and-punctuation' = 'default',
   ) {
     return (
       <View style={styles.field} key={key}>
@@ -261,6 +283,7 @@ function AccountProfileForm({
         <OnboardingScreen
           onAccount={onAccount}
           recovery={recovery}
+          notice={onboardingNotice}
           userId={userId}
           accessToken={accessToken}
           onSessionEnded={onSessionEnded}
@@ -290,32 +313,7 @@ function AccountProfileForm({
           />
         </Page>
       );
-    return (
-      <Page onAccount={onAccount}>
-        <Text style={ui.eyebrow}>LET’S MAKE A START</Text>
-        <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={ui.title}>
-          Hi {savedFirstName}
-        </Text>
-        <Text style={ui.copy}>
-          Your training starts with you. Build a week around your goals, time and equipment.
-        </Text>
-        {!!onboardingNotice && (
-          <Text accessibilityLiveRegion="polite" style={styles.copy}>
-            {onboardingNotice}
-          </Text>
-        )}
-        {userId && trainingAccess === 'empty' && (
-          <Action
-            label="Start onboarding"
-            onPress={() => {
-              setRecovery(undefined);
-              setOnboardingNotice('');
-              setOnboarding(true);
-            }}
-          />
-        )}
-      </Page>
-    );
+    return <LoadingProgress onAccount={onAccount} />;
   }
   if (reading) return <LoadingProgress onAccount={onAccount} />;
   if (loadError)
@@ -339,10 +337,10 @@ function AccountProfileForm({
     );
 
   return (
-    <Page onAccount={onAccount}>
+    <Page onAccount={onAccount} onBack={onCancel} backLabel="Cancel profile editing">
       <Text style={ui.eyebrow}>YOUR STARTING POINT</Text>
       <Text accessibilityRole="header" style={ui.title}>
-        Start with you.
+        {editingProfile ? 'Edit your profile.' : 'Start with you.'}
       </Text>
       <Text style={styles.copy}>Save your details to your FitQuest account.</Text>
       <View style={styles.row}>
@@ -353,12 +351,21 @@ function AccountProfileForm({
         {field('heightFeet', 'Height (feet)', 'number-pad')}
         {field('heightInches', 'Height (inches)', 'number-pad')}
       </View>
-      <View style={styles.row}>
-        {field('age', 'Age (years)', 'number-pad')}
-        {field('weight', 'Weight (lb)', 'decimal-pad')}
-      </View>
-      {field('gender', 'Gender')}
-      <Text style={styles.hint}>Describe your gender, or enter “Prefer not to say”.</Text>
+      {field('birthday', 'Birthday (YYYY-MM-DD)', 'numbers-and-punctuation')}
+      <Text style={styles.hint}>
+        Your birthday stays private. Only your age is used for planning.
+      </Text>
+      {editingProfile && !editingProfile.birthday && (
+        <Text style={styles.hint}>
+          Your previous profile recorded age only. Enter your real birthday to update it.
+        </Text>
+      )}
+      {field('weight', 'Weight (lb)', 'decimal-pad')}
+      <GenderSelect
+        value={fields.gender}
+        disabled={submitting}
+        onChange={(value) => update('gender', value)}
+      />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Submit profile"
@@ -367,7 +374,9 @@ function AccountProfileForm({
         onPress={() => void submit()}
         style={({ pressed }) => [styles.button, (pressed || submitting) && styles.disabled]}
       >
-        <Text style={styles.buttonText}>{submitting ? 'Submitting…' : 'Submit'}</Text>
+        <Text style={styles.buttonText}>
+          {submitting ? 'Submitting…' : editingProfile ? 'Save profile' : 'Submit'}
+        </Text>
       </Pressable>
       {feedback && (
         <Text

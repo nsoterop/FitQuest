@@ -8,12 +8,12 @@ export type FixedIntakeFormProps = {
   text: string;
   editIndex: number | null;
   disabled: boolean;
-  canGenerate: boolean;
+  canContinue: boolean;
   onText: (text: string) => void;
   onEdit: (index: number) => void;
   onCancel: () => void;
   onSave: (index: number) => void;
-  onGenerate: () => void;
+  onContinue: () => void;
 };
 const titles = [
   'Your goals.',
@@ -152,13 +152,13 @@ export function FixedIntakeForm(p: FixedIntakeFormProps) {
       {complete && (
         <>
           <Text style={ui.copy}>
-            Generate the complete week in one request. Review the plan first; choosing it reveals
-            the saved workouts.
+            Next, choose whether to share your profile and answers with OpenAI. With permission,
+            your complete week is generated once. Review the plan before choosing it.
           </Text>
           <Action
-            label="Generate plan"
-            onPress={p.onGenerate}
-            disabled={!p.canGenerate || p.disabled || p.editIndex !== null || !!p.text.trim()}
+            label="Continue to sharing"
+            onPress={p.onContinue}
+            disabled={!p.canContinue || p.disabled || p.editIndex !== null || !!p.text.trim()}
           />
         </>
       )}

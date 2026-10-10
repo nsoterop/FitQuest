@@ -39,3 +39,10 @@ Source resolution and the exact-commit service build succeeded using existing ap
 7. Record actual backend revision, migration versions, unchanged policy state, mobile-bundle verification and phone acceptance separately. Roll back only the application artifacts if necessary; keep forward schema, all saved records, operation receipts and settled/uncertain accounting. Never roll back by deleting schema or resetting spending. Do not switch provider contracts while new-format work is in flight.
 
 All temporary test processes must be stopped after verification. The earlier synthetic simulator checks establish layout/wiring, not live coaching, an actual Sunday dispatch or phone acceptance.
+
+
+## Birthday/onboarding follow-up
+
+Deploy this follow-up only after separate approval and application of `20261010190000_profile_birthday.sql`. It adds a nullable birthday and restricted age function, preserves existing rows and age-only fallback, and allows age zero only for profiles with a birthday. It does not backfill dates, change consent/schedules or modify spending. The installer manifest contains its exact checksum; do not run the installer or replay historical migrations on the hosted database.
+
+Verify forced profile RLS and restricted function grants, unchanged saved/private/accounting groups, and no active generation before the existing-service deployment. Keep the forward schema if rolling the application back to `9a66229`; older age-only writes preserve a recorded birthday under the new runtime. Deliver mobile JavaScript only after backend compatibility is live, through the owner's existing Metro. Record actual source/CI, migration version, Render Live commit and served bundle separately in the retained release record.
