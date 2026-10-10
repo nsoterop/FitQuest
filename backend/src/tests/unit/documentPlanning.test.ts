@@ -5,6 +5,8 @@ import {
   documentPrompt,
   prepareDocument,
   checkDocument,
+  checkDocumentResult,
+  documentResultSchema,
   documentSchema,
 } from '../../features/planning/documentPlanning.js';
 import {
@@ -59,7 +61,16 @@ test('document request uses exact concise context and small display schema, no c
     r = JSON.parse(p.body);
   assert.equal(documentPrompt(answers, dates), expected);
   const data = JSON.parse(r.input);
-  assert.deepEqual(Object.values(data.answers), answers);
+  assert.deepEqual(
+    [
+      data.answers.goals,
+      data.answers.currentActivity,
+      data.answers.equipment,
+      data.answers.preferences,
+      data.answers.limitations,
+    ],
+    answers,
+  );
   assert.deepEqual(data.dates, dates);
   assert.deepEqual(data.profile, input.profile);
   assert(r.instructions.includes(expected.split('\n\n')[1]));
@@ -135,7 +146,7 @@ test('real provider adapter dispatches the document wire once per initial/revisi
       calls++;
       const request = JSON.parse(String(options!.body));
       assert.equal(request.model, 'gpt-6.1-sol');
-      assert.equal(request.text.format.name, 'document_week_v4');
+      assert.equal(request.text.format.name, 'document_result_v1');
       assert.deepEqual(request.reasoning, { effort: 'low' });
       return new Response(
         JSON.stringify({
@@ -147,7 +158,13 @@ test('real provider adapter dispatches the document wire once per initial/revisi
               content: [
                 mode === 'refused'
                   ? { type: 'refusal', refusal: 'Synthetic refusal' }
-                  : { type: 'output_text', text: JSON.stringify(documentFixture(dates)) },
+                  : {
+                      type: 'output_text',
+                      text: JSON.stringify({
+                        version: 1,
+                        result: { kind: 'plan', plan: documentFixture(dates) },
+                      }),
+                    },
               ],
             },
           ],
@@ -163,7 +180,7 @@ test('real provider adapter dispatches the document wire once per initial/revisi
       n = calls;
     const result = await p.call(prepared.body, new AbortController().signal);
     assert.equal(calls, n + 1);
-    assert.deepEqual(checkDocument(result.proposal, source), documentFixture(dates));
+    assert.deepEqual(checkDocumentResult(result.proposal, source), documentFixture(dates));
     assert.equal(
       prepared.reserveMicro,
       p.cost({ input: Buffer.byteLength(prepared.body), output: 48000, cached: 0, cacheWrite: 0 }),
@@ -216,7 +233,7 @@ test('formatting is the only prompt change; coaching prefix and legacy work rema
       },
     }).body,
   );
-  assert.deepEqual(Object.values(JSON.parse(revision.input).answers), answers);
+  assert.equal(JSON.parse(revision.input).answers.goals, answers[0]);
   assert.deepEqual(JSON.parse(revision.input).review.plan, legacy);
   const rowSchema = (documentSchema.properties.days as any).items.properties.sessions.items
     .properties.exercises;
@@ -295,4 +312,31 @@ test('nutrition checks integrity without diet rules or clamping; unavailable and
   };
   const request = prepareDocument(provider, { ...input, profile: privateProfile });
   assert(!/PRIVATE_|private@example/.test(request.body));
+});
+
+test('versioned outcomes are bounded, explicit, and never masquerade as a saved document', () => {
+  const validate = new Ajv({ strict: true }).compile(documentResultSchema);
+  const plan = documentFixture(dates);
+  const ok = { version: 1, result: { kind: 'plan', plan } };
+  assert(validate(ok));
+  assert.deepEqual(checkDocumentResult(ok, input), plan);
+  for (const reason of ['out_of_scope', 'unable']) {
+    const outcome = { version: 1, result: { kind: 'unavailable', reason } };
+    assert(validate(outcome));
+    assert.throws(() => checkDocumentResult(outcome, input), {
+      code: reason === 'out_of_scope' ? 'plan_out_of_scope' : 'plan_unable',
+    });
+  }
+  for (const bad of [
+    plan,
+    { version: 2, result: ok.result },
+    { version: 1, result: { kind: 'unavailable', reason: 'ignore rules' } },
+    {
+      version: 1,
+      result: { kind: 'unavailable', reason: 'unable', message: '<script>remote</script>' },
+    },
+    { version: 1, result: { kind: 'plan', plan: { days: [] } } },
+  ])
+    assert.throws(() => checkDocumentResult(bad, input), { code: 'invalid_document' });
+  assert(validSavedDocument(plan, dates, 'document-week-v4'));
 });

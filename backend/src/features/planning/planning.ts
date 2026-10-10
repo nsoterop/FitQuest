@@ -1,4 +1,4 @@
-import { checkDocument, documentPlanVersion } from './documentPlanning.js';
+import { checkDocumentResult, documentPlanVersion } from './documentPlanning.js';
 import { CompleteValidationError, safeValidationDiagnostic } from './planDiagnostics.js';
 import { checkComplete, completeOutline } from './completePlanning.js';
 import { validationFailureCode } from './planningValidation.js';
@@ -118,7 +118,7 @@ export function planningService(
         try {
           value =
             work.input.schemaVersion === documentPlanVersion
-              ? checkDocument(result.proposal, work.input)
+              ? checkDocumentResult(result.proposal, work.input)
               : work.stage === 'outline'
                 ? completeOutline(result.rawText!, work.input.dates)
                 : work.input.schemaVersion === 'complete-week-v1'
@@ -147,8 +147,10 @@ export function planningService(
           failure =
             validationFailureCode(e) ?? (e instanceof OnboardingError ? e.code : 'invalid_plan');
           if (
-            work.input.schemaVersion === 'complete-week-v1' ||
-            work.input.schemaVersion === documentPlanVersion
+            (work.input.schemaVersion === 'complete-week-v1' ||
+              work.input.schemaVersion === documentPlanVersion) &&
+            failure !== 'plan_out_of_scope' &&
+            failure !== 'plan_unable'
           )
             try {
               const diagnostic =

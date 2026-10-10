@@ -89,9 +89,15 @@ export async function verifySchedulerDatabase(
         return failure
           ? { failure: 'provider_error' }
           : {
-              proposal: journalDocumentFixture(
-                scheduledDates('America/New_York', '2026-10-10T16:00:00Z', now)!,
-              ),
+              proposal: {
+                version: 1,
+                result: {
+                  kind: 'plan',
+                  plan: journalDocumentFixture(
+                    scheduledDates('America/New_York', '2026-10-10T16:00:00Z', now)!,
+                  ),
+                },
+              },
               usage: { input: 10, output: 10, cached: 0, cacheWrite: 0 },
             };
       },
@@ -136,7 +142,7 @@ export async function verifySchedulerDatabase(
       const q = JSON.parse(m.bodies[0]!);
       assert.equal(q.model, 'gpt-6.1-sol');
       assert.deepEqual(q.reasoning, { effort: 'low' });
-      assert.equal(q.text.format.name, 'document_week_v4');
+      assert.equal(q.text.format.name, 'document_result_v1');
       assert(q.input.includes('saved profile; measurement date unknown'));
     },
   );

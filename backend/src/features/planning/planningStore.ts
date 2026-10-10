@@ -18,7 +18,7 @@ import {
   type PlanningConsent,
 } from '../../shared/planningConsent.js';
 import { foodDate, foodId, foodToday } from '../../shared/foodContract.js';
-import { prepareDocument, documentPlanVersion } from './documentPlanning.js';
+import { prepareDocument, documentPlanVersion, documentWireName } from './documentPlanning.js';
 import {
   documentOverview,
   isDocumentVersion,
@@ -379,7 +379,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       if (prepared) {
         await c.query(
           "INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,$5,$5)",
-          [a.userId, attempt, provider.purpose ?? 'app', provider.model, documentPlanVersion],
+          [a.userId, attempt, provider.purpose ?? 'app', provider.model, documentWireName],
         );
         if (
           !(

@@ -1,5 +1,5 @@
 import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
-import { progressRules } from '../weekly-planning/progressContext.js';
+import { progressRules, stableProgress } from '../weekly-planning/progressContext.js';
 import { Ajv } from 'ajv';
 import {
   documentPlanVersion,
@@ -19,7 +19,7 @@ const object = (properties: Record<string, unknown>) => ({
   required: Object.keys(properties),
 });
 const text = (maxLength: number) => ({ type: 'string', minLength: 1, maxLength });
-export const documentWireName = 'document_week_v4';
+export const documentWireName = 'document_result_v1';
 const nullableNumber = { anyOf: [{ type: 'number', minimum: 0 }, { type: 'null' }] };
 export const dailyNutritionSchema = object({
   version: { type: 'integer', enum: [1] },
@@ -67,6 +67,36 @@ export const documentSchema = object({
     }),
   },
 });
+// Transport envelope only. Saved document versions and legacy readers are unchanged.
+export const documentResultSchema = object({
+  version: { type: 'integer', enum: [1] },
+  result: {
+    anyOf: [
+      object({ kind: { type: 'string', enum: ['plan'] }, plan: documentSchema }),
+      object({
+        kind: { type: 'string', enum: ['unavailable'] },
+        reason: { type: 'string', enum: ['out_of_scope', 'unable'] },
+      }),
+    ],
+  },
+});
+type DocumentResult = {
+  version: 1;
+  result:
+    | { kind: 'plan'; plan: NutritionDocumentPlan }
+    | { kind: 'unavailable'; reason: 'out_of_scope' | 'unable' };
+};
+const validateResult = new Ajv({ strict: true }).compile<DocumentResult>(documentResultSchema);
+export function checkDocumentResult(value: unknown, input: PlanningInput): NutritionDocumentPlan {
+  if (!validateResult(value))
+    throw new CompleteValidationError('invalid_document', { stage: 'schema', rule: 'shape' });
+  if (value.result.kind === 'unavailable')
+    throw new OnboardingError(
+      422,
+      value.result.reason === 'out_of_scope' ? 'plan_out_of_scope' : 'plan_unable',
+    );
+  return checkDocument(value.result.plan, input);
+}
 export const loggingInstruction =
   'For each exercise row, add loggingMode: weighted_reps for a prescription accurately logged with weight, sets and reps; reps for sets and reps without weight; completion for everything else or ambiguous/composite work. Choose from the actual prescription, not its name alone. This selects only the logging layout; keep activities and prescriptions unrestricted.';
 const validate = new Ajv({ strict: true }).compile<NutritionDocumentPlan>(documentSchema);
@@ -92,6 +122,7 @@ export function prepareDocument(provider: OnboardingProvider, input: PlanningInp
     athleteDataPolicy,
     documentCoachingInstructions,
     documentDisplayInstructions,
+    'Return envelope version 1 with result.kind plan and the complete document in result.plan. If the request is unrelated to FitQuest training and supported nutrition, return result.kind unavailable with reason out_of_scope. If a suitable plan cannot be provided, use reason unable. Do not invent sessions or hide an unrelated answer in exercise text to satisfy the schema. These outcomes contain no free-text explanation.',
     'Use exactly the supplied Monday–Sunday dates in order. Gender is self-reported, not confirmed physiological data. Do not invent missing facts.',
     nutritionRequest,
     'Return daily estimated nutrition in the nutrition object: caloriesKcal in kcal, proteinGrams, carbohydrateGrams and fatGrams in grams; version 1. Use status available with values and at most a short rationale or assumptions. If suitable targets cannot be provided, use status unavailable, null nutrient values and a short reason. Do not force numeric advice.',
@@ -130,9 +161,14 @@ export function prepareDocument(provider: OnboardingProvider, input: PlanningInp
     reasoning: { effort: 'low' },
     max_output_tokens: weeklyLimits.outputTokens,
     instructions,
-    input: JSON.stringify(data),
+    input: stableProgress(data),
     text: {
-      format: { type: 'json_schema', name: documentWireName, strict: true, schema: documentSchema },
+      format: {
+        type: 'json_schema',
+        name: documentWireName,
+        strict: true,
+        schema: documentResultSchema,
+      },
     },
   });
   if (Buffer.byteLength(body) > weeklyLimits.inputBytes)

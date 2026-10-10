@@ -156,7 +156,10 @@ export async function verifyProgressDatabase(
         return fail
           ? { failure: 'provider_error' }
           : {
-              proposal: journalDocumentFixture(upcoming),
+              proposal: {
+                version: 1,
+                result: { kind: 'plan', plan: journalDocumentFixture(upcoming) },
+              },
               usage: { input: 10, output: 10, cached: 0, cacheWrite: 0 },
             };
       },
@@ -235,7 +238,7 @@ export async function verifyProgressDatabase(
       assert.deepEqual(req.reasoning, { effort: 'low' });
       assert.equal(req.model, 'gpt-6.1-sol');
       assert.equal(req.max_output_tokens, 48000);
-      assert.equal(req.text.format.name, 'document_week_v4');
+      assert.equal(req.text.format.name, 'document_result_v1');
       assert(answers.every((x) => req.input.includes(x)));
       assert(req.input.includes('Elbow discomfort'));
       assert(!req.input.includes('Late note:'));

@@ -300,7 +300,12 @@ export const trainingError = (code: string) =>
       invalid_timezone: 'Choose a valid time zone on your device.',
       interrupted: 'Generation was interrupted. An explicit retry may incur another AI charge.',
       provider_error: 'Generation did not finish. An explicit retry may incur another AI charge.',
-      refused: 'AI could not generate this plan.',
+      plan_out_of_scope:
+        'Describe your training goals, preferences and limitations, then request a plan again. This request was outside supported planning.',
+      plan_unable:
+        'AI could not provide a suitable plan from this input. Correct your input before requesting another plan. Saved work remains available.',
+      refused:
+        'AI declined this request. Review your input before trying again. Saved work remains available.',
       incomplete: 'The AI response was incomplete.',
       session_ended: 'Your session ended. Please sign in again.',
     } as Record<string, string>

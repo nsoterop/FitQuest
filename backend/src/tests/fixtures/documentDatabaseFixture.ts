@@ -71,7 +71,7 @@ export async function verifyDocumentDatabase(
         bodies.push(body);
         const req = JSON.parse(body);
         assert.deepEqual(req.reasoning, { effort: 'low' });
-        assert.equal(req.text.format.name, 'document_week_v4');
+        assert.equal(req.text.format.name, 'document_result_v1');
         assert(!req.input.includes('catalog'));
         assert(syntheticAnswers.every((answer) => req.input.includes(answer)));
         const result = structuredClone(document);
@@ -86,7 +86,14 @@ export async function verifyDocumentDatabase(
         return {
           ...(['refused', 'incomplete', 'provider_error'].includes(mode)
             ? { failure: mode as 'refused' }
-            : { proposal: mode === 'invalid' ? { days: [] } : result }),
+            : {
+                proposal:
+                  mode === 'invalid'
+                    ? { days: [] }
+                    : ['out_of_scope', 'unable'].includes(mode)
+                      ? { version: 1, result: { kind: 'unavailable', reason: mode } }
+                      : { version: 1, result: { kind: 'plan', plan: result } },
+              }),
           ...(mode === 'provider_error'
             ? {}
             : { usage: { input: 10, output: 10, cached: 0, cacheWrite: 0 } }),
@@ -170,10 +177,7 @@ export async function verifyDocumentDatabase(
       f.r.retryAttempt = work.attempt;
       await f.service.generate(f.a, f.r, async () => true);
       assert.equal(f.bodies.length, 1);
-      assert(
-        f.bodies[0]!.includes('gender "Unspecified"') ||
-          JSON.parse(f.bodies[0]!).input.includes('gender "Unspecified"'),
-      );
+      assert.equal(JSON.parse(JSON.parse(f.bodies[0]!).input).profile.gender, 'Unspecified');
       assert(!f.bodies[0]!.includes('Documents'));
       assert(!f.bodies[0]!.includes(f.a.userId));
     },
@@ -249,7 +253,7 @@ export async function verifyDocumentDatabase(
       assert.equal(attempts.length, 1);
       assert.equal(attempts[0].state, 'settled');
       assert.equal(Number(attempts[0].actual_micro), 10);
-      assert.equal(attempts[0].schema_version, 'document-week-v4');
+      assert.equal(attempts[0].schema_version, 'document_result_v1');
       const v = { summaryRevision: 1, planId: f.plan.id, planRevision: 1 };
       await assert.rejects(f.store.accept(f.a, { ...v, planRevision: 0 }), {
         code: 'plan_changed',
@@ -265,6 +269,40 @@ export async function verifyDocumentDatabase(
       await f.service.generate(f.a, f.r, async () => true);
       assert.equal(f.bodies.length, 1);
       assert.deepEqual(await f.attempts(), attempts);
+    },
+  );
+  await t.test(
+    'bounded scope declines settle once and preserve drafts, accepted plans and history on revisions',
+    async () => {
+      for (const mode of ['out_of_scope', 'unable', 'refused']) {
+        const f = await fresh();
+        await f.service.generate(f.a, f.r, async () => true);
+        const v = { summaryRevision: 1, planId: f.plan.id, planRevision: 1 };
+        for (const accepted of [false, true]) {
+          if (accepted) await f.store.accept(f.a, v);
+          const old = await f.saved();
+          const priorJob = (await f.read()).jobs.find((j: any) => j.target === 'review:1');
+          const r = {
+            ...v,
+            feedback: 'An unrelated request',
+            retryAttempt: priorJob?.attemptId ?? null,
+          };
+          f.setMode(mode);
+          const n = f.bodies.length;
+          await f.service.review(f.a, r, async () => true);
+          assert.equal(f.bodies.length, n + 1);
+          assert.deepEqual(await f.saved(), old);
+          const read = await f.read();
+          assert.equal(
+            read.jobs.find((j: any) => j.target === 'review:1').error,
+            mode === 'refused' ? mode : 'plan_' + mode,
+          );
+          if (!accepted) assert(!JSON.stringify(read).includes('Crab reach'));
+          assert.equal((await f.attempts()).at(-1).state, 'settled');
+          await f.service.review(f.a, r, async () => true);
+          assert.equal(f.bodies.length, n + 1);
+        }
+      }
     },
   );
   await t.test(
@@ -498,10 +536,7 @@ export async function verifyDocumentDatabase(
       assert.deepEqual(await f.saved(), old);
       assert.equal((await f.read()).schemaVersion, 'document-week-v1');
       assert.equal(f.bodies.length, 1);
-      assert.deepEqual(
-        JSON.parse(JSON.parse(f.bodies[0]!).input.split('\nSaved week:\n')[1]),
-        legacy,
-      );
+      assert.deepEqual(JSON.parse(JSON.parse(f.bodies[0]!).input).review.plan, legacy);
       review.retryAttempt = (await f.read()).jobs[0].attemptId;
       f.setMode('valid');
       await f.service.review(f.a, review, async () => true);

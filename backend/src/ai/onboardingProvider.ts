@@ -1,4 +1,3 @@
-import { athleteDataPolicy } from './athleteDataPolicy.js';
 import { providerSchema } from './providerSchema.js';
 import { safeDiagnostic, type ProviderDiagnostic } from './providerDiagnostics.js';
 import { hasGoalSet } from '../features/planning/trainingSummary.js';
@@ -140,7 +139,7 @@ export function serializeInput(input: ModelInput, model: string): string {
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: limits.output,
-    instructions: athleteDataPolicy + '\n\n' + instructions,
+    instructions,
     input: JSON.stringify(compactModelInput(input)),
     text: {
       format: {
@@ -205,6 +204,7 @@ export function openAIProvider(
           'document_week_v2',
           'document_week_v3',
           'document_week_v4',
+          'document_result_v1',
         ].includes(request.text?.format?.name);
         const outputLimit = weekly ? weeklyLimits.outputTokens : limits.output;
         if (
