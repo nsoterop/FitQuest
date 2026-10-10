@@ -31,7 +31,7 @@ Historical native captures from October 9, 2026, using synthetic fixtures. They 
 | `backend/` | Fastify 5 on Node 24; verified Supabase sessions, application authorization, validation, AI dispatch/accounting and the production scheduler. |
 | Supabase | Email/password Auth and PostgreSQL. Private application tables are accessed through the API using the restricted database role and owner-scoped transactions. |
 | `backend/src/shared/` | Eight platform-neutral contracts consumed by both API and mobile, kept inside the existing Docker build context. |
-| `backend/setup/` | Checksum-verified, non-destructive fresh installation; historical reset migrations are not a setup recipe. |
+| `database/` | Immutable migrations and independently installed, guarded fresh-setup tooling. |
 | `.github/workflows/` | Formatting, lint, types, isolated PostgreSQL/mobile regressions, packaging, dependency triage and full-history secret scanning. |
 
 A single model request saves a complete document plan; a small display contract keeps flexible exercise instructions without a mandatory catalog. The server withholds workout details until acceptance. Legacy saved formats remain readable. This avoids a second paid extraction step, while leaving coaching quality dependent on the model output.
@@ -45,6 +45,7 @@ Use Node **24.21.0** (`.nvmrc`), npm, and PostgreSQL server/client tools on macO
 ```sh
 npm ci --ignore-scripts
 npm ci --prefix backend --ignore-scripts
+npm ci --prefix database --ignore-scripts
 npm ci --prefix mobile --ignore-scripts
 npm run check
 npm run check:database

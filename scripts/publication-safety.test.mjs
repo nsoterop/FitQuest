@@ -11,7 +11,7 @@ function ignored(path) {
   return result.status === 0;
 }
 test('secrets, private records and generated files are ignored in every package', () => {
-  for (const dir of ['', 'mobile/', 'backend/', 'nested/package/'])
+  for (const dir of ['', 'mobile/', 'backend/', 'database/', 'nested/package/'])
     for (const name of [
       '.env',
       '.env.production',
@@ -39,7 +39,7 @@ test('placeholder examples, schema checkpoints, source and reviewed fixtures rem
   for (const name of [
     'backend/.env.example',
     'mobile/.env.example',
-    'backend/setup/manifest.json',
+    'database/setup/manifest.json',
     'backend/src/tests/fixtures/planningFixture.ts',
     'mobile/src/features/journal/JournalScreen.tsx',
     'docs/archive/verification/2026-10-09/account-training-ui/profile.png',

@@ -1,6 +1,6 @@
 # Repository layout
 
-The repository has three main areas: the mobile app, the API, and documentation. Root files contain project policy, licensing and shared verification tooling.
+The repository has four main areas: the mobile app, the API, database tooling, and documentation. Root files contain project policy, licensing and shared verification tooling.
 
 ```text
 mobile/
@@ -38,10 +38,13 @@ backend/
       fixtures/          Synthetic fixtures and persistence scenarios
     evaluation/          Separately authorized evaluation support; never runtime
   fixtures/              Synthetic JSON replay data, outside compiled output
-  setup/                 Guarded fresh installer and installation tests
-  supabase/migrations/   Immutable historical/forward database migrations
   scripts/               Explicit manual diagnostic/evaluation entry points
   catalog/, certs/       Required runtime assets
+
+database/
+  migrations/            Immutable historical/forward database migrations
+  setup/                 Guarded fresh installer, checkpoint and installation tests
+  package.json           Independent database-tooling dependency and commands
 
 docs/
   README.md              Navigation for all documentation
@@ -58,6 +61,8 @@ scripts/                 Repository-wide checks and disposable database runner
 ```
 
 Keep a feature's screens, API client, local transformations and draft storage together. Put a component in `components` only when it serves multiple features. Use direct imports; avoid an extra barrel-export layer that hides dependencies. Backend runtime modules must not import tests or evaluation support. Shared contracts must not depend on either platform's runtime.
+
+Database schema history and installation tools belong in `database/`. Runtime queries remain beside their backend features, which own authorization and transactions. This directory boundary does not create a separate network service. Database tooling has its own locked dependencies and is outside the backend Docker context.
 
 Tests live together rather than between application files. Backend tests remain under `src/tests` so their compiled paths mirror the server graph in `dist-test`; the production compiler starts only from `server.ts` and excludes them. Raw JSON fixtures are read explicitly from `backend/fixtures`. Mobile tests live outside `src` in `mobile/tests`.
 

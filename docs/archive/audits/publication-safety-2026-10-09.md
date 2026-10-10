@@ -28,7 +28,7 @@ The final mobile audit retains **16 high affected nodes from the two unpatched r
 
 ## Safe installation and verification
 
-[Fresh database setup](../../../backend/setup/README.md) substitutes a non-destructive profile baseline for the historical one-time account reset, then applies 19 unchanged forward migrations from a checksum-verified checkpoint. It refuses existing app schemas/checkpoint versions and never clears Auth, Storage or migration history. New installations retain the original disabled initial budget row; existing spending ledgers cannot enter this fresh-install path. No applied migration was edited.
+[Fresh database setup](../../../database/setup/README.md) substitutes a non-destructive profile baseline for the historical one-time account reset, then applies 19 unchanged forward migrations from a checksum-verified checkpoint. It refuses existing app schemas/checkpoint versions and never clears Auth, Storage or migration history. New installations retain the original disabled initial budget row; existing spending ledgers cannot enter this fresh-install path. No applied migration was edited.
 
 The isolated PostgreSQL test proves managed synthetic records/policies survive, mid-install failures roll back schema/role/ledger changes, existing installations refuse reruns, and the complete schema dump (including policies/functions/grants) matches the historical migration path. Hosted authentication and production migration reconciliation were not exercised.
 

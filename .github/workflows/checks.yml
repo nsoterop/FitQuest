@@ -26,11 +26,13 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             backend/package-lock.json
+            database/package-lock.json
             mobile/package-lock.json
       - name: Install locked dependencies
         run: |
           npm ci --ignore-scripts
           npm ci --prefix backend --ignore-scripts
+          npm ci --prefix database --ignore-scripts
           npm ci --prefix mobile --ignore-scripts
       - run: npm run format:check
       - run: npm run lint
@@ -39,7 +41,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql
-      - name: Backend tests including real isolated PostgreSQL
+      - name: Backend and installer tests including real isolated PostgreSQL
         run: npm run check:database
       - name: Mobile tests and Expo compatibility
         run: npm run check --prefix mobile

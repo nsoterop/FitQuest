@@ -50,7 +50,7 @@ export async function verifyOnboardingDatabase(
 ) {
   const migration = await readFile(
     new URL(
-      '../../../supabase/migrations/20261003030745_conversational_onboarding.sql',
+      '../../../../database/migrations/20261003030745_conversational_onboarding.sql',
       import.meta.url,
     ),
     'utf8',
@@ -61,7 +61,10 @@ export async function verifyOnboardingDatabase(
   await owner.query('BEGIN');
   await owner.query(
     await readFile(
-      new URL('../../../supabase/migrations/20261003214718_catalog_planning.sql', import.meta.url),
+      new URL(
+        '../../../../database/migrations/20261003214718_catalog_planning.sql',
+        import.meta.url,
+      ),
       'utf8',
     ),
   );
@@ -111,7 +114,7 @@ export async function verifyOnboardingDatabase(
       await owner.query(
         await readFile(
           new URL(
-            '../../../supabase/migrations/20261004174109_weekly_plan_review.sql',
+            '../../../../database/migrations/20261004174109_weekly_plan_review.sql',
             import.meta.url,
           ),
           'utf8',
@@ -122,7 +125,7 @@ export async function verifyOnboardingDatabase(
       await owner.query(
         await readFile(
           new URL(
-            '../../../supabase/migrations/20261004233407_outline_first_planning.sql',
+            '../../../../database/migrations/20261004233407_outline_first_planning.sql',
             import.meta.url,
           ),
           'utf8',
@@ -133,7 +136,7 @@ export async function verifyOnboardingDatabase(
       await owner.query(
         await readFile(
           new URL(
-            '../../../supabase/migrations/20261006151040_sunday_ending_plans.sql',
+            '../../../../database/migrations/20261006151040_sunday_ending_plans.sql',
             import.meta.url,
           ),
           'utf8',
@@ -174,7 +177,7 @@ export async function verifyOnboardingDatabase(
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261004203442_provider_diagnostics.sql',
+        '../../../../database/migrations/20261004203442_provider_diagnostics.sql',
         import.meta.url,
       ),
       'utf8',
@@ -184,7 +187,7 @@ export async function verifyOnboardingDatabase(
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261006175043_fixed_intake_plain_outline.sql',
+        '../../../../database/migrations/20261006175043_fixed_intake_plain_outline.sql',
         import.meta.url,
       ),
       'utf8',
@@ -200,7 +203,7 @@ export async function verifyOnboardingDatabase(
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261007163020_complete_week_draft.sql',
+        '../../../../database/migrations/20261007163020_complete_week_draft.sql',
         import.meta.url,
       ),
       'utf8',
@@ -211,7 +214,7 @@ export async function verifyOnboardingDatabase(
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261007180022_plan_validation_diagnostics.sql',
+        '../../../../database/migrations/20261007180022_plan_validation_diagnostics.sql',
         import.meta.url,
       ),
       'utf8',
@@ -227,7 +230,7 @@ export async function verifyOnboardingDatabase(
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261009163721_two_request_planning.sql',
+        '../../../../database/migrations/20261009163721_two_request_planning.sql',
         import.meta.url,
       ),
       'utf8',
@@ -287,7 +290,10 @@ export async function verifyOnboardingDatabase(
   await owner.query('BEGIN');
   await owner.query(
     await readFile(
-      new URL('../../../supabase/migrations/20261009172830_document_planning.sql', import.meta.url),
+      new URL(
+        '../../../../database/migrations/20261009172830_document_planning.sql',
+        import.meta.url,
+      ),
       'utf8',
     ),
   );
@@ -303,14 +309,14 @@ export async function verifyOnboardingDatabase(
   await owner.query('BEGIN');
   await owner.query(
     await readFile(
-      new URL('../../../supabase/migrations/20261009211639_food_diary.sql', import.meta.url),
+      new URL('../../../../database/migrations/20261009211639_food_diary.sql', import.meta.url),
       'utf8',
     ),
   );
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261009220046_saved_food_library.sql',
+        '../../../../database/migrations/20261009220046_saved_food_library.sql',
         import.meta.url,
       ),
       'utf8',
@@ -326,7 +332,7 @@ export async function verifyOnboardingDatabase(
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261009232000_document_exercise_rows.sql',
+        '../../../../database/migrations/20261009232000_document_exercise_rows.sql',
         import.meta.url,
       ),
       'utf8',
@@ -340,7 +346,7 @@ export async function verifyOnboardingDatabase(
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261009234844_integrated_nutrition_consent.sql',
+        '../../../../database/migrations/20261009234844_integrated_nutrition_consent.sql',
         import.meta.url,
       ),
       'utf8',
@@ -371,7 +377,10 @@ export async function verifyOnboardingDatabase(
   await owner.query('BEGIN');
   await owner.query(
     await readFile(
-      new URL('../../../supabase/migrations/20261010011804_workout_journal.sql', import.meta.url),
+      new URL(
+        '../../../../database/migrations/20261010011804_workout_journal.sql',
+        import.meta.url,
+      ),
       'utf8',
     ),
   );
@@ -379,7 +388,7 @@ export async function verifyOnboardingDatabase(
   await owner.query('BEGIN');
   await owner.query(
     await readFile(
-      new URL('../../../supabase/migrations/20261010021546_body_weight.sql', import.meta.url),
+      new URL('../../../../database/migrations/20261010021546_body_weight.sql', import.meta.url),
       'utf8',
     ),
   );
@@ -388,7 +397,7 @@ export async function verifyOnboardingDatabase(
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261010023753_progress_informed_weeks.sql',
+        '../../../../database/migrations/20261010023753_progress_informed_weeks.sql',
         import.meta.url,
       ),
       'utf8',
@@ -399,7 +408,7 @@ export async function verifyOnboardingDatabase(
   await owner.query(
     await readFile(
       new URL(
-        '../../../supabase/migrations/20261010030300_automatic_weekly_planning.sql',
+        '../../../../database/migrations/20261010030300_automatic_weekly_planning.sql',
         import.meta.url,
       ),
       'utf8',

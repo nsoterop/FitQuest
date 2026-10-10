@@ -124,9 +124,7 @@ test(
     );
     await legacy.query('BEGIN');
     for (const { file } of manifest)
-      await legacy.query(
-        await readFile(new URL('../supabase/migrations/' + file, import.meta.url), 'utf8'),
-      );
+      await legacy.query(await readFile(new URL('../migrations/' + file, import.meta.url), 'utf8'));
     await legacy.query('COMMIT');
     await t.test(
       'complete fresh schema, policies, functions and grants match legacy migrations',

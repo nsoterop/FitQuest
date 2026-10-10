@@ -10,7 +10,7 @@ From the repository root, install all three locked dependency sets and run the c
 
 ## Configure a development instance
 
-Use a separately authorized development Supabase project, with email confirmation enabled. This is not a request to provision one or to change the existing hosted service. A fresh database must follow [the guarded installer](setup/README.md); never replay the historical reset migration or run a generic migration-directory push.
+Use a separately authorized development Supabase project, with email confirmation enabled. This is not a request to provision one or to change the existing hosted service. A fresh database must follow [the guarded installer](../database/setup/README.md); never replay the historical reset migration or run a generic migration-directory push.
 
 From the repository root:
 

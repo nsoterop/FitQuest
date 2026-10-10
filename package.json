@@ -9,7 +9,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix mobile",
-    "test": "npm test --prefix backend && npm test --prefix mobile && node --test scripts/*.test.mjs",
+    "test": "npm test --prefix backend && npm test --prefix database && npm test --prefix mobile && node --test scripts/*.test.mjs",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
     "check:database": "node scripts/check-database.mjs",
     "audit:dependencies": "node scripts/audit-dependencies.mjs"

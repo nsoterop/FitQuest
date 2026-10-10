@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "npm run build && npm run build:test && node --test dist-test/tests/unit/*.test.js dist-test/tests/integration/*.test.js && node --test setup/*.test.mjs",
+    "test": "npm run build && npm run build:test && node --test dist-test/tests/unit/*.test.js dist-test/tests/integration/*.test.js",
     "check": "npm test",
     "eval:smoke": "npm run build:test && node --env-file=.env.local dist-test/evaluation/onboardingEvaluation.js --smoke",
     "eval:conversation": "npm run build:test && node --env-file=.env.local dist-test/evaluation/onboardingEvaluation.js --conversation",

@@ -47,7 +47,7 @@ export function auditReport(folder, report, now = new Date()) {
   return { failed, messages };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  for (const folder of ['.', 'backend', 'mobile']) {
+  for (const folder of ['.', 'backend', 'database', 'mobile']) {
     const result = spawnSync('npm', ['audit', '--json'], { cwd: folder, encoding: 'utf8' });
     if (result.error || ![0, 1].includes(result.status))
       throw new Error(`${folder}: dependency audit unavailable`);

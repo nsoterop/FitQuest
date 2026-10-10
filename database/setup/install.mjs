@@ -8,10 +8,7 @@ export async function installFresh(client) {
   const manifest = JSON.parse(await readFile(new URL('./manifest.json', import.meta.url), 'utf8'));
   const scripts = await Promise.all(
     manifest.map(async (entry) => {
-      const sql = await readFile(
-        new URL('../supabase/migrations/' + entry.file, import.meta.url),
-        'utf8',
-      );
+      const sql = await readFile(new URL('../migrations/' + entry.file, import.meta.url), 'utf8');
       if (createHash('sha256').update(sql).digest('hex') !== entry.sha256)
         throw new Error('Installation checkpoint changed');
       return sql;
@@ -57,7 +54,7 @@ export async function installFresh(client) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (process.argv[2] !== '--fresh' || !process.env.FITQUEST_SETUP_DATABASE_URL) {
     console.error(
-      'Usage: set FITQUEST_SETUP_DATABASE_URL securely, then node setup/install.mjs --fresh',
+      'Usage: set FITQUEST_SETUP_DATABASE_URL securely, then npm run setup:fresh --prefix database',
     );
     process.exitCode = 1;
   } else {

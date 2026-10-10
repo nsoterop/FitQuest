@@ -32,6 +32,6 @@ If a real exposed credential is found, stop publication, report only its categor
 
 ## Verification and handoff
 
-Use [development checks](docs/guides/development.md). Keep formatting separate from behavior changes. Use mocks and isolated disposable PostgreSQL, never a hosted or ordinary development database. Fresh installations use [the guarded installer](backend/setup/README.md); never replay the historical account reset or overwrite an existing migration/spending ledger.
+Use [development checks](docs/guides/development.md). Keep formatting separate from behavior changes. Use mocks and isolated disposable PostgreSQL, never a hosted or ordinary development database. Fresh installations use [the guarded installer](database/setup/README.md); never replay the historical account reset or overwrite an existing migration/spending ledger.
 
 Report the actual source commit, local checks, CI and PR state. Distinguish source from deployment, simulator from phone acceptance, and mocks from coaching quality. Be concise and continue ordinary authorized work without another approval round. Report concrete blockers and unresolved limitations honestly; old archives and product aspirations do not expand scope.

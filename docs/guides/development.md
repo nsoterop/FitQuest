@@ -7,6 +7,7 @@ From a fresh checkout:
 ```sh
 npm ci --ignore-scripts
 npm ci --prefix backend --ignore-scripts
+npm ci --prefix database --ignore-scripts
 npm ci --prefix mobile --ignore-scripts
 npm run check
 npm run check:database

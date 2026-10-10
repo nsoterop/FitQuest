@@ -6,6 +6,8 @@ This describes source behavior on the cleanup branch as of October 10, 2026. It 
 
 The React Native client talks directly to Supabase for Auth and to Fastify for application data. The API verifies the current account/session before private interactive routes. PostgreSQL operations use the restricted application role, private schema and owner-scoped transactions. SecureStore holds native sessions and recoverable drafts; it does not replace server authorization.
 
+[Database tooling](../../database/README.md) owns migration files and guarded installation with its own dependency lockfile. Runtime persistence stays with backend features. This is a source organization boundary; the API and database deployment topology is unchanged.
+
 Eight platform-neutral modules in `backend/src/shared` define contracts used by both packages. Keeping them inside `backend` preserves the existing Docker context without a separate package publishing step. Mobile's watcher/import boundary includes only those shared modules. TypeScript compiles the server graph to `dist` and the test/evaluation graph to `dist-test`; production packaging excludes fixtures and evaluation entry points.
 
 The main implementation entry points are [API routes](../../backend/src/app.ts), [runtime and scheduler startup](../../backend/src/server.ts), [planning persistence](../../backend/src/features/planning/planningStore.ts), [shared contracts](../../backend/src/shared/README.md), and [mobile navigation](../../mobile/App.tsx).

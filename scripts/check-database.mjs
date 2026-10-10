@@ -51,17 +51,21 @@ try {
   ]);
   started = true;
   if (interrupted) throw new Error('Verification interrupted');
-  child = spawn('npm', ['test', '--prefix', 'backend'], {
-    stdio: 'inherit',
-    env: {
-      ...env,
-      FITQUEST_TEST_DATABASE_URL: 'postgresql://fitquest_test@127.0.0.1:55432/postgres',
-    },
-  });
-  process.exitCode = await new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('exit', (code) => resolve(code ?? 1));
-  });
+  for (const folder of ['backend', 'database']) {
+    if (interrupted) throw new Error('Verification interrupted');
+    child = spawn('npm', ['test', '--prefix', folder], {
+      stdio: 'inherit',
+      env: {
+        ...env,
+        FITQUEST_TEST_DATABASE_URL: 'postgresql://fitquest_test@127.0.0.1:55432/postgres',
+      },
+    });
+    process.exitCode = await new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', (code) => resolve(code ?? 1));
+    });
+    if (process.exitCode !== 0) break;
+  }
 } finally {
   if (started || existsSync(path.join(data, 'postmaster.pid'))) {
     pg('pg_ctl', ['-D', data, '-m', 'fast', '-w', 'stop']);

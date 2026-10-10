@@ -56,7 +56,7 @@ test(
     END $$;`);
     const baseline = await readFile(
       new URL(
-        '../../../supabase/migrations/20261002233706_reset_accounts_and_profiles.sql',
+        '../../../../database/migrations/20261002233706_reset_accounts_and_profiles.sql',
         import.meta.url,
       ),
       'utf8',

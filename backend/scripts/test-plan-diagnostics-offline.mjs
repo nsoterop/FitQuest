@@ -66,7 +66,7 @@ try {
   add(
     readFileSync(
       new URL(
-        '../supabase/migrations/20261007180022_plan_validation_diagnostics.sql',
+        '../../database/migrations/20261007180022_plan_validation_diagnostics.sql',
         import.meta.url,
       ),
       'utf8',
