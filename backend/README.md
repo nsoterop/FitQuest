@@ -1,10 +1,10 @@
 # FitQuest API
 
-Fastify 5 / TypeScript on Node 24. The API owns profile, intake, planning, journal, food/library, weight and scheduling operations. Supabase supplies Auth and PostgreSQL; application tables stay in the private `fitquest` schema. See [architecture](../docs/architecture.md) and [current project status](../README.md).
+Fastify 5 / TypeScript on Node 24. The API owns profile, intake, planning, journal, food/library, weight and scheduling operations. Supabase supplies Auth and PostgreSQL; application tables stay in the private `fitquest` schema. See [architecture](../docs/reference/architecture.md) and [current project status](../README.md).
 
 ## Verify without hosted access
 
-From the repository root, install all three locked dependency sets and run the commands in [development checks](../docs/development-checks.md). `npm run check:database` creates, tests and removes a disposable loopback PostgreSQL cluster. It runs 301 application plus 5 installation checks at the batch-2 checkpoint. No production credentials or paid provider calls are needed.
+From the repository root, install all three locked dependency sets and run the commands in [development checks](../docs/guides/development.md). `npm run check:database` creates, tests and removes a disposable loopback PostgreSQL cluster. It runs 301 application plus 5 installation checks at the batch-2 checkpoint. No production credentials or paid provider calls are needed.
 
 `npm run build --prefix backend` compiles the server import graph to `backend/dist`. `build:test` produces `backend/dist-test` separately. Tests, synthetic fixtures and evaluation entry points are excluded from production output. The Docker build context remains `backend/`; runtime includes the catalog and public database CA.
 
@@ -46,8 +46,8 @@ The route definitions in [app.ts](src/app.ts) are the source of truth. Interacti
 
 A complete new plan is saved in one accounted generation. Only its overview is returned before acceptance. Acceptance and reopen reveal saved details without a provider request. Explicit revisions preserve prior usable work on failure. Journal/weight/food/library saves are independent of training-content retention. Food AI interpretation requires an explicit request and reviewed candidate before saving.
 
-The production scheduler scans roughly every minute for explicitly enrolled Sunday 9 PM schedules. Both sharing permissions and a usable accepted baseline are required. Existing weeks win over duplicate requests; failed/uncertain dispatches need explicit retry. [Scheduler mechanics and limits](../docs/architecture.md#weekly-scheduling).
+The production scheduler scans roughly every minute for explicitly enrolled Sunday 9 PM schedules. Both sharing permissions and a usable accepted baseline are required. Existing weeks win over duplicate requests; failed/uncertain dispatches need explicit retry. [Scheduler mechanics and limits](../docs/reference/architecture.md#weekly-scheduling).
 
-Do not run the historical `eval:*` or comparison scripts as setup checks: they can spend money and require separate authorization. The retired comparison harness compatibility limitation is recorded in [development checks](../docs/development-checks.md).
+Do not run the separately authorized `eval:*` or coaching-evaluation scripts as setup checks: they can spend money and require separate authorization. The removal of retired comparison harnesses is recorded in [development checks](../docs/guides/development.md).
 
-[Historical API releases](../docs/history/backend-release-notes-2026-10-10.md) are dated evidence, not current setup or authority to deploy.
+[Historical API releases](https://github.com/nsoterop/FitQuest/blob/a297e2d/docs/history/backend-release-notes-2026-10-10.md) are dated evidence, not current setup or authority to deploy.

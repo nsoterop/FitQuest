@@ -19,9 +19,9 @@ Historical native captures from October 9, 2026, using synthetic fixtures. They 
 
 | Saved week | Food diary |
 | --- | --- |
-| <img src="docs/release-1-native/week.png" width="270" alt="Synthetic saved week with separate strength and optional evening sessions"> | <img src="docs/release-2-native/diary.png" width="270" alt="Synthetic food diary showing known nutrient subtotals and unknown values"> |
+| <img src="docs/archive/verification/2026-10-09/account-training-ui/week.png" width="270" alt="Synthetic saved week with separate strength and optional evening sessions"> | <img src="docs/archive/verification/2026-10-09/food-diary/diary.png" width="270" alt="Synthetic food diary showing known nutrient subtotals and unknown values"> |
 
-[Screen provenance and limitations](docs/screenshots.md).
+[Screen provenance and limitations](docs/reference/screenshots.md).
 
 ## Architecture
 
@@ -36,7 +36,7 @@ Historical native captures from October 9, 2026, using synthetic fixtures. They 
 
 A single model request saves a complete document plan; a small display contract keeps flexible exercise instructions without a mandatory catalog. The server withholds workout details until acceptance. Legacy saved formats remain readable. This avoids a second paid extraction step, while leaving coaching quality dependent on the model output.
 
-Sunday scheduling runs inside the existing production API process rather than a separate job service. Durable attempts and date-aware recovery prevent duplicate requests, but service downtime can delay generation. See [architecture and operational limits](docs/architecture.md).
+Sunday scheduling runs inside the existing production API process rather than a separate job service. Durable attempts and date-aware recovery prevent duplicate requests, but service downtime can delay generation. See [architecture and operational limits](docs/reference/architecture.md).
 
 ## Develop and verify
 
@@ -52,7 +52,7 @@ npm run check --prefix mobile
 npm run audit:dependencies
 ```
 
-These checks use mocks and a disposable local database, without production credentials or paid AI. `check:database` refuses an occupied test port and stops its own cluster. Without it, the ordinary test command skips database suites. See [development checks](docs/development-checks.md) for details.
+These checks use mocks and a disposable local database, without production credentials or paid AI. `check:database` refuses an occupied test port and stops its own cluster. Without it, the ordinary test command skips database suites. See [development checks](docs/guides/development.md) for details.
 
 To run the application, follow [API configuration and fresh setup](backend/README.md) and [mobile setup](mobile/README.md). Environment examples contain placeholders; no hosted access or AI allowance is provisioned automatically. Keep owner-managed servers separate from temporary tests.
 
@@ -60,11 +60,11 @@ To run the application, follow [API configuration and fresh setup](backend/READM
 
 Batch 2 passed [GitHub Actions at `54e0b03`](https://github.com/nsoterop/FitQuest/actions/runs/38023698280), including isolated database checks. Its local record contains 301 backend, 5 installation, 128 mobile and 7 repository tests, plus an offline iOS export. These are dated results, not proof of physical-phone acceptance or coaching quality.
 
-Two upstream mobile-tooling advisories remain: `braces` and `node-forge`, producing 16 propagated high audit findings at the cleanup checkpoint. They have explicit time-limited CI exceptions, not fixes. See [security guidance](SECURITY.md) and [dependency evidence](docs/publication-safety-2026-10-09.md#dependency-triage).
+Two upstream mobile-tooling advisories remain: `braces` and `node-forge`, producing 16 propagated high audit findings at the cleanup checkpoint. They have explicit time-limited CI exceptions, not fixes. See [security guidance](SECURITY.md) and [dependency evidence](docs/archive/audits/publication-safety-2026-10-09.md#dependency-triage).
 
-A real Sunday dispatch, full physical-phone acceptance and VoiceOver coverage remain unverified. The largest accessibility-only text size can overlap the shared header/navigation. Public email signup also requires an appropriate email-delivery configuration. See [known limitations](docs/architecture.md#known-limitations).
+A real Sunday dispatch, full physical-phone acceptance and VoiceOver coverage remain unverified. The largest accessibility-only text size can overlap the shared header/navigation. Public email signup also requires an appropriate email-delivery configuration. See [known limitations](docs/reference/architecture.md#known-limitations).
 
-[Contributing](CONTRIBUTING.md) · [Current agent rules](AGENTS.md) · [Historical release evidence](docs/history/README.md)
+[Documentation index](docs/README.md) · [Repository layout](docs/guides/repository-layout.md) · [Contributing](CONTRIBUTING.md) · [Current agent rules](AGENTS.md) · [Historical release evidence](docs/archive/README.md)
 
 ## License
 

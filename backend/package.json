@@ -9,11 +9,11 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "npm run build && npm run build:test && node --test dist-test/*.test.js && node --test setup/*.test.mjs",
+    "test": "npm run build && npm run build:test && node --test dist-test/tests/unit/*.test.js dist-test/tests/integration/*.test.js && node --test setup/*.test.mjs",
     "check": "npm test",
-    "eval:smoke": "npm run build:test && node --env-file=.env.local dist-test/onboardingEvaluation.js --smoke",
-    "eval:conversation": "npm run build:test && node --env-file=.env.local dist-test/onboardingEvaluation.js --conversation",
-    "eval:suite": "npm run build:test && node --env-file=.env.local dist-test/onboardingEvaluation.js --suite",
+    "eval:smoke": "npm run build:test && node --env-file=.env.local dist-test/evaluation/onboardingEvaluation.js --smoke",
+    "eval:conversation": "npm run build:test && node --env-file=.env.local dist-test/evaluation/onboardingEvaluation.js --conversation",
+    "eval:suite": "npm run build:test && node --env-file=.env.local dist-test/evaluation/onboardingEvaluation.js --suite",
     "build:test": "node -e \"require('node:fs').rmSync('dist-test',{recursive:true,force:true})\" && tsc -p tsconfig.test.json",
     "typecheck": "tsc -p tsconfig.test.json --noEmit"
   },

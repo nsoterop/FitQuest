@@ -1,14 +1,18 @@
-import type { FoodService } from './food.js';
+import type { FoodService } from './features/nutrition/food.js';
 import type { FoodCommand } from './shared/foodContract.js';
-import type { PlanningService } from './planning.js';
-import { storedSummarySchema as summarySchema } from './trainingSummary.js';
-import type { TrainingSummary } from './trainingSummary.js';
-import type { GenerationRequest } from './planningStore.js';
+import type { PlanningService } from './features/planning/planning.js';
+import { storedSummarySchema as summarySchema } from './features/planning/trainingSummary.js';
+import type { TrainingSummary } from './features/planning/trainingSummary.js';
+import type { GenerationRequest } from './features/planning/planningStore.js';
 import Fastify, { type FastifyServerOptions } from 'fastify';
-import type { Account, VerifyAccount } from './auth.js';
-import type { ProfileInput, ProfileStore } from './profileStore.js';
-import { commandSchema, idSchema, type OnboardingService } from './onboarding.js';
-import { OnboardingError, type Command } from './onboardingDomain.js';
+import type { Account, VerifyAccount } from './features/account/auth.js';
+import type { ProfileInput, ProfileStore } from './features/account/profileStore.js';
+import {
+  commandSchema,
+  idSchema,
+  type OnboardingService,
+} from './features/onboarding/onboarding.js';
+import { OnboardingError, type Command } from './features/onboarding/onboardingDomain.js';
 
 export function buildApp(
   logger: FastifyServerOptions['logger'] = false,
@@ -17,9 +21,9 @@ export function buildApp(
     verifyAccount?: VerifyAccount;
     onboarding?: OnboardingService;
     planning?: PlanningService;
-    weight?: import('./weightStore.js').WeightStore;
-    journal?: import('./journalStore.js').JournalStore;
-    library?: import('./foodLibraryStore.js').FoodLibraryStore;
+    weight?: import('./features/weight/weightStore.js').WeightStore;
+    journal?: import('./features/journal/journalStore.js').JournalStore;
+    library?: import('./features/nutrition/foodLibraryStore.js').FoodLibraryStore;
     food?: FoodService;
   } = {},
 ) {
@@ -241,7 +245,7 @@ export function buildApp(
     type: 'string',
     pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
   };
-  app.post<{ Body: import('./onboardingDomain.js').RecoveryRequest }>(
+  app.post<{ Body: import('./features/onboarding/onboardingDomain.js').RecoveryRequest }>(
     '/training/clarification',
     {
       ...privateRoute,
@@ -410,7 +414,7 @@ export function buildApp(
     async (request) => planning().ensurePlan(accounts.get(request)!, request.body.revision),
   );
   const planVersion = { summaryRevision: revision, planRevision: revision, planId };
-  app.post<{ Body: import('./planReview.js').PlanVersion }>(
+  app.post<{ Body: import('./features/planning/planReview.js').PlanVersion }>(
     '/training/accept',
     {
       ...privateRoute,
@@ -425,7 +429,7 @@ export function buildApp(
     },
     async (request) => planning().accept(accounts.get(request)!, request.body),
   );
-  app.post<{ Body: import('./planReview.js').ReviewRequest }>(
+  app.post<{ Body: import('./features/planning/planReview.js').ReviewRequest }>(
     '/training/review',
     {
       ...privateRoute,

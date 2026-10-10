@@ -14,7 +14,7 @@ cp -n mobile/.env.example mobile/.env.local
 npm run check --prefix mobile
 ```
 
-The checks compile TypeScript, check Expo dependency compatibility and run mocked component/storage tests. They do not require sign-in, a provider key or a running backend. Full repository verification is in [development checks](../docs/development-checks.md).
+The checks compile TypeScript, check Expo dependency compatibility and run mocked component/storage tests. They do not require sign-in, a provider key or a running backend. Full repository verification is in [development checks](../docs/guides/development.md).
 
 In the ignored environment file, set your own `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. All `EXPO_PUBLIC_*` values are bundled into the client. Never place database, service-role or OpenAI credentials there. Match the API and Auth project; use the API computer's reachable LAN address for physical-device testing, not the phone's `localhost`.
 
@@ -38,8 +38,8 @@ Mobile imports only the platform-neutral modules in [backend/src/shared](../back
 
 ## Evidence and limitations
 
-Batch 2 recorded 128 passing mobile tests and a finite offline iOS export of 682 modules. Those checks establish JavaScript compatibility, not physical-device acceptance or a native build. [Synthetic screen provenance](../docs/screenshots.md) and [known limitations](../docs/architecture.md#known-limitations) cover keyboard/accessibility and scheduler evidence.
+Batch 2 recorded 128 passing mobile tests and a finite offline iOS export of 682 modules. Those checks establish JavaScript compatibility, not physical-device acceptance or a native build. [Synthetic screen provenance](../docs/reference/screenshots.md) and [known limitations](../docs/reference/architecture.md#known-limitations) cover keyboard/accessibility and scheduler evidence.
 
 The two unresolved upstream tooling advisories and CI exception expiry are documented in [security guidance](../SECURITY.md). Existing [Expo MIT attribution](LICENSE) remains unchanged; FitQuest's project license is at [the repository root](../LICENSE).
 
-[Historical mobile releases](../docs/history/mobile-release-notes-2026-10-10.md) retain earlier checkpoints without making them current instructions.
+[Historical mobile releases](https://github.com/nsoterop/FitQuest/blob/a297e2d/docs/history/mobile-release-notes-2026-10-10.md) retain earlier checkpoints without making them current instructions.

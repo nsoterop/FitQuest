@@ -1,17 +1,17 @@
-import { weeklyScheduler } from './weeklyScheduler.js';
-import { weightStore } from './weightStore.js';
-import { journalStore } from './journalStore.js';
-import { foodLibraryStore } from './foodLibraryStore.js';
-import { foodStore } from './foodStore.js';
-import { foodService } from './food.js';
-import { planningStore } from './planningStore.js';
-import { planningService } from './planning.js';
+import { weeklyScheduler } from './features/weekly-planning/weeklyScheduler.js';
+import { weightStore } from './features/weight/weightStore.js';
+import { journalStore } from './features/journal/journalStore.js';
+import { foodLibraryStore } from './features/nutrition/foodLibraryStore.js';
+import { foodStore } from './features/nutrition/foodStore.js';
+import { foodService } from './features/nutrition/food.js';
+import { planningStore } from './features/planning/planningStore.js';
+import { planningService } from './features/planning/planning.js';
 import { buildApp } from './app.js';
-import { createPool, postgresProfileStore } from './profileStore.js';
-import { supabaseVerifier } from './auth.js';
-import { postgresOnboardingStore } from './onboardingStore.js';
-import { onboardingService } from './onboarding.js';
-import { configuredProvider } from './onboardingProvider.js';
+import { createPool, postgresProfileStore } from './features/account/profileStore.js';
+import { supabaseVerifier } from './features/account/auth.js';
+import { postgresOnboardingStore } from './features/onboarding/onboardingStore.js';
+import { onboardingService } from './features/onboarding/onboarding.js';
+import { configuredProvider } from './ai/onboardingProvider.js';
 
 const { DATABASE_URL, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = process.env;
 if (!DATABASE_URL || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {

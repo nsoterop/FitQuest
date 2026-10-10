@@ -1,0 +1,16 @@
+# Documentation
+
+Start here. Current documentation is separated from dated verification evidence.
+
+| Need | Read |
+| --- | --- |
+| Understand the product and run it | [Project README](../README.md), [API setup](../backend/README.md), [mobile setup](../mobile/README.md) |
+| Find code or decide where a file belongs | [Repository layout](guides/repository-layout.md) |
+| Run tests, lint and CI checks | [Development checks](guides/development.md) |
+| Understand data, planning and scheduling boundaries | [Architecture](reference/architecture.md) |
+| Understand the illustrative screenshots | [Screenshot provenance](reference/screenshots.md) |
+| Investigate private plan-validation failures | [Diagnostic reference](reference/plan-validation-diagnostics.md) |
+| Read long-term product aspirations | [Product goals](reference/product-goals.md); not an implementation checklist |
+| Inspect previous releases, audits or native checks | [Archive index](archive/README.md); historical evidence only |
+
+Keep everyday instructions in `guides/`, explanations in `reference/`, and dated evidence in `archive/`. Do not add another release history to the root, backend or mobile README. Superseded prototypes and duplicated records can be recovered from Git; they do not need permanent copies in the working tree.

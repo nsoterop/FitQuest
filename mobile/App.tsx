@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { AccountPanel } from './src/AccountPanel';
-import { ui } from './src/Design';
+import { AccountPanel } from './src/features/account/AccountPanel';
+import { ui } from './src/components/Design';
 export default function App() {
   return (
     <SafeAreaProvider>

@@ -1,0 +1,1250 @@
+import { BodyWeight } from '../weight/BodyWeight';
+import { nutritionTargetRequest, TrainingError } from '../training/trainingApi';
+import type { AcceptedNutrition } from '../../../../backend/src/shared/documentPlanContract';
+import { FoodLibraryScreen } from './FoodLibraryScreen';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AppState, Pressable, Text, TextInput, View } from 'react-native';
+import { Action, Page, Notice, ui, colors, type MainTab } from '../../components/Design';
+import { useConversationScroll } from '../../components/ConversationScrollView';
+import {
+  foodItemTotal,
+  foodToday,
+  foodDate,
+  shiftFoodDate,
+  foodTotal,
+  foodAverage,
+  nutrients,
+  validFoodDocument,
+  type FoodDocument,
+  type FoodItem,
+  type FoodCommand,
+  type FoodOperation,
+  type FoodState,
+  type FoodEntry,
+  type Nutrient,
+} from '../../../../backend/src/shared/foodContract';
+import { foodRequest, FoodError, foodMessage } from './foodApi';
+import { privateFoodDrafts } from '../onboarding/onboardingDraftStorage';
+import type { FoodDraft } from './foodDraft';
+import { operationId } from '../onboarding/onboardingApi';
+import { Tabs } from '../../components/Design';
+const labels = { calories: 'Calories', protein: 'Protein', carbs: 'Carbs', fat: 'Fat' };
+const unit = (n: Nutrient) => (n === 'calories' ? 'kcal' : 'g');
+const number = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
+const source = {
+  supplied: 'Your label / supplied',
+  estimated: 'AI estimate',
+  user_estimated: 'Your estimate',
+  unknown: 'Unknown',
+};
+const blankItem = (): FoodItem => ({
+  name: '',
+  portion: '',
+  quantity: null,
+  unit: null,
+  nutrients: Object.fromEntries(
+    nutrients.map((n) => [n, { value: null, source: 'unknown' }]),
+  ) as FoodItem['nutrients'],
+});
+const fresh = (date: string, zone: string): FoodDraft => ({
+  message: '',
+  document: null,
+  candidate: null,
+  pending: null,
+  editingId: null,
+  editingRevision: null,
+  date,
+  timeZone: zone,
+  savedAt: Date.now(),
+});
+export function FoodField({
+  label,
+  value,
+  onChange,
+  multiline = false,
+  numeric = false,
+  disabled = false,
+  children,
+}: {
+  children?: ReactNode;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  multiline?: boolean;
+  numeric?: boolean;
+  disabled?: boolean;
+}) {
+  const view = useRef<View | null>(null),
+    scroll = useConversationScroll(),
+    focused = useRef(false);
+  return (
+    <View
+      ref={view}
+      collapsable={false}
+      style={{ gap: 6 }}
+      onLayout={() => {
+        if (focused.current) scroll.reveal({ composer: view, question: view });
+      }}
+    >
+      <Text style={ui.label}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        style={[ui.input, multiline && { minHeight: 105, textAlignVertical: 'top' }]}
+        value={value}
+        multiline={multiline}
+        keyboardType={numeric ? 'decimal-pad' : 'default'}
+        editable={!disabled}
+        onChangeText={onChange}
+        onFocus={() => {
+          focused.current = true;
+          scroll.reveal({ composer: view, question: view }, true);
+        }}
+        onBlur={() => {
+          focused.current = false;
+        }}
+        onContentSizeChange={() => {
+          if (focused.current) scroll.reveal({ composer: view, question: view });
+        }}
+      />
+      {children}
+    </View>
+  );
+}
+export function FoodSummary({ document }: { document: FoodDocument }) {
+  return (
+    <View style={{ gap: 14 }}>
+      <Text style={ui.section}>{document.name}</Text>
+      <Text style={ui.copy}>
+        {document.date}
+        {document.time ? ' · ' + document.time : ''} · {document.meal} · {document.servings}{' '}
+        {document.recipe ? 'servings' : '× recorded portion'}
+      </Text>
+      {document.recipe && (
+        <Text style={ui.copy}>
+          Saved recipe version {document.recipe.revision} · batch yield {document.recipe.yield}.
+          Each ingredient uses its recorded amount; library edits do not change this entry.
+        </Text>
+      )}
+      {document.assumptions.map((a, i) => (
+        <Notice key={i} title="Assumption">
+          {a}
+        </Notice>
+      ))}
+      {document.items.map((item, i) => (
+        <View
+          key={i}
+          style={{ gap: 5, borderTopWidth: 1, borderColor: colors.line, paddingTop: 12 }}
+        >
+          <Text style={ui.label}>
+            {item.name} · {document.recipe ? `Base portion: ${item.portion}` : item.portion}
+          </Text>
+          {document.recipe && (
+            <Text style={ui.copy}>
+              {document.recipe.amounts[i]} × base portion in the batch · nutrients below for{' '}
+              {document.servings} of {document.recipe.yield} servings.
+            </Text>
+          )}
+          {nutrients.map((n) => (
+            <Text key={n} style={ui.copy}>
+              {labels[n]}:{' '}
+              {item.nutrients[n].value === null
+                ? 'Unknown'
+                : `${number(foodItemTotal(document, i, n).value)} ${unit(n)}`}{' '}
+              · {source[item.nutrients[n].source]}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+export function FoodTrends({ state }: { state: FoodState }) {
+  const colorsBy = {
+    calories: colors.ink,
+    protein: colors.action,
+    carbs: '#A95816',
+    fat: '#7850C4',
+  };
+  return (
+    <View style={{ gap: 24 }}>
+      <Text style={ui.copy}>
+        {state.dates[0]} – {state.dates[6]}
+      </Text>
+      <Text style={ui.copy}>
+        Averages include only days you marked complete with every value known for that nutrient.
+        Missing and future days are excluded.
+      </Text>
+      {nutrients.map((n) => {
+        const average = foodAverage(state, n);
+        const days = state.dates.map((date) => ({
+          date,
+          total: foodTotal(
+            state.entries
+              .filter((e) => !e.deletedAt && e.document.date === date)
+              .map((e) => e.document),
+            n,
+          ),
+          complete: !!state.days.find((d) => d.date === date)?.complete,
+        }));
+        const max = Math.max(1, ...days.map((d) => d.total.value));
+        return (
+          <View key={n} style={{ gap: 12 }}>
+            <View style={ui.row}>
+              <Text style={ui.section}>{labels[n]}</Text>
+              <Text style={ui.label}>
+                {average.value === null
+                  ? 'No complete data'
+                  : `${number(average.value)} ${unit(n)} / day`}
+              </Text>
+            </View>
+            <Text style={ui.copy}>
+              {average.days} qualifying completed {average.days === 1 ? 'day' : 'days'}
+              {average.estimated ? ' · includes estimates' : ''}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 5, alignItems: 'flex-end' }}>
+              {days.map((d) => (
+                <View
+                  key={d.date}
+                  accessible
+                  accessibilityLabel={`${d.date}: ${d.date > state.today ? 'Future' : !d.total.hasEntries ? 'Not logged' : `${number(d.total.value)} ${unit(n)}${d.total.unknown ? ' known subtotal, incomplete' : ''}, ${d.complete ? 'complete' : 'in progress'}`}`}
+                  style={{ flex: 1, gap: 6, alignItems: 'center' }}
+                >
+                  <Text style={[ui.label, { fontSize: 11 }]}>
+                    {d.date > state.today || !d.total.hasEntries ? '—' : number(d.total.value)}
+                  </Text>
+                  <View style={{ height: 90, justifyContent: 'flex-end', width: '75%' }}>
+                    <View
+                      style={{
+                        height: d.total.hasEntries ? Math.max(2, (90 * d.total.value) / max) : 1,
+                        backgroundColor: d.complete ? colorsBy[n] : colors.line,
+                        borderWidth: d.total.hasEntries && !d.complete ? 1 : 0,
+                        borderColor: colorsBy[n],
+                      }}
+                    />
+                  </View>
+                  <Text style={ui.label}>
+                    {new Date(d.date + 'T12:00:00Z').toLocaleDateString('en-US', {
+                      weekday: 'narrow',
+                      timeZone: 'UTC',
+                    })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            {days.map((d) => (
+              <Text key={d.date} style={ui.copy}>
+                {d.date}:{' '}
+                {d.date > state.today
+                  ? 'Future'
+                  : !d.total.hasEntries
+                    ? 'Not logged'
+                    : `${number(d.total.value)} ${unit(n)}${d.total.unknown ? ' known subtotal · incomplete' : ''}${d.total.estimated ? ' · estimated' : ''} · ${d.complete ? 'Complete' : 'In progress'}`}
+              </Text>
+            ))}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+type Props = {
+  userId: string;
+  accessToken: () => Promise<string>;
+  onSessionEnded?: () => void;
+  onAccount?: () => void;
+  onTab: (tab: MainTab) => void;
+};
+export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount, onTab }: Props) {
+  const [library, setLibrary] = useState(false),
+    [librarySource, setLibrarySource] = useState<FoodEntry | null>(null);
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [date, setDate] = useState(foodToday(zone)),
+    [dateText, setDateText] = useState(foodToday(zone)),
+    [editingDate, setEditingDate] = useState(false),
+    [state, setState] = useState<FoodState | null>(null),
+    [view, setView] = useState<'diary' | 'trends' | 'compose' | 'manual' | 'review' | 'detail'>(
+      'diary',
+    ),
+    [draft, setDraft] = useState<FoodDraft>(fresh(date, zone)),
+    [ready, setReady] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(''),
+    [notice, setNotice] = useState(''),
+    [detail, setDetail] = useState<string | null>(null),
+    [deleteConfirm, setDeleteConfirm] = useState(false),
+    [blocked, setBlocked] = useState(false),
+    [draftError, setDraftError] = useState(false),
+    [now, setNow] = useState(Date.now());
+  const [targetRefresh, setTargetRefresh] = useState(0);
+  const [target, setTarget] = useState<AcceptedNutrition | null>(null),
+    [_targetStatus, setTargetStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  useEffect(() => {
+    const controller = new AbortController();
+    setTarget(null);
+    setTargetStatus('loading');
+    void accessToken()
+      .then((t) => nutritionTargetRequest(date, t, controller.signal))
+      .then((t) => {
+        if (!controller.signal.aborted) {
+          setTarget(t);
+          setTargetStatus('ready');
+        }
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) {
+          setTargetStatus('error');
+          if (e instanceof TrainingError && e.code === 'session_ended') onSessionEnded?.();
+        }
+      });
+    return () => controller.abort();
+  }, [userId, date, targetRefresh]);
+  const daily = target?.nutrition.status === 'available' ? target.nutrition : null;
+  const live = useRef(true),
+    pending = useRef<AbortController | null>(null),
+    token = useRef(accessToken),
+    ended = useRef(onSessionEnded),
+    draftRef = useRef(draft);
+  token.current = accessToken;
+  ended.current = onSessionEnded;
+  draftRef.current = draft;
+  function change(d: FoodDraft) {
+    draftRef.current = { ...d, savedAt: Date.now() };
+    setDraft(draftRef.current);
+    setDraftError(false);
+  }
+  async function persist(d: FoodDraft) {
+    try {
+      await privateFoodDrafts.write(userId, { ...d, savedAt: Date.now() });
+      if (live.current) setDraftError(false);
+    } catch {
+      if (live.current) setDraftError(true);
+      throw Error('draft');
+    }
+  }
+  useEffect(() => {
+    live.current = true;
+    void privateFoodDrafts
+      .read(userId)
+      .then((d) => {
+        if (!live.current) return;
+        if (d) {
+          setDraft(d);
+          if (d.pending) setBlocked(true);
+          setDate(d.date);
+          setDateText(d.date);
+        }
+        setReady(true);
+      })
+      .catch(() => {
+        if (live.current) {
+          setDraftError(true);
+          setReady(true);
+        }
+      });
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') setNow(Date.now());
+    });
+    return () => {
+      live.current = false;
+      pending.current?.abort();
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [userId]);
+  useEffect(() => {
+    if (ready) void persist(draft).catch(() => {});
+  }, [draft, ready]);
+  useEffect(() => {
+    if (ready) {
+      setState(null);
+      void load();
+    }
+  }, [date, ready]);
+  async function run(
+    fn: (
+      request: <T extends FoodState | FoodOperation>(path: string, body?: unknown) => Promise<T>,
+    ) => Promise<void>,
+  ) {
+    if (pending.current) return;
+    const c = new AbortController();
+    pending.current = c;
+    setBusy(true);
+    setError('');
+    const timeout = setTimeout(() => c.abort(), 75000);
+    try {
+      const t = await token.current();
+      if (!live.current || c.signal.aborted) return;
+      await fn(async <T extends FoodState | FoodOperation>(path: string, body?: unknown) => {
+        const v = await foodRequest<T>(path, body, t, c.signal);
+        if (!live.current || c.signal.aborted) throw Error();
+        return v;
+      });
+    } catch (e) {
+      if (live.current) {
+        if (e instanceof FoodError && e.code === 'session_ended') ended.current?.();
+        else
+          setError(
+            e instanceof FoodError
+              ? e.message
+              : 'The result could not be confirmed. Check saved status before trying again.',
+          );
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (pending.current === c) {
+        pending.current = null;
+        if (live.current) setBusy(false);
+      }
+    }
+  }
+  const query = (d = date) => `?date=${d}&timeZone=${encodeURIComponent(zone)}`;
+  async function load() {
+    await run(async (r) => {
+      setState(await r<FoodState>(query()));
+      if (!draftRef.current.pending) setBlocked(false);
+    });
+  }
+  async function receipt(
+    result: FoodOperation,
+    r: <T extends FoodState | FoodOperation>(path: string, body?: unknown) => Promise<T>,
+  ) {
+    const saved = draftRef.current;
+    if (result.status === 'pending') {
+      setBlocked(true);
+      setNotice('Interpretation is still pending. Check status to continue.');
+      return;
+    }
+    if (result.status === 'failed') {
+      setBlocked(false);
+      change({ ...saved, pending: null });
+      setError(foodMessage(result.error ?? 'unavailable'));
+      return;
+    }
+    if (saved.pending?.kind === 'interpret') {
+      const next = {
+        ...saved,
+        pending: null,
+        candidate: result,
+        document: result.candidate?.document ?? null,
+        message: '',
+      };
+      await persist(next);
+      change(next);
+      setView(result.candidate?.question ? 'compose' : 'review');
+      setBlocked(false);
+      return;
+    }
+    const next = fresh(saved.date, saved.timeZone);
+    await persist(next);
+    change(next);
+    setBlocked(false);
+    setNotice(
+      saved.pending?.kind === 'delete'
+        ? 'Entry deleted. Undo is available for 30 seconds.'
+        : saved.pending?.kind === 'undo'
+          ? 'Entry restored. Review the day before marking it complete.'
+          : saved.pending?.kind === 'complete'
+            ? 'Day updated.'
+            : 'Saved to your food diary.',
+    );
+    setView('diary');
+    setDetail(null);
+    setDeleteConfirm(false);
+    setState(await r<FoodState>(query()));
+  }
+  async function submit(command: FoodCommand) {
+    if (busy || blocked) return;
+    if (draftRef.current.pending && draftRef.current.pending.operationId !== command.operationId) {
+      setError('Retry or check your saved request before creating another.');
+      return;
+    }
+    const next = { ...draftRef.current, pending: command };
+    try {
+      await persist(next);
+    } catch {
+      setError('Couldn’t save your request on this device. Retry draft save before submitting.');
+      return;
+    }
+    change(next);
+    setBlocked(true);
+    await run(async (r) => {
+      try {
+        await receipt(await r<FoodOperation>('/commands', command), r);
+      } catch (e) {
+        if (e instanceof FoodError && !['unavailable'].includes(e.code)) {
+          if (e.code === 'food_changed') setState(await r<FoodState>(query()));
+          change({ ...next, pending: null });
+          setBlocked(false);
+        }
+        throw e;
+      }
+    });
+  }
+  async function check() {
+    await run(async (r) => {
+      const command = draftRef.current.pending;
+      if (!command) {
+        setState(await r<FoodState>(query()));
+        setBlocked(false);
+        return;
+      }
+      try {
+        await receipt(await r<FoodOperation>(`/operations/${command.operationId}`), r);
+      } catch (e) {
+        if (e instanceof FoodError && e.code === 'food_operation_missing') {
+          setBlocked(false);
+          setNotice('The request was not found. Retry the same saved request when ready.');
+        } else throw e;
+      }
+    });
+  }
+  const entry = state?.entries.find((e) => e.id === detail && !e.deletedAt);
+  const entries = state?.entries.filter((e) => !e.deletedAt && e.document.date === date) ?? [];
+  const day = state?.days.find((d) => d.date === date);
+  const hasKnown = (n: (typeof nutrients)[number]) =>
+    entries.some((e) => e.document.items.some((i) => i.nutrients[n].value !== null));
+  const foodDraftPresent =
+    !!draft.message || !!draft.document || !!draft.candidate || !!draft.pending;
+  function start(manual: boolean) {
+    if (foodDraftPresent) {
+      setView(draft.document ? 'review' : 'compose');
+      return;
+    }
+    const d = fresh(date, zone);
+    if (manual)
+      d.document = {
+        name: '',
+        meal: 'Meal',
+        date,
+        time: null,
+        timeZone: zone,
+        servings: 1,
+        items: [blankItem()],
+        assumptions: [],
+      };
+    change(d);
+    setView(manual ? 'manual' : 'compose');
+    setError('');
+    setNotice('');
+  }
+  function edit(e: FoodEntry) {
+    if (foodDraftPresent) {
+      setError('Finish or discard your current food draft before editing another entry.');
+      return;
+    }
+    change({
+      ...fresh(e.document.date, e.document.timeZone),
+      document: structuredClone(e.document),
+      editingId: e.id,
+      editingRevision: e.revision,
+    });
+    setView('manual');
+  }
+  function field(label: string, value: string, onChange: (v: string) => void, numeric = false) {
+    return (
+      <FoodField
+        label={label}
+        value={value}
+        onChange={onChange}
+        numeric={numeric}
+        disabled={busy || blocked}
+      />
+    );
+  }
+  const doc = draft.document;
+  const latest = draft.editingId
+    ? state?.entries.find((e) => e.id === draft.editingId && !e.deletedAt)
+    : undefined;
+  const stale = !!latest && latest.revision !== draft.editingRevision;
+  function updateDoc(d: FoodDocument) {
+    change({ ...draft, document: d });
+  }
+  function itemField(index: number, key: 'name' | 'portion', value: string) {
+    if (!doc) return;
+    const d = structuredClone(doc);
+    d.items[index]![key] = value;
+    d.items[index]!.quantity = null;
+    d.items[index]!.unit = null;
+    for (const n of nutrients)
+      if (d.items[index]!.nutrients[n].source === 'estimated')
+        d.items[index]!.nutrients[n] = { value: null, source: 'unknown' };
+    updateDoc(d);
+  }
+  if (library)
+    return (
+      <FoodLibraryScreen
+        userId={userId}
+        accessToken={accessToken}
+        onSessionEnded={onSessionEnded}
+        onAccount={onAccount}
+        onTab={onTab}
+        date={date}
+        sourceEntry={librarySource}
+        onBack={() => {
+          setLibrary(false);
+          setLibrarySource(null);
+          void load();
+        }}
+      />
+    );
+  return (
+    <Page
+      onAccount={onAccount}
+      onBack={
+        ['compose', 'manual', 'review', 'detail'].includes(view)
+          ? () => {
+              setView('diary');
+              setDeleteConfirm(false);
+            }
+          : undefined
+      }
+      backLabel="Food diary"
+      scrollKey={`${view}:${error ? 'error' : 'ready'}`}
+      footer={<Tabs nutrition value="nutrition" onChange={onTab} />}
+    >
+      {!ready ? (
+        <Text style={ui.copy}>Restoring your food draft…</Text>
+      ) : (
+        <>
+          {!!error && <Notice error>{error}</Notice>}
+          {!!notice && <Notice>{notice}</Notice>}
+          {draftError && (
+            <>
+              <Notice error>
+                Couldn’t save your food draft on this device. Keep this screen open and retry.
+              </Notice>
+              <Action
+                label="Retry draft save"
+                onPress={() => void persist(draftRef.current).catch(() => {})}
+              />
+            </>
+          )}
+          {blocked && (
+            <>
+              <Notice>
+                Check the saved result before submitting again. No extra AI request is made by
+                checking.
+              </Notice>
+              <Action label="Check food status" busy={busy} onPress={() => void check()} />
+            </>
+          )}
+          {!blocked && draft.pending && (
+            <Action
+              label="Retry saved request"
+              disabled={busy || draftError}
+              onPress={() => void submit(draft.pending!)}
+            />
+          )}
+          {(view === 'diary' || view === 'trends') && (
+            <>
+              <Text style={ui.title}>Nutrition.</Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  backgroundColor: colors.canvas,
+                  padding: 4,
+                  borderRadius: 8,
+                }}
+              >
+                {(['diary', 'trends'] as const).map((v) => (
+                  <Pressable
+                    key={v}
+                    accessibilityRole="button"
+                    accessibilityLabel={v === 'diary' ? 'Food diary' : 'Weekly trends'}
+                    accessibilityState={{ selected: view === v }}
+                    onPress={() => setView(v)}
+                    style={{
+                      flex: 1,
+                      minHeight: 44,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      padding: 8,
+                      borderRadius: 6,
+                      backgroundColor: view === v ? colors.surface : colors.canvas,
+                    }}
+                  >
+                    <Text style={ui.label}>{v === 'diary' ? 'Food diary' : 'Weekly trends'}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={ui.row}>
+                <Action
+                  label="Previous day"
+                  secondary
+                  disabled={busy}
+                  onPress={() => {
+                    const d = shiftFoodDate(date, -1);
+                    setDate(d);
+                    setDateText(d);
+                  }}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Change diary date"
+                  style={{ minHeight: 44, justifyContent: 'center' }}
+                  onPress={() => setEditingDate((v) => !v)}
+                >
+                  <Text style={ui.label}>
+                    {new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      timeZone: 'UTC',
+                    })}
+                  </Text>
+                </Pressable>
+                <Action
+                  label="Next day"
+                  secondary
+                  disabled={busy || date >= foodToday(zone)}
+                  onPress={() => {
+                    const d = shiftFoodDate(date, 1);
+                    setDate(d);
+                    setDateText(d);
+                  }}
+                />
+              </View>
+              {editingDate && (
+                <>
+                  {field('Diary date (YYYY-MM-DD)', dateText, setDateText)}
+                  <Action
+                    label="View date"
+                    secondary
+                    disabled={busy}
+                    onPress={() => {
+                      if (foodDate(dateText) && dateText <= foodToday(zone)) {
+                        setDate(dateText);
+                        setEditingDate(false);
+                      } else setError('Choose a valid consumed date, today or earlier.');
+                    }}
+                  />
+                </>
+              )}
+              {view === 'diary' && (
+                <BodyWeight
+                  userId={userId}
+                  accessToken={accessToken}
+                  onSessionEnded={onSessionEnded}
+                />
+              )}
+              {foodDraftPresent && (
+                <Action
+                  label="Resume food draft"
+                  secondary
+                  onPress={() => setView(doc ? 'review' : 'compose')}
+                />
+              )}
+              {!state ? (
+                <Notice>
+                  {busy
+                    ? 'Loading your food diary…'
+                    : 'Couldn’t load this day. Reload to check saved entries.'}
+                </Notice>
+              ) : view === 'trends' ? (
+                <FoodTrends state={state} />
+              ) : (
+                <>
+                  <View style={ui.row}>
+                    <Text style={ui.label}>
+                      {day?.complete ? 'Day complete' : 'Day in progress'}
+                    </Text>
+                    <Action
+                      label={day?.complete ? 'Reopen this day' : 'Mark day complete'}
+                      secondary
+                      disabled={busy || blocked || !entries.length || foodDraftPresent}
+                      onPress={() =>
+                        void submit({
+                          operationId: operationId(),
+                          kind: 'complete',
+                          date,
+                          timeZone: zone,
+                          expectedRevision: day?.revision ?? 0,
+                          complete: !day?.complete,
+                        })
+                      }
+                    />
+                  </View>
+                  <Text style={ui.eyebrow}>
+                    {foodTotal(
+                      entries.map((e) => e.document),
+                      'calories',
+                    ).unknown
+                      ? 'CALORIES · KNOWN SUBTOTAL'
+                      : 'CALORIES LOGGED'}
+                  </Text>
+                  <Text style={[ui.title, { fontSize: 48, lineHeight: 54 }]}>
+                    {hasKnown('calories')
+                      ? number(
+                          foodTotal(
+                            entries.map((e) => e.document),
+                            'calories',
+                          ).value,
+                        )
+                      : '—'}{' '}
+                    <Text style={ui.copy}>{daily ? `/ ${daily.caloriesKcal} kcal` : 'kcal'}</Text>
+                  </Text>
+                  <Text style={ui.copy}>
+                    {entries.length
+                      ? `${entries.length} entries · ${day?.complete ? 'Day marked complete' : 'Your day so far'}`
+                      : 'No food logged for this date.'}
+                  </Text>
+                  <View style={ui.row}>
+                    {nutrients.slice(1).map((n) => {
+                      const t = foodTotal(
+                        entries.map((e) => e.document),
+                        n,
+                      );
+                      return (
+                        <View
+                          key={n}
+                          style={{
+                            gap: 6,
+                            minWidth: 75,
+                            flex: 1,
+                            borderTopWidth: 3,
+                            paddingTop: 10,
+                            borderColor:
+                              n === 'protein'
+                                ? colors.action
+                                : n === 'carbs'
+                                  ? '#A95816'
+                                  : '#7850C4',
+                          }}
+                        >
+                          <Text style={ui.label}>{labels[n]}</Text>
+                          <Text style={ui.section}>
+                            {hasKnown(n) ? number(t.value) : '—'}
+                            {daily
+                              ? ` / ${n === 'protein' ? daily.proteinGrams : n === 'carbs' ? daily.carbohydrateGrams : daily.fatGrams}`
+                              : ''}{' '}
+                            g
+                          </Text>
+                          {t.unknown > 0 && <Text style={ui.label}>Known subtotal</Text>}
+                        </View>
+                      );
+                    })}
+                  </View>
+                  {target?.nutrition.status === 'unavailable' && (
+                    <Text style={ui.copy}>Targets unavailable: {target.nutrition.rationale}</Text>
+                  )}
+                  {nutrients.map((n) => {
+                    const t = foodTotal(
+                      entries.map((e) => e.document),
+                      n,
+                    );
+                    return t.unknown || t.estimated ? (
+                      <Text key={n} style={ui.copy}>
+                        {labels[n]}:{' '}
+                        {t.unknown
+                          ? `${t.unknown} unknown ${t.unknown === 1 ? 'value' : 'values'} · shown amount is a known subtotal. `
+                          : ''}
+                        {t.estimated ? 'Includes estimates.' : ''}
+                      </Text>
+                    ) : null;
+                  })}
+                  <Action
+                    label="Saved meals & recipes"
+                    secondary
+                    disabled={busy || blocked}
+                    onPress={() => {
+                      setLibrarySource(null);
+                      setLibrary(true);
+                    }}
+                  />
+                  <View style={ui.divider} />
+                  <Text style={ui.section}>Your meals</Text>
+                  <Action
+                    label="Tell AI what I ate"
+                    disabled={busy || blocked}
+                    onPress={() => start(false)}
+                  />
+                  <Action
+                    label="Add manually"
+                    secondary
+                    disabled={busy || blocked}
+                    onPress={() => start(true)}
+                  />
+                  {entries.map((e) => (
+                    <Pressable
+                      key={e.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${e.document.name}`}
+                      onPress={() => {
+                        setDetail(e.id);
+                        setView('detail');
+                      }}
+                      style={{
+                        paddingVertical: 18,
+                        borderBottomWidth: 1,
+                        borderColor: colors.line,
+                        gap: 6,
+                      }}
+                    >
+                      <Text style={ui.eyebrow}>
+                        {e.document.meal}
+                        {e.document.time ? ' · ' + e.document.time : ''}
+                      </Text>
+                      <Text style={ui.section}>{e.document.name}</Text>
+                      <Text style={ui.copy}>
+                        {e.document.recipe
+                          ? `${e.document.servings} servings · saved recipe version ${e.document.recipe.revision}`
+                          : e.document.items.map((i) => i.portion).join(' · ')}
+                        {!e.document.recipe && e.document.servings !== 1
+                          ? ` × ${e.document.servings}`
+                          : ''}
+                      </Text>
+                    </Pressable>
+                  ))}
+                  {state.entries
+                    .filter(
+                      (e) => e.deletedAt && e.undoUntil && new Date(e.undoUntil).getTime() > now,
+                    )
+                    .map((e) => (
+                      <View key={e.id} style={ui.panel}>
+                        <Text style={ui.copy}>
+                          {e.document.name} deleted. Undo for{' '}
+                          {Math.ceil((new Date(e.undoUntil!).getTime() - now) / 1000)}s.
+                        </Text>
+                        <Action
+                          label={`Undo deletion of ${e.document.name}`}
+                          disabled={busy || blocked || foodDraftPresent}
+                          onPress={() =>
+                            void submit({
+                              operationId: operationId(),
+                              kind: 'undo',
+                              entryId: e.id,
+                              expectedRevision: e.revision,
+                            })
+                          }
+                        />
+                      </View>
+                    ))}
+                </>
+              )}
+              <Action
+                label="Reload food diary"
+                secondary
+                busy={busy}
+                onPress={() => {
+                  setTargetRefresh((n) => n + 1);
+                  void load();
+                }}
+              />
+            </>
+          )}
+          {view === 'compose' && (
+            <>
+              <Text style={ui.title}>What did you eat?</Text>
+              <Text style={ui.copy}>
+                Your message and relevant food conversation are sent to OpenAI. Each send uses the
+                shared AI allowance. Estimates need your review; nothing is logged until you
+                confirm. Manual entry is free of AI calls.
+              </Text>
+              {draft.candidate?.candidate?.question && (
+                <Notice title="A quick clarification">{draft.candidate.candidate.question}</Notice>
+              )}
+              {draft.candidate?.candidate?.intent === 'planned' && (
+                <Notice title="Planning only">
+                  This food is excluded from your diary until you explicitly confirm you ate it.
+                </Notice>
+              )}
+              <FoodField
+                label="What I ate"
+                value={draft.message}
+                multiline
+                disabled={busy || blocked}
+                onChange={(message) => change({ ...draft, message })}
+              >
+                <Action
+                  label={draft.candidate ? 'Send clarification' : 'Review with AI'}
+                  busy={busy}
+                  disabled={blocked || draftError || !draft.message.trim()}
+                  onPress={() =>
+                    void submit({
+                      operationId: operationId(),
+                      kind: 'interpret',
+                      message: draft.message,
+                      date: draft.date,
+                      timeZone: draft.timeZone,
+                      previousOperation: draft.candidate?.id ?? null,
+                      entryId: draft.editingId,
+                      expectedRevision: draft.editingRevision,
+                    })
+                  }
+                />
+              </FoodField>
+              {doc && (
+                <Action
+                  label="Review current candidate"
+                  secondary
+                  onPress={() => setView('review')}
+                />
+              )}
+              <Action
+                label="Use manual entry"
+                secondary
+                disabled={busy || blocked}
+                onPress={() => {
+                  change({
+                    ...draft,
+                    document: doc ?? {
+                      name: '',
+                      meal: 'Meal',
+                      date: draft.date,
+                      time: null,
+                      timeZone: draft.timeZone,
+                      servings: 1,
+                      items: [blankItem()],
+                      assumptions: [],
+                    },
+                  });
+                  setView('manual');
+                }}
+              />
+            </>
+          )}
+          {view === 'review' && (
+            <>
+              <Text style={ui.title}>Review your food.</Text>
+              {doc ? (
+                <>
+                  <FoodSummary document={doc} />
+                  {draft.candidate?.candidate?.intent !== 'consumed' && draft.candidate && (
+                    <Notice title="Planning only / consumption unclear">
+                      This candidate contributes nothing to totals. Confirm that you ate it to log
+                      it.
+                    </Notice>
+                  )}
+                  <Action
+                    label={
+                      draft.candidate && draft.candidate.candidate?.intent !== 'consumed'
+                        ? 'I ate this — add to diary'
+                        : draft.editingId
+                          ? 'Confirm entry correction'
+                          : 'Confirm and add to food diary'
+                    }
+                    busy={busy}
+                    disabled={
+                      blocked ||
+                      draftError ||
+                      stale ||
+                      !!draft.candidate?.candidate?.question ||
+                      !validFoodDocument(doc) ||
+                      doc.date > foodToday(doc.timeZone)
+                    }
+                    onPress={() =>
+                      void submit({
+                        operationId: operationId(),
+                        kind: 'save',
+                        document: doc,
+                        entryId: draft.editingId,
+                        expectedRevision: draft.editingRevision,
+                        candidateOperation: draft.candidate?.id ?? null,
+                        confirmConsumed: true,
+                      })
+                    }
+                  />
+                  <Action
+                    label="Edit values manually"
+                    secondary
+                    disabled={busy || blocked}
+                    onPress={() => setView('manual')}
+                  />
+                  <Action
+                    label="Correct or clarify with AI"
+                    secondary
+                    disabled={busy || blocked}
+                    onPress={() => setView('compose')}
+                  />
+                  {!!draft.candidate?.candidate?.question && (
+                    <Notice>{draft.candidate.candidate.question}</Notice>
+                  )}
+                </>
+              ) : (
+                <Notice>No food candidate yet. Return to your message or use manual entry.</Notice>
+              )}
+            </>
+          )}
+          {view === 'manual' && doc && (
+            <>
+              {stale && (
+                <>
+                  <Notice title="This entry changed">
+                    Your unsaved edits are preserved. Review the current saved entry before applying
+                    them.
+                  </Notice>
+                  <FoodSummary document={latest!.document} />
+                  <Action
+                    label="Keep my edits on this latest version"
+                    disabled={busy || blocked}
+                    onPress={() => change({ ...draft, editingRevision: latest!.revision })}
+                  />
+                </>
+              )}
+              <Text style={ui.title}>{draft.editingId ? 'Edit entry.' : 'Add a meal.'}</Text>
+              <Text style={ui.copy}>
+                Enter nutrients for each recorded base portion. Blank means unknown. Changing
+                free-text portion does not calculate nutrition; changing the multiplier scales all
+                recorded values.
+              </Text>
+              {field('Meal name', doc.name, (v) => updateDoc({ ...doc, name: v }))}
+              {field('Meal category', doc.meal, (v) => updateDoc({ ...doc, meal: v }))}
+              {field('Consumed date (YYYY-MM-DD)', doc.date, (v) => updateDoc({ ...doc, date: v }))}
+              {field('Time eaten (HH:MM, optional)', doc.time ?? '', (v) =>
+                updateDoc({ ...doc, time: v || null }),
+              )}
+              {doc.recipe && (
+                <Notice>
+                  This entry keeps recipe version {doc.recipe.revision}, batch yield{' '}
+                  {doc.recipe.yield}, and ingredient amounts {doc.recipe.amounts.join(', ')} × their
+                  base portions. Nutrient fields below are per base portion. Changing servings
+                  scales the recorded recipe; it does not edit the library.
+                </Notice>
+              )}
+              {field(
+                doc.recipe ? 'Servings consumed' : 'Portion multiplier',
+                draft.fields?.servings ?? String(doc.servings),
+                (v) => {
+                  const value = Number(v);
+                  change({
+                    ...draft,
+                    document: { ...doc, servings: value },
+                    fields: { ...draft.fields, servings: v },
+                  });
+                },
+                true,
+              )}
+              {doc.items.map((item, i) => (
+                <View
+                  key={i}
+                  style={{ gap: 12, borderTopWidth: 1, borderColor: colors.line, paddingTop: 18 }}
+                >
+                  {field(`Food ${i + 1}`, item.name, (v) => itemField(i, 'name', v))}
+                  {field(`Portion ${i + 1}`, item.portion, (v) => itemField(i, 'portion', v))}
+                  {nutrients.map((n) => (
+                    <View key={n} style={{ gap: 3 }}>
+                      {field(
+                        `${labels[n]} ${i + 1} (${unit(n)}, optional)`,
+                        draft.fields?.[`${i}.${n}`] ??
+                          (item.nutrients[n].value === null ? '' : String(item.nutrients[n].value)),
+                        (v) => {
+                          const d = structuredClone(doc);
+                          d.items[i]!.nutrients[n] = {
+                            value: v.trim() ? Number(v) : null,
+                            source: v.trim() ? 'supplied' : 'unknown',
+                          };
+                          change({
+                            ...draft,
+                            document: d,
+                            fields: { ...draft.fields, [`${i}.${n}`]: v },
+                          });
+                        },
+                        true,
+                      )}
+                      <Text style={ui.copy}>{source[item.nutrients[n].source]}</Text>
+                    </View>
+                  ))}
+                  <Action
+                    label={`Mark food ${i + 1} values as my estimates`}
+                    secondary
+                    disabled={busy || blocked}
+                    onPress={() => {
+                      const d = structuredClone(doc);
+                      for (const n of nutrients)
+                        if (d.items[i]!.nutrients[n].value !== null)
+                          d.items[i]!.nutrients[n].source = 'user_estimated';
+                      updateDoc(d);
+                    }}
+                  />
+                </View>
+              ))}
+              <Action
+                label={draft.editingId ? 'Save entry changes' : 'Add to food diary'}
+                busy={busy}
+                disabled={blocked || draftError || stale || !validFoodDocument(doc)}
+                onPress={() =>
+                  void submit({
+                    operationId: operationId(),
+                    kind: 'save',
+                    document: doc,
+                    entryId: draft.editingId,
+                    expectedRevision: draft.editingRevision,
+                    candidateOperation: draft.candidate?.id ?? null,
+                    confirmConsumed: true,
+                  })
+                }
+              />
+            </>
+          )}
+          {view === 'detail' && entry && (
+            <>
+              <Text style={ui.title}>Food entry.</Text>
+              <FoodSummary document={entry.document} />
+              <Action
+                label="Save meal to library"
+                secondary
+                disabled={busy || blocked || foodDraftPresent}
+                onPress={() => {
+                  setLibrarySource(entry);
+                  setLibrary(true);
+                }}
+              />
+              {!entry.document.recipe && (
+                <Action
+                  label="Correct this entry with AI"
+                  disabled={busy || blocked || foodDraftPresent}
+                  onPress={() => {
+                    change({
+                      ...fresh(entry.document.date, entry.document.timeZone),
+                      document: structuredClone(entry.document),
+                      editingId: entry.id,
+                      editingRevision: entry.revision,
+                    });
+                    setView('compose');
+                  }}
+                />
+              )}
+              <Action label="Edit entry" disabled={busy || blocked} onPress={() => edit(entry)} />
+              <Action
+                label="Delete entry"
+                secondary
+                disabled={busy || blocked || foodDraftPresent}
+                onPress={() => setDeleteConfirm(true)}
+              />
+              {deleteConfirm && (
+                <>
+                  <Notice>Delete this entry from your totals? You can undo for 30 seconds.</Notice>
+                  <Action
+                    label="Confirm delete entry"
+                    disabled={busy || blocked}
+                    onPress={() =>
+                      void submit({
+                        operationId: operationId(),
+                        kind: 'delete',
+                        entryId: entry.id,
+                        expectedRevision: entry.revision,
+                      })
+                    }
+                  />
+                  <Action label="Keep entry" secondary onPress={() => setDeleteConfirm(false)} />
+                </>
+              )}
+            </>
+          )}
+          {['compose', 'review', 'manual'].includes(view) && (
+            <Action
+              label="Discard food draft"
+              secondary
+              disabled={busy || blocked || !!draft.pending}
+              onPress={() => {
+                change(fresh(date, zone));
+                setView('diary');
+                setNotice('Food draft discarded.');
+              }}
+            />
+          )}
+        </>
+      )}
+    </Page>
+  );
+}

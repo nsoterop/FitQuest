@@ -37,7 +37,6 @@ coverage/
 
 # Existing local design exploration; retain files without publishing them.
 /docs/design/screen-mockups-2026-10-09/*
-!/docs/design/screen-mockups-2026-10-09/v2/
 .expo/
 .cache/
 .envrc

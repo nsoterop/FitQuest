@@ -40,9 +40,9 @@ test('placeholder examples, schema checkpoints, source and reviewed fixtures rem
     'backend/.env.example',
     'mobile/.env.example',
     'backend/setup/manifest.json',
-    'backend/src/planningFixture.ts',
-    'mobile/src/JournalScreen.tsx',
-    'docs/design/screen-mockups-2026-10-09/v2/previews/profile.png',
+    'backend/src/tests/fixtures/planningFixture.ts',
+    'mobile/src/features/journal/JournalScreen.tsx',
+    'docs/archive/verification/2026-10-09/account-training-ui/profile.png',
   ])
     assert.equal(ignored(name), false, name);
 });

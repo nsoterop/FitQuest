@@ -4,9 +4,9 @@
 
 The owner's latest explicit instructions control the work. Follow the owner's roadmap; do not invent features, milestones, architecture initiatives or paid evaluations. Feature work is paused.
 
-The current assignment is repository-readiness **batch 3: documentation and GitHub presentation**, following batches 1–2 on private `codex/publication-safety` at `54e0b03`. Reconcile the README/setup guides, archive superseded instructions and release records, add the owner-selected MIT license while preserving third-party notices, and prepare a PR to `main` only after verifying trigger safety. Recommend protection settings without applying them.
+The current assignment is the owner's October 10 request to organize the whole project and remove files no longer needed. Group mobile/backend source by feature, separate tests and support code, give documentation a clear index, and remove verified obsolete tracked artifacts. Preserve behavior, necessary legacy readers, migrations, accounting, private records and owner-managed files. MIT remains selected. Feature work remains paused.
 
-The prior [workflow archive](docs/history/workflow-instructions-2026-10-10.md) is historical evidence, **not an active work queue or permission**. In particular, older deployment, migration, reset and paid-evaluation authorizations do not authorize those actions during this cleanup.
+Prior instructions and duplicate release notes were removed from the working tree because Git preserves their historical versions. Git history is evidence, not an active work queue or permission to deploy, migrate, reset or spend. The concise retained release record is under `docs/archive/releases`.
 
 ## Publication boundary
 
@@ -32,6 +32,6 @@ If a real exposed credential is found, stop publication, report only its categor
 
 ## Verification and handoff
 
-Use [development checks](docs/development-checks.md). Keep formatting separate from behavior changes. Use mocks and isolated disposable PostgreSQL, never a hosted or ordinary development database. Fresh installations use [the guarded installer](backend/setup/README.md); never replay the historical account reset or overwrite an existing migration/spending ledger.
+Use [development checks](docs/guides/development.md). Keep formatting separate from behavior changes. Use mocks and isolated disposable PostgreSQL, never a hosted or ordinary development database. Fresh installations use [the guarded installer](backend/setup/README.md); never replay the historical account reset or overwrite an existing migration/spending ledger.
 
 Report the actual source commit, local checks, CI and PR state. Distinguish source from deployment, simulator from phone acceptance, and mocks from coaching quality. Be concise and continue ordinary authorized work without another approval round. Report concrete blockers and unresolved limitations honestly; old archives and product aspirations do not expand scope.
