@@ -1,6 +1,8 @@
 # Security implementation and status
 
-The owner approved bounded security hardening on October 10, 2026, starting from `ccbd00d` on `main`. Work is on `codex/security-hardening`. This is source preparation, not a production deployment or authority to apply hosted policy.
+The owner approved bounded security hardening on October 10, 2026, starting from `ccbd00d` on `main`. Work is complete on `codex/security-hardening` at `b1662e4`, with the UX work above it on `codex/flow-simplification`. Engineering owns routine application deployments under the owner's corrected [release policy](../../AGENTS.md). Hosted migrations and policy changes still need explicit approval. See [current release dependencies](../guides/release.md).
+
+The checkpoints below preserve the publication restrictions and evidence in effect when each batch was verified. Their former deployment-approval restrictions are superseded by the current release policy. Security PR #1 is now closed at the owner's request; its source remains preserved.
 
 ## Batch-2 checkpoint — October 10, 2026
 
@@ -106,12 +108,12 @@ At existing Sol rates, an illustrative 2,000-input/3,000-output-token plan costs
 ## Release and rollback checklist
 
 1. Verify exact reviewed commit, passing CI, migration checksum, current deployed artifact and existing service triggers. Production remains on its existing release; `main` source publication is separate.
-2. Obtain explicit authorization for the scoped hosted forward migration, policy activation/defaults, matching backend/mobile release and any verification requiring live requests. No credentials, resource or native-build changes are required by this source work.
-3. Under that authorization, capture private schema/accounting preservation evidence and apply only the new forward migration. Do not replay history or the fresh installer. Confirm restricted grants, preserved global totals and inactive policy. Resolve real proxy topology separately before considering forwarded-header trust; no proxy change is required here.
-4. Coordinate/drain in-flight generations when switching the provider envelope so an old response is not interpreted with a new contract. Activate the reviewed policy explicitly and deploy the matching source/JavaScript; verify health, auth/no-store, bounded errors, ordinary saved-work access and release identity without paid regeneration or owner-data reset.
+2. Obtain explicit authorization for the two outstanding hosted forward migrations and, separately if desired, account-policy activation/default changes. Routine matching backend/mobile application delivery and read-only verification are already authorized. Do not deploy against missing schema. See the exact [inventory and order](../guides/release.md).
+3. Under that authorization, capture private schema/accounting preservation evidence and apply only the two reviewed forward migrations in the recorded order. Do not replay history or the fresh installer. Confirm restricted grants, preserved global totals and inactive policy. Resolve real proxy topology separately before considering forwarded-header trust; no proxy change is required here.
+4. Coordinate/drain in-flight generations when switching the provider envelope so an old response is not interpreted with a new contract. Deploy matching backend/mobile JavaScript after schema compatibility is established; verify health, auth/no-store, bounded errors, ordinary saved-work access and release identity without paid regeneration or owner-data reset. Keep the account policy disabled unless its activation is separately approved; activation is not required for application compatibility.
 5. Rollback, if needed and authorized: restore the previous application artifact and reviewed policy state; retain all forward tables/columns and ledger liabilities. Never reverse schema by deletion or reset spending. Existing old clients show safe fallback copy for unknown codes. Old backend calls still use the same reservation signature. Do not blindly revert to an old runtime while new provider requests are in flight.
 
-Final local/CI commit evidence is recorded in the implementation handoff; no item above is authorization to execute hosted changes.
+Final local/CI commit evidence is recorded in the implementation handoff. Routine application deployment authority comes from the owner's current policy; this checklist does not authorize hosted migrations or policy changes.
 
 ## Sources
 
@@ -119,4 +121,4 @@ The [OpenAI Responses guide](https://developers.openai.com/api/docs/guides/migra
 
 ## Release boundary
 
-No deployment, hosted migration, credential/trust change, resource creation, native build, owner-data reset, paid evaluation or owner-plan regeneration is authorized. Existing production and scheduler settings remain unchanged. Preserve the single $7 lifetime / $0.25 evaluation ledger and all settled/uncertain charges. Temporary test processes must stop after verification.
+Routine backend deployment to the existing service and matching mobile JavaScript delivery are Engineering's responsibility after checks and compatibility review. Hosted migrations, service/policy settings, credential/trust changes, new resources, native builds, owner-data resets and paid evaluation require separate authority. No owner-plan regeneration is assigned. Preserve the single $7 lifetime / $0.25 evaluation ledger and all settled/uncertain charges. Temporary test processes must stop after verification.

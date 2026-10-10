@@ -1,6 +1,6 @@
 # Architecture and operational limits
 
-This describes source behavior on the security-hardening branch as of October 10, 2026. It is not a deployment runbook or authority to change hosted services.
+This describes the completed security and flow-simplification source as of October 10, 2026. Engineering owns routine application delivery under the [current release policy](../../AGENTS.md); [release dependencies and rollout](../guides/release.md) records hosted compatibility and outstanding approvals.
 
 ## Boundaries
 
@@ -26,7 +26,7 @@ One permanent ledger accounts for every provider dispatch, including uncertain o
 
 ## Weekly scheduling
 
-Enrollment is off by default. After an accepted document week and both sharing permissions, the athlete may enable Sunday 9 PM planning in the saved timezone. Enrollment does not immediately generate a plan. Pause prevents future dispatch; work already transmitted may finish.
+The deployed legacy flow uses explicit Sunday 9 PM enrollment. The new source enrolls automatically after accepted document history and explicit recurring profile/history permission in the saved timezone. It preserves legacy enrollment and explicit pauses without upgrading old permission. Withdrawal stops consent-managed future dispatch; work already transmitted may finish. Enrollment does not immediately generate a plan. The source requires the outstanding enrollment-provenance migration before deployment.
 
 The production API scans approximately every 60 seconds and at startup. Per-account locks, target-week identity and durable dispatch markers coordinate scheduler/manual requests. An existing target-week draft or accepted plan wins. After downtime, only the latest eligible current/upcoming week is considered; obsolete backlog is skipped. A failure or uncertain dispatch requires explicit retry rather than buying another request automatically.
 
@@ -43,4 +43,4 @@ This reuses the existing service and avoids another job resource, but depends on
 
 ## Evidence and release state
 
-The October 9 production record identifies application `2e779e5`. Repository organization was published to `main` at `ccbd00d`; security changes are prepared on `codex/security-hardening`. Neither is the deployed API release source. [Security status](security.md) describes the new instruction boundary, result envelope and inactive account policy. Source publication does not imply deployment. [Release history](../archive/README.md), [publication-safety audit](../archive/audits/publication-safety-2026-10-09.md), and [code-quality checks](../archive/audits/code-quality-2026-10-10.md) preserve their original dates and scope.
+Read-only October 10 inspection still identifies live application `2e779e5`. Repository organization was published to `main` at `ccbd00d`; security source is complete at `b1662e4` and UX source at `5e30308`. Both PRs are closed, with branches intact. [Security status](security.md) describes the instruction boundary, result envelope and inactive account policy. Routine deployment is authorized, but the missing schema is a concrete compatibility blocker; see [release dependencies](../guides/release.md). Source publication does not imply deployment. [Release history](../archive/README.md), [publication-safety audit](../archive/audits/publication-safety-2026-10-09.md), and [code-quality checks](../archive/audits/code-quality-2026-10-10.md) preserve their original dates and scope.

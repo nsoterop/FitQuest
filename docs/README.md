@@ -7,6 +7,7 @@ Start here. Current documentation is separated from dated verification evidence.
 | Understand the product and run it | [Project README](../README.md), [API setup](../backend/README.md), [database tooling](../database/README.md), [mobile setup](../mobile/README.md) |
 | Find code or decide where a file belongs | [Repository layout](guides/repository-layout.md) |
 | Run tests, lint and CI checks | [Development checks](guides/development.md) |
+| Release the completed source and see outstanding dependencies | [Release dependencies and rollout](guides/release.md) |
 | Understand data, planning and scheduling boundaries | [Architecture](reference/architecture.md) |
 | Understand the illustrative screenshots | [Screenshot provenance](reference/screenshots.md) |
 | Investigate private plan-validation failures | [Diagnostic reference](reference/plan-validation-diagnostics.md) |
