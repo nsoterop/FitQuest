@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { TestContext } from 'node:test';
 import type { Pool } from 'pg';
 import type { ProfileStore } from '../../features/account/profileStore.js';
+import { buildApp } from '../../app.js';
 import { planningStore } from '../../features/planning/planningStore.js';
 import { planningService } from '../../features/planning/planning.js';
 import { planDates } from '../../features/planning/trainingSummary.js';
@@ -31,7 +32,7 @@ export async function verifySchedulerDatabase(
     bg = planningStore(pool, true, clock);
   const dates = planDates('America/New_York', now),
     permission = { version: weeklyScheduleVersion, enabled: true, expectedRevision: 0 };
-  async function fresh(accepted = true) {
+  async function fresh(accepted = true, legacyPermission = true) {
     now = new Date('2026-10-10T16:00:00Z');
     const a = { userId: randomUUID(), sessionId: randomUUID() };
     await owner.query('INSERT INTO auth.users VALUES($1)', [a.userId]);
@@ -65,20 +66,75 @@ export async function verifySchedulerDatabase(
       [a.userId, JSON.stringify(dates), JSON.stringify(journalDocumentFixture(dates))],
     );
     if (accepted) await store.accept(a, { planId: p.id, summaryRevision: 1, planRevision: 1 });
-    await store.consent(a, {
-      version: planningConsentVersion,
-      scope: planningConsentScope,
-      granted: true,
-      expectedRevision: 0,
-    });
-    await store.historyConsent(a, {
-      version: historyConsentVersion,
-      scope: historyConsentScope,
-      granted: true,
-      expectedRevision: 0,
-    });
+    if (legacyPermission) {
+      await store.consent(a, {
+        version: planningConsentVersion,
+        scope: planningConsentScope,
+        granted: true,
+        expectedRevision: 0,
+      });
+      await store.historyConsent(a, {
+        version: historyConsentVersion,
+        scope: historyConsentScope,
+        granted: true,
+        expectedRevision: 0,
+      });
+    }
     return a;
   }
+  await t.test(
+    'fresh account grants paired permission through HTTP without dispatch or premature enrollment',
+    async (t) => {
+      const a = await fresh(false, false);
+      const app = buildApp(false, {
+        store: profiles,
+        verifyAccount: async (token) => (token === 'synthetic-permission-test' ? a : null),
+        planning: planningService(store),
+      });
+      t.after(() => app.close());
+      const headers = { authorization: 'Bearer synthetic-permission-test' };
+      const permission = {
+        version: recurringConsentVersion,
+        scope: recurringConsentScope,
+        granted: true,
+        expectedRevision: 0,
+        expectedHistoryRevision: 0,
+      };
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/training/consent',
+        headers,
+        payload: permission,
+      });
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.json().consent.granted, true);
+      assert.equal(response.json().consent.revision, 1);
+      assert.equal(response.json().historyConsent.granted, true);
+      assert.equal(response.json().historyConsent.revision, 1);
+      assert.equal(response.json().schedule, null);
+      const saved = await store.read(a);
+      assert.deepEqual(response.json().consent, saved.consent);
+      assert.deepEqual(response.json().historyConsent, saved.historyConsent);
+      const stale = await app.inject({
+        method: 'PUT',
+        url: '/training/consent',
+        headers,
+        payload: { ...permission, granted: false, expectedRevision: 1 },
+      });
+      assert.equal(stale.statusCode, 409);
+      assert.equal(stale.json().code, 'consent_changed');
+      assert.deepEqual((await store.read(a)).historyConsent, saved.historyConsent);
+      assert.equal(
+        (
+          await owner.query(
+            'SELECT count(*)::int n FROM fitquest.onboarding_attempts WHERE user_id=$1',
+            [a.userId],
+          )
+        ).rows[0].n,
+        0,
+      );
+    },
+  );
   async function recurring(a: Parameters<typeof store.consent>[0], granted = true) {
     const s = await store.read(a);
     return store.consent(a, {

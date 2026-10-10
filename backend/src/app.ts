@@ -305,7 +305,15 @@ export function buildApp(
       request.query.offset === undefined ? 0 : Number(request.query.offset),
     ),
   );
-  app.put<{ Body: { version: string; scope: string; granted: boolean; expectedRevision: number } }>(
+  app.put<{
+    Body: {
+      version: string;
+      scope: string;
+      granted: boolean;
+      expectedRevision: number;
+      expectedHistoryRevision?: number;
+    };
+  }>(
     '/training/consent',
     {
       ...privateRoute,
@@ -319,6 +327,7 @@ export function buildApp(
             scope: { type: 'string', maxLength: 80 },
             granted: { type: 'boolean' },
             expectedRevision: { type: 'integer', minimum: 0, maximum: 1000000 },
+            expectedHistoryRevision: { type: 'integer', minimum: 0, maximum: 1000000 },
           },
         },
       },

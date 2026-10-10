@@ -3,6 +3,12 @@ import test from 'node:test';
 import { Writable } from 'node:stream';
 import { buildApp } from '../../app.js';
 import type { ProfileStore, SavedProfile } from '../../features/account/profileStore.js';
+import {
+  planningConsentVersion,
+  planningConsentScope,
+  recurringConsentVersion,
+  recurringConsentScope,
+} from '../../shared/planningConsent.js';
 const accounts = {
   alice: {
     userId: '11111111-1111-4111-8111-111111111111',
@@ -58,6 +64,80 @@ const intake = {
   weight: { value: 155.5, unit: 'lb' },
   gender: 'Prefer not to say',
 };
+
+test('training permission HTTP route preserves both revisions and validates history revision', async (t) => {
+  const calls: unknown[] = [];
+  const unused = async () => {
+    throw Error('Unexpected planning operation');
+  };
+  const app = buildApp(false, {
+    ...dependencies(),
+    planning: {
+      schedule: unused,
+      scheduled: unused,
+      historyConsent: unused,
+      ensureNextWeek: unused,
+      read: unused,
+      edit: unused,
+      ensurePlan: unused,
+      accept: unused,
+      consent: async (account, request) => {
+        assert.deepEqual(account, accounts.alice);
+        calls.push(request);
+        return {
+          summary: null,
+          plans: [],
+          onboarded: false,
+          nextOffset: null,
+          schedule: null,
+          consent: null,
+          historyConsent: null,
+        };
+      },
+      nutrition: unused,
+      review: unused,
+      generate: unused,
+    },
+  });
+  t.after(() => app.close());
+  const permission = {
+    version: recurringConsentVersion,
+    scope: recurringConsentScope,
+    granted: true,
+    expectedRevision: 0,
+    expectedHistoryRevision: 0,
+  };
+  for (const payload of [
+    permission,
+    { ...permission, granted: false, expectedRevision: 3, expectedHistoryRevision: 5 },
+    {
+      version: planningConsentVersion,
+      scope: planningConsentScope,
+      granted: true,
+      expectedRevision: 0,
+    },
+  ]) {
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/training/consent',
+      headers,
+      payload,
+    });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers['cache-control'], 'no-store');
+    assert.deepEqual(calls.at(-1), payload);
+  }
+  for (const expectedHistoryRevision of [-1, 0.5, '0', null, 1000001]) {
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/training/consent',
+      headers,
+      payload: { ...permission, expectedHistoryRevision },
+    });
+    assert.equal(response.statusCode, 400);
+  }
+  assert.equal(calls.length, 3);
+});
 
 test('POST /profile-intake commits all six fields before acknowledgment and supports repeat saves', async (t) => {
   const app = buildApp(false, dependencies());
