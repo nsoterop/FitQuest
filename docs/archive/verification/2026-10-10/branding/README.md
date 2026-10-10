@@ -12,3 +12,7 @@ Rendered on the existing disposable iOS 26.4 simulator using installed Expo Go 5
 These screenshots are component-fixture checks, not physical-phone acceptance or an assertion that Expo Go previews the installed app's home-screen icon. Expo Go's floating blue gear is its own development overlay. The native app icon was separately generated through disposable Expo iOS prebuild and matched the opaque 1024px v3 export pixel-for-pixel. The replacement development IPA and installation status are recorded in the release record.
 
 Only the agent-owned preview on port 8084 and disposable simulator were started; both were stopped afterward. Owner Metro was preserved.
+
+## Transparent header follow-up
+
+The owner's later correction replaces only the in-app mark with Design's transparent blue-and-lime artwork. [Rendered header at 320 points with accessibility-large text](transparent-header-large-text.png) shows the real shared header, single accessible FitQuest group and separate Account control. Normal-size rendering was also checked. The opaque home-screen icon and native build 2 remain unchanged. Only synthetic fixture content was displayed; the temporary preview on 8084 was stopped, the disposable simulator's original text size restored and the simulator shut down. Owner Metro on 8081 was preserved.

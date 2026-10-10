@@ -4,6 +4,7 @@ beforeEach((t) => t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-
 import { registerHooks } from 'node:module';
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 import ts from 'typescript';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
@@ -7234,22 +7235,38 @@ test('approved brand has one accessible header label and preserves the existing 
   assert.equal(back, 1);
 });
 
-test('native app icon and header density exports are square RGB images with the existing app identity', () => {
+test('native app icon stays opaque while header density exports preserve transparency and app identity', () => {
   const config = JSON.parse(readFileSync(new URL('../app.json', import.meta.url))).expo;
   assert.equal(config.icon, './assets/branding/app-icon.png');
   assert.equal(config.ios.bundleIdentifier, 'com.nsoterop.fitquest.dev');
   assert.equal(config.scheme, 'fitquest-dev');
   assert.equal(config.extra.eas.projectId, 'ee3a68db-3a8a-4bed-9472-01e90acdc1da');
-  for (const [name, size] of [
-    ['source-v3', 1254],
-    ['app-icon', 1024],
-    ['mark', 36],
-    ['mark@2x', 72],
-    ['mark@3x', 108],
+  for (const [name, size, transparent] of [
+    ['source-v3', 1254, false],
+    ['app-icon', 1024, false],
+    ['source-blue-transparent', 1254, true],
+    ['mark', 36, true],
+    ['mark@2x', 72, true],
+    ['mark@3x', 108, true],
   ]) {
     const png = readFileSync(new URL(`../assets/branding/${name}.png`, import.meta.url));
     assert.equal(png.readUInt32BE(16), size);
     assert.equal(png.readUInt32BE(20), size);
-    assert.equal(png[25], 2, 'RGB without alpha, including the native icon corners');
+    assert.equal(png[24], 8, '8-bit channels');
+    assert.equal(png[25], transparent ? 6 : 2, `${name}: header RGBA, native icon RGB`);
+    if (transparent) {
+      assert.equal(png[28], 0, 'noninterlaced PNG');
+      const chunks = [];
+      for (let offset = 8; offset < png.length;) {
+        const length = png.readUInt32BE(offset);
+        if (png.toString('ascii', offset + 4, offset + 8) === 'IDAT') {
+          chunks.push(png.subarray(offset + 8, offset + 8 + length));
+        }
+        offset += length + 12;
+      }
+      // Every PNG filter predicts zero for the first pixel of the first row.
+      const scanlines = inflateSync(Buffer.concat(chunks));
+      assert.equal(scanlines[4], 0, `${name}: transparent top-left corner`);
+    }
   }
 });

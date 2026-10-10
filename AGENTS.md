@@ -8,6 +8,8 @@ The current assignment is the owner's approved v3 brand/logo and pending Lucide 
 
 The mobile implementation/delivery is complete at application source `9a5b42f`, with successful replacement build `f7af2c75-00f7-4a9f-a470-4243358634c1` and matching owner Metro assets. See [release evidence](docs/archive/releases/2026-10-10.md#v3-brand-and-lucide-mobile-release). The owner must still install the update over the existing app and perform phone acceptance; never infer installation from Metro. No further native build or unrelated release is assigned.
 
+The owner's subsequent October 10 correction uses Design's transparent blue-and-lime logo in the existing shared in-app header. Preserve the opaque native home-screen icon and build 2; finish scoped checks, private publication and delivery through the existing owner Metro. This correction does not authorize another native build.
+
 Other feature work remains paused. Preserve completed organization, security, birthday/profile/onboarding corrections and all existing behavior. Design artwork and synthetic simulator evidence are separate from physical-phone acceptance. HQ is not editing and no routine HQ review gate applies.
 
 Prior instructions and duplicate release notes were removed from the working tree because Git preserves their historical versions. Git history is evidence, not an active work queue or permission to deploy, migrate, reset or spend. The concise retained release record is under `docs/archive/releases`.
