@@ -63,6 +63,7 @@ function AccountProfileForm({
   const pending = useRef<AbortController | null>(null);
   const loading = useRef<AbortController | null>(null);
   const mounted = useRef(true);
+  const profileSetupRequested = useRef(false);
   const tokenGetter = useRef(accessToken);
   tokenGetter.current = accessToken;
   const sessionEnded = useRef(onSessionEnded);
@@ -145,6 +146,16 @@ function AccountProfileForm({
     setGenerateOnOpen(false);
   }
 
+  function returnToProfileSetup() {
+    if (loading.current || pending.current) return;
+    profileSetupRequested.current = true;
+    setSavedFirstName(null);
+    setOnboarding(false);
+    setRecovery(undefined);
+    setFeedback(null);
+    void restore();
+  }
+
   async function restore() {
     if (loading.current || pending.current) return;
     const controller = new AbortController();
@@ -163,8 +174,9 @@ function AccountProfileForm({
         }
         setLoadError(result.error);
       } else if (result.profile) {
-        setSavedFirstName(result.profile.firstName);
-      }
+        setFields(profileFields(result.profile));
+        if (!profileSetupRequested.current) setSavedFirstName(result.profile.firstName);
+      } else setFields(emptyFields);
     } catch {
       if (mounted.current && loading.current === controller)
         setLoadError('Unable to restore your profile. Please sign in again.');
@@ -231,7 +243,10 @@ function AccountProfileForm({
     }
     if ('success' in result) {
       if (editingProfile) onSaved?.();
-      else setSavedFirstName(validation.payload.firstName);
+      else {
+        profileSetupRequested.current = false;
+        setSavedFirstName(validation.payload.firstName);
+      }
     } else setFeedback(result.error);
   }
 
@@ -288,6 +303,7 @@ function AccountProfileForm({
           userId={userId}
           accessToken={accessToken}
           onSessionEnded={onSessionEnded}
+          onProfileSetup={returnToProfileSetup}
           onClose={(message, summarySaved) => {
             setInitialTraining(undefined);
             setTrainingAccess('checking');

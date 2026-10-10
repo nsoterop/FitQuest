@@ -6919,3 +6919,86 @@ test('birthday picker clamps leap days and short months and excludes future and 
   await act(async () => press(screen, 'Done'));
   assert.equal(changes.at(-1), '1895-10-05');
 });
+
+test('Before we begin goes back to saved profile setup and a confirmed update returns to onboarding without generation', async (t) => {
+  resetAuth(alice);
+  let profile = { ...payload, birthday: '1997-01-01', gender: 'Male' };
+  const requests = [];
+  let failSave = true;
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, method: options.method ?? 'GET' });
+    if (url.endsWith('/profile')) return { status: 200, json: async () => ({ profile }) };
+    if (url.endsWith('/training'))
+      return { status: 200, json: async () => ({ summary: null, plans: [] }) };
+    assert(url.endsWith('/profile-intake'));
+    if (failSave) return { status: 503, json: async () => ({}) };
+    const saved = JSON.parse(options.body);
+    assert.equal(saved.birthday, '1997-01-01');
+    profile = { ...profile, ...saved };
+    return { status: 200, json: async () => ({ message: 'User Data Saved' }) };
+  };
+  const screen = await mount();
+  t.after(async () => act(async () => screen.unmount()));
+  assert.match(renderedTrainingText(screen), /Before we begin/);
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Back to onboarding' }).length, 0);
+  // Returning to setup reloads the current profile, including an intervening saved change.
+  profile = { ...profile, weight: { value: 160, unit: 'lb' } };
+  await act(async () => {
+    press(screen, 'Back to profile setup');
+    await flush();
+  });
+  assert.equal(input(screen, 'First name').props.value, 'Alex');
+  assert.equal(input(screen, 'Last name').props.value, 'Example');
+  assert.equal(input(screen, 'Height (feet)').props.value, '5');
+  assert.equal(input(screen, 'Height (inches)').props.value, '8');
+  assert.equal(input(screen, 'Weight (lb)').props.value, '160');
+  assert.equal(input(screen, 'Choose birthday').props.accessibilityValue.text, 'January 1, 1997');
+  assert.match(renderedTrainingText(screen), /Male/);
+  assert(requests.every((r) => r.method === 'GET'));
+  await act(async () => input(screen, 'Last name').props.onChangeText('Updated'));
+  await act(async () => {
+    press(screen, 'Submit profile');
+    await flush();
+  });
+  assert.equal(input(screen, 'Last name').props.value, 'Updated');
+  assert.doesNotMatch(renderedTrainingText(screen), /Before we begin/);
+  failSave = false;
+  await act(async () => {
+    press(screen, 'Submit profile');
+    await flush();
+  });
+  assert.match(renderedTrainingText(screen), /Before we begin/);
+  assert(input(screen, 'Back to profile setup'));
+  assert.equal(profile.lastName, 'Updated');
+  assert.equal(requests.filter((r) => r.method !== 'GET').length, 2);
+  assert(requests.every((r) => !r.url.includes('/onboarding') && !r.url.endsWith('/generate')));
+});
+
+test('failed profile reload from Before we begin retries into setup instead of automatically returning to onboarding', async (t) => {
+  resetAuth(alice);
+  let failRead = false;
+  globalThis.fetch = async (url) => ({
+    status: url.endsWith('/profile') && failRead ? 503 : 200,
+    json: async () =>
+      url.endsWith('/profile')
+        ? { profile: { ...payload, birthday: '1997-01-01', gender: 'Female' } }
+        : { summary: null, plans: [] },
+  });
+  const screen = await mount();
+  t.after(async () => act(async () => screen.unmount()));
+  failRead = true;
+  await act(async () => {
+    press(screen, 'Back to profile setup');
+    await flush();
+  });
+  assert(input(screen, 'Retry profile loading'));
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'First name' }).length, 0);
+  failRead = false;
+  await act(async () => {
+    press(screen, 'Retry profile loading');
+    await flush();
+  });
+  assert.equal(input(screen, 'First name').props.value, 'Alex');
+  assert.match(renderedTrainingText(screen), /Female/);
+  assert.doesNotMatch(renderedTrainingText(screen), /Before we begin/);
+});

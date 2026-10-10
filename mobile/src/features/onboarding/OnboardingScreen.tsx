@@ -24,17 +24,35 @@ type OnboardingProps = {
   userId: string;
   accessToken: () => Promise<string>;
   onSessionEnded?: () => void;
+  onProfileSetup?: () => void;
   onClose: (message?: string, summarySaved?: boolean) => void;
   drafts?: OnboardingDraftStore;
 };
 export function OnboardingScreen(props: OnboardingProps) {
+  return <AccountOnboardingPage key={props.userId} {...props} />;
+}
+function AccountOnboardingPage(props: OnboardingProps) {
+  const [accepted, setAccepted] = useState(!!props.recovery);
   return (
     <Page
       onAccount={props.onAccount}
-      onBack={() => props.onClose()}
-      backLabel={props.recovery ? 'Back to training' : 'Back to onboarding'}
+      onBack={() => {
+        if (!accepted && props.onProfileSetup) props.onProfileSetup();
+        else props.onClose();
+      }}
+      backLabel={
+        props.recovery
+          ? 'Back to training'
+          : accepted
+            ? 'Back to onboarding'
+            : 'Back to profile setup'
+      }
     >
-      <AccountOnboardingScreen key={props.userId} {...props} />
+      <AccountOnboardingScreen
+        {...props}
+        accepted={accepted}
+        onAccepted={() => setAccepted(true)}
+      />
     </Page>
   );
 }
@@ -45,9 +63,10 @@ function AccountOnboardingScreen({
   onSessionEnded,
   onClose,
   recovery,
+  accepted,
+  onAccepted,
   drafts = privateDrafts,
-}: OnboardingProps) {
-  const [accepted, setAccepted] = useState(!!recovery);
+}: OnboardingProps & { accepted: boolean; onAccepted: () => void }) {
   const [conversation, setConversation] = useState<OnboardingConversation | null>(null);
   const [text, setText] = useState('');
   const [pending, setPending] = useState<OnboardingCommand | null>(null);
@@ -213,7 +232,7 @@ function AccountOnboardingScreen({
           setPending(draft.pending);
           setEditIndex(draft.answerIndex ?? null);
         } else if (draft) await drafts.clear(userId, draft.conversationId ?? undefined);
-        setAccepted(true);
+        onAccepted();
       },
     );
   }
