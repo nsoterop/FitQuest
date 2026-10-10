@@ -2,7 +2,7 @@
 
 FitQuest is an iOS-focused training and nutrition app for adults. It turns five written intake answers into a weekly plan, keeps prescribed work separate from actual workout results, and brings food, weight and training history together for the next week.
 
-Repository organization is on `main` at `ccbd00d`. Completed security and all four [flow simplification batches](docs/reference/flow-simplification.md) are deployed on the existing API at `a5894ad`, verified October 10, 2026. The two reviewed forward migrations are applied, and the owner's Metro serves matching mobile JavaScript for testing. The owner selected leaving the new account-limit policy disabled. Both PRs remain closed, with branches and commits preserved. Engineering owns routine application deployments; see [release procedure](docs/guides/release.md) and [actual verification](docs/archive/releases/2026-10-10.md). Physical-phone acceptance remains pending; other feature work remains paused.
+Private `main` includes the completed organization, security, UX, birthday, branding and Nutrition caching changes. The existing API remains Live at `1859ef8`, with its reviewed forward migrations applied and account-limit policy disabled. The [standalone iPhone preview](docs/guides/phone-preview.md) bundles mobile source `1733958` for personal testing without Mac/Metro; install over the existing app without uninstalling it. Both PRs remain closed, with branches and history preserved. See [release procedure](docs/guides/release.md) and [actual verification](docs/archive/releases/2026-10-10.md). Physical-phone acceptance remains pending; feature work remains paused.
 
 ## What it does
 

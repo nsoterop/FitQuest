@@ -6,7 +6,9 @@ The hosted rollout below is completed historical evidence, not an authorization 
 
 The owner's later October 10 clarification stops real-user test resets and revokes all prior standing owner-only test-reset authority. Preserve onboarding conversations, generated plans, profiles, logs and other saved data during deployment, testing, regeneration and verification. Use isolated fixtures or read-only checks; only disposable synthetic test databases may be cleaned up for testing. Explicit user-requested product deletions and existing unrelated retention policies remain unchanged. This policy update does not authorize a new deployment, migration or data change.
 
-## Verified state — October 10, 2026
+## Completed initial rollout — October 10, 2026
+
+This table records the initial security/flow rollout. Later birthday and standalone-preview results are in the dated [release record](../archive/releases/2026-10-10.md#main-integration-and-standalone-personal-preview); the current backend is `1859ef8`.
 
 | Item | Read-only result |
 | --- | --- |
