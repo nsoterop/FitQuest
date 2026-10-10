@@ -1,6 +1,8 @@
 # Release dependencies and rollout
 
-Engineering owns routine application deployment to the existing Render service and matching mobile JavaScript delivery after checks and self-review. The owner's October 10 correction in [AGENTS.md](../../AGENTS.md) supersedes earlier publication-only restrictions. The owner subsequently authorized this release's two inventoried forward migrations and explicitly selected leaving account limits disabled. Those migrations and the application release are complete; see [actual verification](../archive/releases/2026-10-10.md). Future hosted migrations and service/policy-setting changes still require explicit approval.
+The current authorized release is bringing private `main` up to date and creating one standalone internal iOS preview for personal testing, as recorded in [AGENTS.md](../../AGENTS.md). Preserve history, existing app identity/signing/devices and all saved data. No backend redeploy or hosted migration is needed: current backend/database source matches Live `1859ef8`. Check deployment/Blueprint/EAS triggers before advancing main and included allowance before building. The repository remains private; no visibility, protection, resource, credential or policy change is authorized.
+
+The hosted rollout below is completed historical evidence, not an authorization to replay its commands. The later mobile preview uses its own documented delivery path; a Git push alone never updates an installed app.
 
 The owner's later October 10 clarification stops real-user test resets and revokes all prior standing owner-only test-reset authority. Preserve onboarding conversations, generated plans, profiles, logs and other saved data during deployment, testing, regeneration and verification. Use isolated fixtures or read-only checks; only disposable synthetic test databases may be cleaned up for testing. Explicit user-requested product deletions and existing unrelated retention policies remain unchanged. This policy update does not authorize a new deployment, migration or data change.
 
@@ -28,7 +30,7 @@ The completed release required both migrations before deployment. Every authenti
 
 Source resolution and the exact-commit service build succeeded using existing approved access. Future new or expanded repository permission still requires separate authority. No credential or service-setting modification was needed.
 
-## Safe rollout order
+## Completed hosted rollout order (historical)
 
 1. Recheck clean source, exact CI, both SQL hashes, current hosted schema and Render identity/triggers. Preserve the existing deployment-branch evidence commit and both closed PRs. Publish preparation on `codex/flow-simplification`; do not push `main` or invoke Blueprint sync as a shortcut.
 2. Check hosted schema against the reviewed source. Both migrations above are already applied and must not be replayed. For any future scoped migration, first obtain its authority and capture necessary private preservation evidence/active-operation status without logging health records, prompts or credentials; verify grants, forced owner RLS, original liabilities and the selected inactive policy afterward. Retain all historical migration bytes and ledger entries.
