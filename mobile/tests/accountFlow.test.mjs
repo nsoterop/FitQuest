@@ -6273,6 +6273,49 @@ test('Sunday automation requires explicit enrollment, can pause after history wi
   assert.ok(input(screen, 'View workout: Skill and strength'));
 });
 
+test('current saved plans render hostile exercise and nutrition text literally without remote requests', async (t) => {
+  t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
+  resetAuth(alice);
+  const { journalDocumentFixture } =
+      await import('../../backend/src/tests/fixtures/documentPlanFixture.ts'),
+    { documentOverview } = await import('../../backend/src/shared/documentPlanContract.ts');
+  const { saved } = await batchDocumentState('accepted'),
+    p = saved.plans[0],
+    doc = journalDocumentFixture(p.dates),
+    exercise = '<script>inventedExercise()</script>',
+    prescription =
+      '<img src="https://example.invalid/pixel"> [Invented link](https://example.invalid)',
+    rationale = '<script>inventedNutrition()</script> ![tracker](https://example.invalid/pixel)';
+  Object.assign(doc.days[0].sessions[0].exercises[0], { exercise, prescription });
+  doc.nutrition.rationale = rationale;
+  Object.assign(p, {
+    schemaVersion: 'document-week-v4',
+    documentPlan: doc,
+    documentOverview: documentOverview(doc),
+  });
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push(url);
+    assert.equal(options.method ?? 'GET', 'GET');
+    assert(!url.includes('example.invalid'));
+    return { status: 200, json: async () => structuredClone(saved) };
+  };
+  const screen = await mountTraining({ initialTab: 'week' });
+  t.after(async () => act(async () => screen.unmount()));
+  const strings = () => screen.root.findAllByType('Text').map((n) => n.props.children);
+  assert(strings().includes(rationale));
+  await act(async () => press(screen, 'Session 1 on 2026-10-05'));
+  assert(strings().includes(exercise));
+  assert(strings().includes(prescription));
+  assert.equal(
+    screen.root.findAll(
+      (n) => typeof n.type === 'string' && ['WebView', 'Image', 'a'].includes(n.type),
+    ).length,
+    0,
+  );
+  assert(requests.length > 0);
+});
+
 test('planning decline and account allowance errors use app-owned correction copy without exposing provider prose', async () => {
   const { trainingError } = await import('../src/features/training/trainingApi.ts');
   assert.match(trainingError('plan_out_of_scope'), /training goals/);

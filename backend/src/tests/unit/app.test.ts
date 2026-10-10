@@ -383,3 +383,115 @@ test('durable account throttle runs before private body parsing and fails closed
   assert.equal(denied.statusCode, 503);
   assert(!denied.body.includes('credential'));
 });
+
+test('private training, food, journal and weight requests never log input, credentials or thrown service details', async (t) => {
+  const marker = 'InventedPrivateTrainingAndCredentialMarker';
+  let logs = '',
+    calls = 0;
+  const stream = new Writable({
+    write(chunk, _encoding, callback) {
+      logs += chunk.toString();
+      callback();
+    },
+  });
+  const fail = async () => {
+    calls++;
+    throw new Error(marker);
+  };
+  const deps = dependencies();
+  deps.store.read = fail;
+  const app = buildApp(
+    { stream },
+    {
+      ...deps,
+      verifyAccount: async (token) => (token === marker ? accounts.alice : null),
+      planning: {
+        schedule: fail,
+        scheduled: fail,
+        historyConsent: fail,
+        ensureNextWeek: fail,
+        read: fail,
+        edit: fail,
+        ensurePlan: fail,
+        accept: fail,
+        consent: fail,
+        nutrition: fail,
+        review: fail,
+        generate: fail,
+      },
+      food: { read: fail, readOperation: fail, command: fail },
+      journal: { list: fail, read: fail, readOperation: fail, command: fail },
+      weight: { list: fail, read: fail, readOperation: fail, command: fail },
+      library: { read: fail, readOperation: fail, command: fail },
+      onboarding: { create: fail, clarify: fail, read: fail, remove: fail, command: fail },
+    },
+  );
+  t.after(() => app.close());
+  const id = '11111111-1111-4111-8111-111111111111';
+  const routes = [
+    { method: 'GET', url: `/profile?private=${marker}` },
+    { method: 'GET', url: `/training?private=${marker}` },
+    { method: 'GET', url: `/onboarding/${id}?private=${marker}` },
+    {
+      method: 'POST',
+      url: '/training/review',
+      payload: {
+        summaryRevision: 1,
+        planRevision: 1,
+        planId: id,
+        feedback: marker,
+        retryAttempt: null,
+      },
+    },
+    { method: 'POST', url: '/training/next-week', payload: { operationId: id, changes: marker } },
+    {
+      method: 'POST',
+      url: '/food/commands',
+      payload: {
+        operationId: id,
+        kind: 'interpret',
+        message: marker,
+        date: '2026-10-12',
+        timeZone: 'UTC',
+        previousOperation: null,
+        entryId: null,
+        expectedRevision: null,
+      },
+    },
+    { method: 'POST', url: '/workout-journal/commands', payload: { notes: marker } },
+    { method: 'POST', url: '/body-weight/commands', payload: { notes: marker } },
+    { method: 'POST', url: '/food-library/commands', payload: { notes: marker } },
+  ] as const;
+  for (const route of routes) {
+    const response = await app.inject({ ...route, headers: { authorization: `Bearer ${marker}` } });
+    assert.equal(response.statusCode, 503, route.url);
+    assert.equal(response.headers['cache-control'], 'no-store');
+    if (route.url.startsWith('/profile'))
+      assert.deepEqual(response.json(), {
+        message: 'Unable to load your profile. Please try again.',
+      });
+    else assert.equal(response.json().code, 'unavailable');
+    assert(!response.body.includes(marker));
+  }
+  assert.equal(calls, routes.length, 'all intended private handlers were exercised');
+  for (const url of [
+    '/training/review',
+    '/food/commands',
+    '/workout-journal/commands',
+    '/body-weight/commands',
+  ]) {
+    const response = await app.inject({
+      method: 'POST',
+      url,
+      headers: { authorization: `Bearer ${marker}`, 'content-type': 'application/json' },
+      payload: `{"notes":"${marker}" invalid`,
+    });
+    assert.equal(response.statusCode, 400);
+    assert(!response.body.includes(marker));
+  }
+  assert.equal(calls, routes.length, 'malformed payloads never reach services');
+  assert.equal(logs, '');
+  await app.inject({ url: '/health' });
+  assert(logs.includes('incoming request'), 'the logger must capture the public control request');
+  assert(!logs.includes(marker));
+});
