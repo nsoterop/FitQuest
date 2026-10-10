@@ -20,3 +20,13 @@ Weighted rows offer weight/sets/reps, unweighted rows sets/reps, and everything 
 ![Normal-text numeric fields and keyboard](normal-text.png)
 
 These are synthetic simulator checks. Hosted release, protected reset/readback and actual owner phone acceptance are separate; phone acceptance is not asserted.
+
+## Hosted release and preservation
+
+Application `3ad8c2a25ce8a9c21a1cb984985427215ebfa782` is [Live](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db4pff7lk1mc73ficoag). Migration `20261010014009_workout_journal` preserves all preexisting fingerprints and adds two forced-RLS tables; direct Data API role access and app snapshot UPDATE are denied. Runtime instance 9wvmz matches all 33 tested artifacts; health and 50 signed-out/invalid-token no-store checks pass.
+
+The owner-only reset used the exact nine deletion tables tested in isolation, with fresh identity/content/protected fingerprints, no active requests, account advisory/table locks, deferred constraints, exact deleted counts and rollback-on-difference assertions. Both complete journal tables and food/library are locked and compared before/after, along with the prior 17 protected groups. Fresh 9:44:00 PM EDT readback confirms all nine owner training tables empty and every protected fingerprint unchanged, including 145 permanent attempts and existing food data. All 1,390 private evaluation files retain their hashes. Journal tables happened to be empty hosted; real journal reset survival was demonstrated in the isolated persistence tests, not by inserting synthetic production logs.
+
+Security advisors retain only the preexisting [private ledger no-policy notice](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy) and [disabled leaked-password protection warning](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection). Performance advisors also flag [RLS initialization-plan guidance](https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan) for both journal policies, despite their verified SELECT-wrapped ownership setting; existing-table findings and unused new indexes remain advisory. No unrelated Auth/security/index change was included.
+
+No actual owner phone acceptance or live AI logging-mode quality claim is made. Deployment screenshot retained locally at `/tmp/fitquest-journal-live.png`.

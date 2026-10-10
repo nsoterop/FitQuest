@@ -6,7 +6,7 @@ Private no-store routes `GET /workout-journal`, `GET /workout-journal/:id`, `GET
 
 Journal records, receipts and source snapshots are permanent for this slice; there is no deletion route or expiration. Account-scoped encrypted device drafts also have no expiry and are excluded from onboarding/sign-out cleanup. Future deletion/export requires separate scope. **Never include either journal table in a training test reset.** There are no foreign keys to resettable plan tables; app privileges cannot update saved source snapshots. Fresh reset preservation must fingerprint both complete journal tables, food/library, accounts/profiles/Auth, other users and the permanent ledger. The isolated database suite exercises the exact nine-table deletion set exported by `trainingTestReset.ts` and then reopens/edits retained journals.
 
-[Journal implementation and native evidence](../docs/journal-slice-1-native/README.md) records 285 backend checks (isolated PostgreSQL, zero skips), 123 mobile checks, native draft recovery, layout and keyboard checks. Release evidence will be recorded after hosted verification.
+[Journal implementation and native evidence](../docs/journal-slice-1-native/README.md) records 285 backend checks (isolated PostgreSQL, zero skips), 123 mobile checks, native draft recovery, layout and keyboard checks. Application `3ad8c2a` is live; hosted migration `20261010014009_workout_journal`, matching runtime/mobile and protected owner reset/readback are recorded in the root README.
 
 ## Integrated nutrition targets — batch 3
 
