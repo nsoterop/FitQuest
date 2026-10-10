@@ -1,3 +1,4 @@
+import {JournalHistory} from './JournalScreen';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
@@ -14,6 +15,7 @@ export function AccountPanel() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [journalOpen,setJournalOpen]=useState(false);
   const [accountOpen,setAccountOpen]=useState(false);
   const [confirmation,setConfirmation]=useState(false);
   const [showPassword,setShowPassword]=useState(false);
@@ -134,7 +136,7 @@ export function AccountPanel() {
   async function signOut(endedMessage = '') {
     if (!supabase || lock.current) return;
     lock.current = true; hidden.current = true;
-    setAccountOpen(false);setConfirmation(false);
+    setAccountOpen(false);setJournalOpen(false);setConfirmation(false);
     current.current = null; setSession(null); setEmail(''); setPassword(''); setMessage(''); setBusy(true); setMode('signIn');
     // Hide/unmount profile immediately, including when remote sign-out fails.
     try {
@@ -156,11 +158,12 @@ export function AccountPanel() {
   if (!supabase) return <Page><Notice>Account setup is not configured yet.</Notice></Page>;
   if (!ready) return <Page><Text accessibilityLiveRegion="polite" style={ui.copy}>{pendingLabel}</Text></Page>;
   if (hidden.current) return <Page><Text accessibilityRole="header" style={ui.title}>Finish signing out.</Text><Notice error>{message||'Clearing your device draft…'}</Notice><Action label="Retry sign out" busy={busy} onPress={()=>void signOut()}/></Page>;
+  if(session&&journalOpen)return <JournalHistory userId={session.user.id} accessToken={()=>accessToken(session.user.id)} onBack={()=>setJournalOpen(false)} onSessionEnded={()=>void signOut('Your session ended. Please sign in again.')}/>;
   if (session) return <View style={ui.screen}>
     <View style={accountOpen?{display:'none'}:ui.screen} accessibilityElementsHidden={accountOpen} importantForAccessibility={accountOpen?'no-hide-descendants':'auto'}>
       <ProfileIntakeForm key={session.user.id} userId={session.user.id} accessToken={() => accessToken(session.user.id)} onAccount={()=>setAccountOpen(true)} onSessionEnded={() => void signOut('Your session ended. Please sign in again.')} />
     </View>
-    {accountOpen&&<AccountView key={session.user.id} email={session.user.email??''} accessToken={()=>accessToken(session.user.id)} onBack={()=>setAccountOpen(false)} onSignOut={()=>void signOut()} onSessionEnded={()=>void signOut('Your session ended. Please sign in again.')}/>}
+    {accountOpen&&<AccountView onJournal={()=>setJournalOpen(true)} key={session.user.id} email={session.user.email??''} accessToken={()=>accessToken(session.user.id)} onBack={()=>setAccountOpen(false)} onSignOut={()=>void signOut()} onSessionEnded={()=>void signOut('Your session ended. Please sign in again.')}/>}
   </View>;
   if(confirmation)return <Page><Text style={ui.eyebrow}>ONE MORE STEP</Text><Text accessibilityRole="header" style={ui.title}>Check your inbox.</Text><Text style={ui.copy}>Open the confirmation link sent to {email.trim()}, then sign in.</Text><Notice>Keep this app installed so the link can bring you back to FitQuest.</Notice><Action label="Back to sign in" onPress={()=>{setConfirmation(false);setMode('signIn');setMessage('')}}/><Action label="Use a different email" onPress={()=>{setConfirmation(false);setEmail('');setMessage('')}} secondary/>{!!message&&<Notice error>{message}</Notice>}</Page>;
   return <Page context={mode==='signUp'?'Create account':'Welcome back'}>

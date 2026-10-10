@@ -1,3 +1,4 @@
+import {verifyJournalDatabase} from './journalDatabaseFixture.js';
 import {verifyFoodLibraryDatabase} from './foodLibraryDatabaseFixture.js';
 import {verifyFoodDatabase} from './foodDatabaseFixture.js';
 import {verifyDocumentDatabase} from './documentDatabaseFixture.js';
@@ -80,6 +81,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   assert.deepEqual((await owner.query("SELECT to_jsonb(p)-'planning_consent' AS value FROM fitquest.profiles p ORDER BY user_id")).rows,beforeConsentProfiles);
   assert.equal((await owner.query('SELECT 1 FROM fitquest.profiles WHERE planning_consent IS NOT NULL')).rowCount,0);
   assert.deepEqual((await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.training_plans p ORDER BY user_id,id')).rows,beforeRows);
+  await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261010011804_workout_journal.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   // Synthetic fixture only. Real evaluation/production accounting is never initialized here.
   await owner.query('UPDATE fitquest.ai_budget SET app_enabled=true');
   const alice={userId:'11111111-1111-4111-8111-111111111111',sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};
@@ -506,6 +508,7 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await verifyTwoStageDatabase(t,owner,pool,profiles);
   await verifyDocumentDatabase(t,owner,pool,profiles);
   await verifyFoodLibraryDatabase(t,owner,pool,profiles);
+  await verifyJournalDatabase(t,owner,pool,profiles);
   await verifyFoodDatabase(t,owner,pool,profiles);
   await t.test('request and storage caps, database constraints, immutable revision and no public RPC grants',async()=>{
     await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');

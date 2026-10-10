@@ -1,3 +1,4 @@
+import {journalStore} from './journalStore.js';
 import {foodLibraryStore} from './foodLibraryStore.js';
 import {foodStore} from './foodStore.js';
 import {foodService} from './food.js';
@@ -29,7 +30,7 @@ const pool = createPool(DATABASE_URL);
 const provider=configuredProvider(process.env);
 const app = buildApp({ redact: ['req.headers.authorization', 'req.headers.cookie', 'err'] }, {
   store: postgresProfileStore(pool), verifyAccount: supabaseVerifier(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
-  library:foodLibraryStore(pool),
+  journal:journalStore(pool),library:foodLibraryStore(pool),
   food:foodService(foodStore(pool),provider),
   planning:planningService(planningStore(pool),provider),
   onboarding: onboardingService(postgresOnboardingStore(pool), provider),

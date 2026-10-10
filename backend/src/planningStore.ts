@@ -1,7 +1,7 @@
 import {planningConsentVersion,planningConsentScope,hasPlanningConsent,type PlanningConsent} from './planningConsent.js';
 import {foodDate} from './foodContract.js';
 import {prepareDocument,documentPlanVersion} from './documentPlanning.js';
-import {documentOverview,isDocumentVersion,validDailyNutrition,type AcceptedNutrition,type SavedDocumentPlan} from './documentPlanContract.js';
+import {documentOverview,isDocumentVersion,nutritionDocumentPlanVersion,validDailyNutrition,type AcceptedNutrition,type SavedDocumentPlan} from './documentPlanContract.js';
 import { prepareComplete,prepareCompleteOutline,completeActivities,completePlanVersion } from './completePlanning.js';
 import { recordPlanDiagnostic } from './planDiagnosticStore.js';
 import { planOverview,type PlanResponse } from './completePlanContract.js';
@@ -175,7 +175,7 @@ export function planningStore(pool:Pool) {
         WHERE user_id=$1 AND dates ? $2 AND jsonb_array_length(document_history)>0
         ORDER BY (document_history->-1->>'acceptedAt')::timestamptz DESC,id DESC LIMIT 1`,[a.userId,date])).rows;
       const p=rows[0],h=p?.accepted;
-      if(h?.schemaVersion!==documentPlanVersion||!validDailyNutrition(h.plan?.nutrition))return {target:null};
+      if(![documentPlanVersion,nutritionDocumentPlanVersion].includes(h?.schemaVersion)||!validDailyNutrition(h.plan?.nutrition))return {target:null};
       return {target:{planId:p.id,planRevision:h.revision,schemaVersion:h.schemaVersion,acceptedAt:h.acceptedAt,dates:p.dates,timeZone:p.time_zone,nutrition:h.plan.nutrition}};
     }),
     advanceComplete:(a:Account,w:PlanningWork,text:string,provider:OnboardingProvider)=>tx(a,async c=>{

@@ -4,7 +4,7 @@ export interface SecureStorage {
   setItemAsync(key: string, value: string): Promise<void>;
   deleteItemAsync(key: string): Promise<void>;
 }
-export function secureSessionStorage(store: SecureStorage) {
+export function secureSessionStorage(store: SecureStorage, maxLength = 50000) {
   let queue: Promise<unknown> = Promise.resolve();
   const run = <T>(operation: () => Promise<T>): Promise<T> => {
     const result = queue.then(operation); queue = result.catch(() => {}); return result;
@@ -16,7 +16,7 @@ export function secureSessionStorage(store: SecureStorage) {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || !parsed || !('generation' in parsed) || !('count' in parsed) ||
         typeof parsed.generation !== 'string' || !/^[a-z0-9.]+$/.test(parsed.generation) ||
-        typeof parsed.count !== 'number' || !Number.isInteger(parsed.count) || parsed.count < 0 || parsed.count > 128) {
+        typeof parsed.count !== 'number' || !Number.isInteger(parsed.count) || parsed.count < 0 || parsed.count > Math.max(128,Math.ceil(maxLength/399))) {
       throw new Error('Invalid secure session index.');
     }
     return Array.from({ length: parsed.count }, (_, i) => `${indexKey(key)}.${parsed.generation}.${i}`);
@@ -36,7 +36,7 @@ export function secureSessionStorage(store: SecureStorage) {
       return chunks.join('');
     }),
     setItem: (key: string, value: string) => run(async () => {
-      if (value.length > 50000) throw new Error('Session too large.');
+      if (value.length > maxLength) throw new Error('Session too large.');
       const old = await keys(key) ?? [];
       const generation = `${Date.now()}.${Math.random().toString(36).slice(2)}`;
       const items: string[] = [];

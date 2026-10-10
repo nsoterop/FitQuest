@@ -1,10 +1,11 @@
+import {JournalScreen} from './JournalScreen';
 import {hasPlanningConsent,planningConsentVersion,planningConsentScope} from '../../backend/src/planningConsent';
 import {PlanningPermission} from './PlanningPermission';
 import {NutritionTargets} from './NutritionTargets';
 import {isDocumentVersion} from '../../backend/src/documentPlanContract';
 import {NutritionScreen} from './NutritionScreen';
 import { CompleteWeekView } from './CompleteWeekView';
-import {Page,ui,Tabs,Notice} from './Design';
+import {Action,Page,ui,Tabs,Notice} from './Design';
 import {DocumentToday,DocumentWeek,DocumentWorkout,dateLabel,localToday,type WorkoutSelection} from './DocumentTrainingView';
 import { useConversationScroll } from './ConversationScrollView';
 import { sessionRows } from './trainingPresentation';
@@ -24,6 +25,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
   const [tab,setTab]=useState<'today'|'week'|'nutrition'>(initialTab??'week'),[workout,setWorkout]=useState<WorkoutSelection|null>(null),[blocked,setBlocked]=useState(false),[leaving,setLeaving]=useState(false),[daySelection,setDaySelection]=useState<WorkoutSelection>({date:localToday(),index:0});
   const lastToday=useRef(localToday());
   useEffect(()=>{const refresh=()=>{const today=localToday();if(today!==lastToday.current){lastToday.current=today;setDaySelection({date:today,index:0})}};const timer=setInterval(refresh,60000);const subscription=AppState.addEventListener('change',s=>{if(s==='active')refresh()});return()=>{clearInterval(timer);subscription.remove()}},[]);
+  const [journalOpen,setJournalOpen]=useState<false|'resume'|'repeat'>(false);
   const [workoutPlan,setWorkoutPlan]=useState<TrainingPlan|null>(null);
   const initial=useRef(generateOnOpen),firstLoad=useRef(true);
   const submitted=useRef<{planId:string;planRevision:number;feedback:string}|null>(null);
@@ -160,11 +162,12 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
     {state&&permitted&&<PlanningPermission consent={state.consent} busy={busy||blocked} onChange={changeConsent}/>}
     {state&&state.plans.length>1&&<View>{state.plans.filter(p=>p.id!==shown?.id).map(p=>button(`View saved week ${p.dates[0]} · revision ${p.summaryRevision}`,()=>{setSelected(p.id);setDaySelection({date:localToday(),index:0});setFeedback(p.jobs.find(j=>j.target===`review:${p.planRevision}`)?.feedback??'')},true,!!feedback.trim()))}</View>}
   </View>;
+  if(journalOpen&&workout&&workoutPlan)return <JournalScreen userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onBack={()=>setJournalOpen(false)} source={{planId:workoutPlan.id,revision:workoutPlan.planRevision!,date:workout.date,sessionIndex:workout.index}} repeat={journalOpen==='repeat'}/>;
   return <View style={{flex:1}}><View style={{flex:1,display:tab==='nutrition'?'none':'flex'}} accessibilityElementsHidden={tab==='nutrition'} importantForAccessibility={tab==='nutrition'?'no-hide-descendants':'auto'}><Page onAccount={onAccount} onBack={workout?()=>setWorkout(null):undefined} backLabel={tab==='week'?'Back to week':'Back to day'} scrollKey={workout?`${workout.date}:${workout.index}`:`${tab}:${error?blocked?'blocked':'error':'ready'}`} footer={!workout&&onboarded?<Tabs nutrition value={tab} onChange={setTab}/>:undefined}>
     {!!error&&<Notice title={blocked?'Check saved progress':undefined} error>{error}</Notice>}
     {leaving&&<Notice title="Keep your changes?"><Text>Leaving this screen discards unsubmitted plan feedback.</Text></Notice>}
     {leaving&&<>{button('Keep editing',()=>setLeaving(false),true)}{button('Discard changes and leave',onClose,true)}</>}
-    {workout&&workoutPlan?.reviewState==='accepted'?<DocumentWorkout plan={workoutPlan} selection={workout}/>:
+    {workout&&workoutPlan?.reviewState==='accepted'?<><DocumentWorkout plan={workoutPlan} selection={workout}/><Action label="Log workout" onPress={()=>setJournalOpen('resume')}/><Action label="Record another occurrence" secondary onPress={()=>setJournalOpen('repeat')}/></>:
       tab==='today'&&isDocumentVersion(accepted?.schemaVersion)&&accepted.documentOverview?<><DocumentToday selection={daySelection} onSelect={setDaySelection} plan={accepted} onWeek={()=>setTab('week')} onOpen={selection=>openWorkout(accepted,selection)}/>{shown?.reviewState==='draft'&&button('Review updated week',()=>setTab('week'),true)}</>:
       tab==='today'?<><Text accessibilityRole="header" style={ui.title}>Today.</Text><Text style={ui.copy}>{!state?(error?'Saved training hasn’t loaded yet.':'Loading your saved training…'):state.summary?'Open your saved week to review its current status and sessions.':'Complete onboarding to build your week.'}</Text>{button('View saved week',()=>setTab('week'))}{!state?.summary&&button('Start onboarding',close,true)}</>:body}
     {!workout&&(blocked||!!error||inFlight||!state&&!busy)&&button(blocked||inFlight?'Check status':'Retry loading saved training',()=>void run(async request=>{await request('','GET')}),true)}

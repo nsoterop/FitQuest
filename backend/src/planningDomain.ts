@@ -69,7 +69,7 @@ export function savedDetail(detail:Detail) {
     const a=activity(id);return [id,{name:a['Exercise name'],instructions:a['Instructions'],tracking:a['Tracking measures'],loadConvention:a['Load convention'],setup:a['Setup to record'],review:a['Review status'],reference:a['Reference URL'],referenceScope:a['Reference scope']}];
   }))};
 }
-export type PlanningInput={schemaVersion?:'complete-week-v1'|'document-week-v1'|'document-week-v2'|'document-week-v3';documentReview?:{plan:import('./documentPlanContract.js').SavedDocumentPlan;feedback:string};completeOutlineText?:string;completeReview?:{plan:import('./completePlanContract.js').WeeklyPlan;feedback:string};kind:'outline'|'day'|'week';summary:TrainingSummary;profile:{age:number;heightInches:number;weightLb:number;gender?:string|null};dates:string[];
+export type PlanningInput={schemaVersion?:'complete-week-v1'|'document-week-v1'|'document-week-v2'|'document-week-v3'|'document-week-v4';documentReview?:{plan:import('./documentPlanContract.js').SavedDocumentPlan;feedback:string};completeOutlineText?:string;completeReview?:{plan:import('./completePlanContract.js').WeeklyPlan;feedback:string};kind:'outline'|'day'|'week';summary:TrainingSummary;profile:{age:number;heightInches:number;weightLb:number;gender?:string|null};dates:string[];
   outlineFirst?:boolean;approvedOutlineRevision?:number;draftReview?:boolean;preferences?:string[];review?:{feedback:string;note?:string|null;context:{feedback:string;question:string}|null;outline:Outline;days:Detail[]};qualityVersion?:2;preferredUnits?:Units;outline?:Outline;date?:string;previous?:unknown[];savedDays?:Detail[]};
 export const planningPromptVersion='catalog-planning-v4';
 export const planningInputBytes=48000;

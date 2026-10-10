@@ -1,5 +1,5 @@
 import {validPlanningConsent,type PlanningConsent} from '../../backend/src/planningConsent';
-import {validDailyNutrition,documentPlanVersion,type AcceptedNutrition,validSavedDocument,validDocumentOverview,documentOverview,isDocumentVersion,legacyDocumentPlanVersion,type DocumentVersion,type SavedDocumentPlan,type DocumentOverview} from '../../backend/src/documentPlanContract';
+import {validDailyNutrition,documentPlanVersion,nutritionDocumentPlanVersion,type AcceptedNutrition,validSavedDocument,validDocumentOverview,documentOverview,isDocumentVersion,legacyDocumentPlanVersion,type DocumentVersion,type SavedDocumentPlan,type DocumentOverview} from '../../backend/src/documentPlanContract';
 import { validCompletePlan,validOverview,planOverview,type WeeklyPlan,type PlanOverview } from '../../backend/src/completePlanContract';
 import { validNutrition,type Nutrition } from './nutrition';
 import { validSessionMeaning } from './trainingPresentation';
@@ -97,6 +97,6 @@ export async function nutritionTargetRequest(date:string,token:string,signal:Abo
  try{const base=new URL(process.env.EXPO_PUBLIC_API_URL??'');if(base.protocol!=='https:'||base.username||base.password||!token||signal.aborted)throw Error();base.pathname=`${base.pathname.replace(/\/$/,'')}/training/nutrition`;base.search=new URLSearchParams({date}).toString();base.hash='';
  const response=await fetch(base.toString(),{method:'GET',signal,headers:{Authorization:`Bearer ${token}`}});if(signal.aborted)throw Error();if(response.status===401)throw new TrainingError('session_ended');const value=await response.json();if(response.status!==200)throw Error();const t=value?.target;
  if(t===null)return null;
- if(!t||t.schemaVersion!==documentPlanVersion||typeof t.planId!=='string'||!Number.isInteger(t.planRevision)||t.planRevision<1||typeof t.acceptedAt!=='string'||!Number.isFinite(Date.parse(t.acceptedAt))||typeof t.timeZone!=='string'||!Array.isArray(t.dates)||t.dates.length!==7||!t.dates.includes(date)||!validDailyNutrition(t.nutrition))throw Error();return t;
+ if(!t||![documentPlanVersion,nutritionDocumentPlanVersion].includes(t.schemaVersion)||typeof t.planId!=='string'||!Number.isInteger(t.planRevision)||t.planRevision<1||typeof t.acceptedAt!=='string'||!Number.isFinite(Date.parse(t.acceptedAt))||typeof t.timeZone!=='string'||!Array.isArray(t.dates)||t.dates.length!==7||!t.dates.includes(date)||!validDailyNutrition(t.nutrition))throw Error();return t;
  }catch(e){if(e instanceof TrainingError)throw e;throw new TrainingError('unavailable')}
 }

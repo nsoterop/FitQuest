@@ -11,3 +11,5 @@ export function rowDocumentFixture(dates:string[]):RowDocumentPlan{return {days:
  ]},...(i===0?[{title:'Later easy practice',goal:'Relax and move comfortably',timing:'Evening',durationMinutes:{min:10,max:15},optional:true,exercises:[{exercise:'Easy dance practice',prescription:'10–15 minutes; pause for 30 seconds when needed.'}]}]:[])]}))};}
 
 export function nutritionDocumentFixture(dates:string[]):NutritionDocumentPlan{return {...rowDocumentFixture(dates),nutrition:{version:1,status:'available',caloriesKcal:2350,proteinGrams:140,carbohydrateGrams:290,fatGrams:70,rationale:'Synthetic estimate balancing training and recovery; adjust with observed results.'}};}
+
+export function journalDocumentFixture(dates:string[]):NutritionDocumentPlan{const p=nutritionDocumentFixture(dates);for(const day of p.days)for(const session of day.sessions)session.exercises.forEach((e,i)=>{e.loggingMode=i===1?'weighted_reps':i===4?'reps':'completion'});return p;}
