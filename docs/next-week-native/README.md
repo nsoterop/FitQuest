@@ -1,5 +1,7 @@
 # Progress-informed next week — batch 2
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 Generate next week creates a distinct upcoming Monday–Sunday document from the saved timezone, original intake/profile, latest accepted baseline and actual progress. Optional changes stay in an encrypted account-scoped device draft; a persisted operation ID freezes retries across calendar changes. Existing target weeks reopen without purchasing a duplicate. Explicit revisions capture fresh context; failed retries retain the exact snapshot and usable accepted history. Intake revision is not manufactured to identify a new week.
 
 History sharing requires separate explicit per-account permission naming OpenAI, workout results/notes including health feedback, weight history and planning purpose. Body-profile permission alone does not authorize it. Claim and actual dispatch check both permissions; withdrawal serializes against transmission and does not remove logs or accepted plans. Provider context excludes database/account IDs, names and emails. Free-text notes remain athlete data.

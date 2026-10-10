@@ -1,5 +1,7 @@
 # Workout journal slice 1 — 2026-10-09
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 Weighted rows offer weight/sets/reps, unweighted rows sets/reps, and everything else a completion checkbox. Original prescriptions remain visible. Numeric actuals start blank, zero stays distinct, optional set groups retain different values, and removal/type changes preserve input. One optional bottom notes field stays private to the journal. Save is independent from explicit completed/partial/skipped outcomes; finishing never fills missing results. History is available from Account, including unplanned work and past plans. Separate occurrences require the explicit action.
 
 ## Verification

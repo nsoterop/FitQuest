@@ -1,5 +1,7 @@
 # Release 1 native UI verification — October 9, 2026
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 Implemented the v2 account/onboarding/training direction: one shared white page with 22pt horizontal gutters, graphite headings and featured session, cobalt controls, safe-area boundaries and one keyboard/scroll container per screen. Account/profile, five progressive answers, Today, full saved Week, review/revision and individual Markdown workouts now use the same layout family. Nutrition has no destination or teaser.
 
 The original unfinished root removed the padded scrolling wrapper before the new Page was connected. The native [before profile](before-profile.png) reproduces overlapping fields and an edge-to-edge container. The [corrected profile](profile.png) restores the outer gutters, field rows and scroll sizing. No decorative phone bezel was added to the application.
@@ -29,4 +31,4 @@ Authenticated views used a separate localhost-only preview with synthetic fixtur
 
 Native review caught and corrected a feedback composer that scrolled Week to the bottom before focus. It now requests a reveal only after focus. Unknown results disable mutation actions until a saved-status read succeeds, while preserving usable saved work and feedback. Account navigation keeps the underlying intake/training view mounted; leaving training with unsent edits requires an explicit discard.
 
-Live publication, backend verification, matching served bundle and protected owner reset/readback are recorded in the repository root README. Physical-phone acceptance, VoiceOver navigation and coaching quality remain separately unverified.
+Live publication, backend verification, matching served bundle and protected owner reset/readback are recorded in the repository [archived release record](../history/root-release-notes-2026-10-10.md). Physical-phone acceptance, VoiceOver navigation and coaching quality remain separately unverified.

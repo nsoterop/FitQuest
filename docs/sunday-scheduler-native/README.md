@@ -1,5 +1,7 @@
 # Automatic Sunday planning — batch 3
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 After an accepted document week and both existing OpenAI-sharing permissions, Generate next week exposes an explicit Enable Sunday 9 PM planning action. Nobody is enrolled by migration or release. The saved timezone is captured at enrollment; pause/resume uses owned revisions and resume captures the current saved timezone. Enrollment does not immediately generate a plan. A trigger must occur after enrollment. Pause remains available after history permission is withdrawn; requests already sent may finish.
 
 The existing paid Render web service runs a production-only 60-second scan, including startup recovery. No separate service, cron resource, credential or public trigger endpoint is added. Internal account discovery is a private, fixed-search-path SQL function returning only enabled account IDs in keyset pages of 100, executable solely by the existing backend role. Owned transactions retain forced RLS. Interactive routes always require the verified live session; only the server-created scheduler store operates from explicit enrollment without an active mobile session.
@@ -18,7 +20,7 @@ Before/after migration fingerprints preserve every existing data group. The only
 
 ## Evidence and limits
 
-Application `2e779e5a164f7665559a3828cdf426213d650158` is [Live](https://dashboard.render.com). All 40 runtime artifacts match the tested build, restricted live scheduler discovery succeeds with zero enrollments, and health plus 66 private-route rejection/no-store checks pass. Owner Metro matches 39 source-map files. Fresh 11:16:30 PM EDT preservation readback matches all protected records and 146 permanent attempts; training was already empty, so no additional deletion occurred. Exact hashes and release details are in the root README.
+Application `2e779e5a164f7665559a3828cdf426213d650158` is [Live](https://dashboard.render.com). All 40 runtime artifacts match the tested build, restricted live scheduler discovery succeeds with zero enrollments, and health plus 66 private-route rejection/no-store checks pass. Owner Metro matches 39 source-map files. Fresh 11:16:30 PM EDT preservation readback matches all protected records and 146 permanent attempts; training was already empty, so no additional deletion occurred. Exact hashes and release details are in the [archived release record](../history/root-release-notes-2026-10-10.md).
 
 301 backend checks pass with isolated PostgreSQL and zero skips, including explicit enrollment/session-free worker execution, pause/withdrawal fences, concurrent dedupe, recovery before dispatch, no uncertain/failed automatic retry, cap denial, manual-week precedence, skipped obsolete backlog, RLS and enrollment reset survival. 128 mobile checks pass, covering enrollment, pause after withdrawal, recovery after a lost enrollment response, and date-correct acceptance/foreground rollover. Both TypeScript checks pass.
 

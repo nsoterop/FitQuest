@@ -1,5 +1,7 @@
 # Workout-content batch 2 — October 9, 2026
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 New `document-week-v2` plans show ordered exercise names and concise plain-text prescriptions. Workout detail keeps the session identity, timing, duration and optionality but does not repeat its goal. The [exact formatting-only diff](formatting-diff.md) documents what changed and why the deleted owner example's precise historical cause remains unverified. Existing Markdown documents stay readable; explicit revisions may publish v2 only on success, preserving accepted v1 history.
 
 Verification: **276 backend tests including isolated PostgreSQL, zero skips; 116 mobile tests; both TypeScript checks and self-review pass.** Mocks cover unchanged coaching prefix/settings, one initial/revision dispatch, display bounds, mixed prescriptions, hidden details, free acceptance/reopen, rejected/stale revisions, concurrency/ownership, migration preservation and explicit v1→v2 revisions with untagged legacy history. The tests do not claim provider coaching consistency.

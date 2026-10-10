@@ -1,5 +1,7 @@
 # Usability batch 1 verification — October 9, 2026
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 Production components ran in a temporary isolated Expo Go preview on the disposable iOS 26.4 simulator. All profile/intake/training responses were synthetic in-process fixtures; external requests were blocked. No owner generation, paid AI request, native build or dependency change was used.
 
 The original keyboard behavior was reproduced before editing: opening the software keyboard left Continue underneath it. The native viewport/content-size callbacks ran before the scroll bounds settled. Re-measuring after keyboard show/hide fixes that transition. Intake bounds long answers while the keyboard is visible, and keeps earlier-answer history above the active question so expanded history does not separate question and composer.

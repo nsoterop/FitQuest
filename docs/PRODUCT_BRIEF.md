@@ -8,9 +8,9 @@ FitQuest is an AI-first adaptive health, training, nutrition and athletic-perfor
 
 This document retains product goals from the previous brief. It is not a roadmap, a required implementation order, a locked architecture, or permission to begin work. The owner's new roadmap and explicit instructions determine what is built and when. Previous milestone assignments, review gates and implementation approvals are inactive after the reset. No replacement roadmap has been created. See [the development workflow](../AGENTS.md).
 
-## Implementation boundary at pause
+## Current reading
 
-Work is paused. The selected stack is React Native/Expo, Fastify on the existing Render API, and Supabase Free for authentication and PostgreSQL. Email accounts and persistent six-field profiles are deployed; a newer local `Hi <firstname>` screen change remains uncommitted. See [current state and verification](../README.md) for deployment/build identifiers and outstanding checks. The requirements below describe the intended product, not completed capabilities. In particular, adaptive coaching, goal interpretation, workout/nutrition logging, automatic draft saving and Apple Health are not implemented. The latest greeting has no profile-edit navigation yet; the editable-profile requirement remains a future product requirement. No AI implementation may begin without first stopping to explain the proposed scope to the owner. Agents must never provision paid resources or subscriptions; the owner handles them personally.
+These are retained product aspirations, not an implementation checklist. Feature work is paused during repository cleanup. Read the [current overview](../README.md) for implemented capabilities and evidence boundaries; the [October 2 boundary](history/product-boundary-2026-10-02.md) is archived and no longer describes the application.
 
 ## Retained product preferences
 

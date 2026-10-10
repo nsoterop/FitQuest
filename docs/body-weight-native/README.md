@@ -1,5 +1,7 @@
 # Body-weight batch 1 — 2026-10-09
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 Nutrition now includes a compact Body weight entry with Log weight and Weight history. New measurements start blank, with pounds and today's local date selected. The latest measurement is ordered by measurement date, not edit time. History supports decimal lb/kg measurements, backdated corrections and explicit deletion. Changing units does not convert an entered number. Profile weight and accepted training/nutrition targets are unchanged; no weight action calls AI.
 
 Verification: 289 backend tests with isolated PostgreSQL and zero skips, 126 mobile tests and both TypeScript checks pass. Coverage includes strict contracts, date order, pagination, atomic rollback, concurrent/idempotent saves, uncertain-result replay, revision conflicts, tombstones, session/account isolation, device-storage failure and actual training reset survival. All non-weight profile/plan/ledger/journal/food/library fingerprints remain unchanged during weight mutations. Reset tests use the exact nine-table deletion set and preserve/reopen measurements and receipts.
@@ -14,4 +16,4 @@ Migration `20261010021546_body_weight.sql` is applied hosted as `20261010022238_
 
 Phone checks: reload the app, open Nutrition → Log weight, enter a reading/date and save; reopen Weight history, correct it and verify the latest dated value. Close/reopen an unsaved entry to verify recovery. Delete only a disposable entry using the explicit confirmation. Upcoming-week history integration and automatic Sunday generation are later approved batches, not part of this release.
 
-Application `dbf185c` is Live on the existing Render service. All 35 runtime hashes and 58 private-route checks pass. Guarded training reset at 10:34:31 PM EDT and independent 10:34:44 PM readback preserve all real journal/food/weight/account/profile/accounting records and 146 permanent attempts; all nine scoped training tables are empty. Complete release evidence is in the root README.
+Application `dbf185c` is Live on the existing Render service. All 35 runtime hashes and 58 private-route checks pass. Guarded training reset at 10:34:31 PM EDT and independent 10:34:44 PM readback preserve all real journal/food/weight/account/profile/accounting records and 146 permanent attempts; all nine scoped training tables are empty. Complete release evidence is in the [archived release record](../history/root-release-notes-2026-10-10.md).

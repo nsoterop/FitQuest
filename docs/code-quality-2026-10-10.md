@@ -12,4 +12,4 @@ Local evidence: 301 backend application checks plus 5 fresh-install checks pass 
 
 Dependency evidence: root tooling and backend audit clean; mobile retains only the two reviewed unpatched upstream advisories (16 propagated high findings, no moderate/critical). The CI gate keeps those explicit, scoped and time-limited. Historical completed comparison harnesses remain tied to their retired planner checkpoint; see the limitations in [development checks](development-checks.md).
 
-Publication and GitHub Actions results are recorded in the task handoff after verification. Routine publication uses the private cleanup branch after rechecking Render's actual deployment branch/triggers. No production deployment or owner-content reset is part of this batch.
+Published privately at `54e0b03`; both jobs passed in [GitHub Actions run 38023698280](https://github.com/nsoterop/FitQuest/actions/runs/38023698280). These are batch-2 results, not a new run during later documentation editing. Routine publication uses the private cleanup branch after rechecking Render's actual deployment branch/triggers. No production deployment or owner-content reset is part of this batch.

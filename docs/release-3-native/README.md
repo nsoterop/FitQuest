@@ -1,5 +1,7 @@
 # Release 3 native verification — October 9, 2026
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 Production components ran in an isolated Expo Go preview on the existing disposable iOS 26.4 simulator. Synthetic in-process responses had no production credentials, food records or AI dispatch. No native build or dependency was added.
 
 - Library list and recipe detail: [library](library.png).

@@ -1,5 +1,7 @@
 # Integrated nutrition targets — October 9, 2026
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 New document-week-v3 plans add estimated daily kcal/protein/carbohydrate/fat targets to the same weekly request. Targets preview below the overview; Use this plan accepts workouts and targets together for free. Nutrition looks up only the accepted version containing the diary date, including accepted history during revisions. Legacy plans remain readable without targets or automatic backfill. Food and recipe arithmetic is unchanged; an entirely unknown consumed nutrient displays an em dash.
 
 Before new plan transmission, each account explicitly allows or declines sharing saved age, height, weight and self-reported gender plus intake/revision context with OpenAI. No account name, email or ID is added to the request. The versioned permission defaults to null, supports withdrawal and optimistic revision checks, and is checked again under the same account lock as withdrawal immediately before dispatch. Decline does not disable saved plans or manual food logging. Already transmitted data cannot be recalled by withdrawal. The disclosure links OpenAI's actual API data policy, acknowledges retention and unverified organization controls, and makes no public-launch compliance claim.

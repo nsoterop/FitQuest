@@ -1,5 +1,7 @@
 # Release 2 native evidence — October 9, 2026
 
+> Historical implementation and synthetic verification evidence from October 9, 2026. Later releases may supersede behavior described here. See the [current overview](../../README.md) and [release archive](../history/README.md); these results were not rerun during documentation cleanup.
+
 The disposable iOS 26.4 simulator ran the production Nutrition components in existing Expo Go 57, using synthetic fixtures and an in-process fetch stub restricted to fixture.example.test. No owner data, production mutation, paid AI request, native build or new dependency was used.
 
 Verified diary totals and unknown-value explanations, software-keyboard composer and visible submit button, focused clarification, candidate review, supplied/AI-estimated/unknown provenance, saved-entry editing and weekly trends. Correcting a synthetic lunch multiplier from 1 to 1.5 changed the day's known calorie subtotal from 1,250 to 1,575. The calorie average remained 1,880 across three explicitly completed days; incomplete Friday, unlogged Thursday and future weekend dates were excluded. All four macro trend sections expose date/value/completeness text in the accessibility tree.
