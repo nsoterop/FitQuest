@@ -1,6 +1,6 @@
 # FitQuest mobile
 
-React Native 0.86 / React 19 / Expo SDK 57, with TypeScript and an iOS-first interface. The app includes account/profile flows, five-question intake, plan review, Today/Week, workout journals, Nutrition, meal/recipe library, dated weight and upcoming-week controls. [Product overview](../README.md).
+React Native 0.86 / React 19 / Expo SDK 57, with TypeScript and an iOS-first interface. The app includes account/profile flows, five-question intake, plan review, Today/Week, workout journals, Nutrition, meal/recipe library, a separate Progress destination for dated weight, and recurring planning permission in Account. Matching JavaScript is served by the owner's Metro against the October 10 backend release; see [release verification](../docs/archive/releases/2026-10-10.md). [Product overview](../README.md).
 
 ## Setup and checks
 

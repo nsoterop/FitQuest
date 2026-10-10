@@ -16,6 +16,8 @@ Verify actual source, CI, deployment branch/triggers, hosted migration state and
 
 Routine deployment does not authorize hosted database migrations, service/policy-setting changes, new paid resources, changes to repository visibility/default branch/protection, destructive resets, credential/trust/signing changes, history rewrites, force-pushes or native builds. No new paid AI evaluation, owner-plan regeneration, spending-cap increase or allowance reset is assigned. Scheduled/user-requested app generation remains subject to valid user consent and existing accounting controls; never silently grant or expand permission. Stop only for a concrete unresolved blocker or genuinely new authority. MIT remains selected.
 
+For this release, the owner subsequently authorized bringing the completed work up to date, including the two inventoried forward migrations and existing application deployment. Both migrations are applied and application `a5894ad` is live; see [release verification](docs/archive/releases/2026-10-10.md). The owner explicitly selected leaving the account-limit policy disabled. This scoped release authority does not authorize unrelated or future database/policy changes. The owner restarted Metro for phone testing; preserve that process.
+
 ## Ownership and process control
 
 Engineering is the sole application/documentation writer; HQ has finished its edits. Serialize edits and stop for a genuine concurrent-writer conflict. Do not revert someone else's work. Existing untracked design assets and local files remain protected. HQ review is only required when specifically requested, not a routine publication gate.

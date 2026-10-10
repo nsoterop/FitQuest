@@ -4,7 +4,8 @@ Everything here is dated evidence, not current setup instructions, an active wor
 
 ## Releases and audits
 
-- [October 3–9 release record](releases/2026-10-09.md): accumulated application releases, runtime verification and evidence boundaries. Latest recorded production application: `2e779e5`.
+- [October 10 security/UX release](releases/2026-10-10.md): Live application `a5894ad`, both scoped forward migrations, data/accounting preservation and matching owner Metro bundle; account limits remain disabled by owner choice.
+- [October 3–9 release record](releases/2026-10-09.md): accumulated earlier application releases, runtime verification and evidence boundaries. Its final production checkpoint was `2e779e5`.
 - [Publication safety, October 9](audits/publication-safety-2026-10-09.md): privacy/secret scan scope, dependency findings and safe-install verification.
 - [Code quality, October 10](audits/code-quality-2026-10-10.md): build boundaries, tooling and CI results.
 
