@@ -12,7 +12,7 @@ The existing single Sol 6.1 low request produces training and nutrition under do
 
 ## Verification
 
-Application `63347e136051143e8c45c1c4597afcf403130fed` is [Live](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db4qjcid0e5s73d4s9l0). All 37 runtime artifacts match the tested build; health and 64 private-route auth/no-store checks pass. Fresh 10:58:58 PM EDT readback preserves all 17 protected groups, real journal/food/library/weight data and 146 permanent AI attempts. The nine training tables were already empty, so no additional deletion occurred. Root README records exact hashes and deployment details.
+Application `63347e136051143e8c45c1c4597afcf403130fed` is [Live](https://dashboard.render.com). All 37 runtime artifacts match the tested build; health and 64 private-route auth/no-store checks pass. Fresh 10:58:58 PM EDT readback preserves all 17 protected groups, real journal/food/library/weight data and 146 permanent AI attempts. The nine training tables were already empty, so no additional deletion occurred. Root README records exact hashes and deployment details.
 
 - 295 backend tests pass with isolated PostgreSQL and zero skips; 127 mobile tests and both TypeScript checks pass.
 - Tests cover faithful mixed actuals/notes/weights and undated fallback, sparse/older data, context bounds, one concurrent dispatch, consent withdrawal/account isolation, frozen retries and uncertain outcomes, distinct weeks, duplicate reopen, free acceptance, failed revisions, changed context, date/DST/year boundaries, pagination, hidden details and preservation.

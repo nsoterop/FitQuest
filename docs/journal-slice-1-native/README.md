@@ -23,7 +23,7 @@ These are synthetic simulator checks. Hosted release, protected reset/readback a
 
 ## Hosted release and preservation
 
-Application `3ad8c2a25ce8a9c21a1cb984985427215ebfa782` is [Live](https://dashboard.render.com/web/srv-d828o7pj2pic739le3ug/deploys/dep-db4pff7lk1mc73ficoag). Migration `20261010014009_workout_journal` preserves all preexisting fingerprints and adds two forced-RLS tables; direct Data API role access and app snapshot UPDATE are denied. Runtime instance 9wvmz matches all 33 tested artifacts; health and 50 signed-out/invalid-token no-store checks pass.
+Application `3ad8c2a25ce8a9c21a1cb984985427215ebfa782` is [Live](https://dashboard.render.com). Migration `20261010014009_workout_journal` preserves all preexisting fingerprints and adds two forced-RLS tables; direct Data API role access and app snapshot UPDATE are denied. Runtime instance 9wvmz matches all 33 tested artifacts; health and 50 signed-out/invalid-token no-store checks pass.
 
 The owner-only reset used the exact nine deletion tables tested in isolation, with fresh identity/content/protected fingerprints, no active requests, account advisory/table locks, deferred constraints, exact deleted counts and rollback-on-difference assertions. Both complete journal tables and food/library are locked and compared before/after, along with the prior 17 protected groups. Fresh 9:44:00 PM EDT readback confirms all nine owner training tables empty and every protected fingerprint unchanged, including 145 permanent attempts and existing food data. All 1,390 private evaluation files retain their hashes. Journal tables happened to be empty hosted; real journal reset survival was demonstrated in the isolated persistence tests, not by inserting synthetic production logs.
 

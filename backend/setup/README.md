@@ -1,0 +1,13 @@
+# Fresh database installation
+
+Use `install.mjs` for a new FitQuest installation on a Supabase database with its managed Auth, Storage, roles and migration ledger already present. It requires an administrator connection supplied privately in `FITQUEST_SETUP_DATABASE_URL`. Never put that connection in mobile configuration or commit it.
+
+From `backend`, run `node setup/install.mjs --fresh`. The installer refuses an existing `fitquest` schema or any recorded checkpoint version, takes a transaction lock, verifies the frozen source checksums, and installs the complete schema atomically. Existing Auth users/sessions, Storage objects and unrelated migration records are preserved. SQL failures roll back all changes. If the connection is lost during commit, inspect the schema and checkpoint before retrying; a commit may already have succeeded. Re-running against an installed database refuses without changing data.
+
+The first checkpoint version is satisfied by `profiles.sql`, the non-destructive schema portion of the historical baseline. The destructive reset SQL is **never executed**. The remaining 19 reviewed forward migrations run unchanged. The manifest is a fixed installation checkpoint, not an automatic directory glob or an upgrade command. Supabase records only version identifiers here; the manifest preserves the exact source checksums. This substitution is deliberate and applies only to a fresh install.
+
+Do not use generic `supabase db push` or replay the entire historical migration directory for initial setup. `20261002233706_reset_accounts_and_profiles.sql` records a one-time authorized account reset, not a setup recipe. Existing deployments have their own recorded migration identifiers; reconcile their version/source mapping before applying any future scoped upgrade. Never delete or rebuild their migration or spending ledger.
+
+Provision the restricted `fitquest_app` password separately, use verified TLS for the backend connection, and keep the `fitquest` schema outside the Data API. Installation does not provision secrets, enable the initial disabled spending ledger, enable AI, enroll users or start the scheduler. Leave `ONBOARDING_AI_ENABLED=false` until accounting and permissions have been separately configured and authorized.
+
+Validation: `FITQUEST_TEST_DATABASE_URL=postgresql://fitquest_test@127.0.0.1:55432/postgres npm test` uses an explicitly disposable local PostgreSQL cluster. It compares fresh and legacy schemas, preserves synthetic managed records, tests refusal/rollback and runs the existing persistence/ownership regressions. It does not validate hosted Supabase Auth itself.

@@ -1,0 +1,82 @@
+[
+  {
+    "file": "20261002233706_reset_accounts_and_profiles.sql",
+    "sha256": "6325123bd3753bf89e1e24d2827f499051e06b0dbcc1a42692441384fe2bfd24"
+  },
+  {
+    "file": "20261003030745_conversational_onboarding.sql",
+    "sha256": "40b589d3d53f64dbe77fcf02b80369dd101e736514f4a53512068c87e0045990"
+  },
+  {
+    "file": "20261003214718_catalog_planning.sql",
+    "sha256": "84361b292ea0d1d7c2b6343080714126b586d01b274f494979c19c8d4aec6cb8"
+  },
+  {
+    "file": "20261004174109_weekly_plan_review.sql",
+    "sha256": "e1c22050530c289abec27116236b4ad335ed43626bcb7b15f135383f7951cbc7"
+  },
+  {
+    "file": "20261004203442_provider_diagnostics.sql",
+    "sha256": "2b2750dcc69f2227c39a0824700884baa7b14027c38accc13090a0a55c85bb1a"
+  },
+  {
+    "file": "20261004233407_outline_first_planning.sql",
+    "sha256": "c05773180c65bef8b7c29a0b20f4300f58ef0978c39c23a4b73c496d4c78c51b"
+  },
+  {
+    "file": "20261006151040_sunday_ending_plans.sql",
+    "sha256": "cdc38434f58bd6a7d3fce704c08e889a227070d6687b343c21a1c94809305a14"
+  },
+  {
+    "file": "20261006175043_fixed_intake_plain_outline.sql",
+    "sha256": "4bd8cc183195d22eb2143c254939d91035c46f1bf685efe0d51d6f927b2d601d"
+  },
+  {
+    "file": "20261007163020_complete_week_draft.sql",
+    "sha256": "e63fdce0f238b765f7ce28e4f1ba25518fea8998c6bd2bc4ef587d9190cbd79a"
+  },
+  {
+    "file": "20261007180022_plan_validation_diagnostics.sql",
+    "sha256": "d5646da3fe72336eaa30ece9f66aa2a0dc9de22fd1c3fba0149c33e29bb1176a"
+  },
+  {
+    "file": "20261009163721_two_request_planning.sql",
+    "sha256": "bc3f69141579d3de683d4a6029e939dfab260ca911287af1b7096e678d0614b0"
+  },
+  {
+    "file": "20261009172830_document_planning.sql",
+    "sha256": "19d2bbce49a3285163b6cf06c15ba2be18ae3ae682ab0a51cd65cc31da074976"
+  },
+  {
+    "file": "20261009211639_food_diary.sql",
+    "sha256": "b061fa5512b2bb359d2bb9d95ab8aa3feb1bb1e28776e5905415c63a803bebef"
+  },
+  {
+    "file": "20261009220046_saved_food_library.sql",
+    "sha256": "5e6d3c7016e4016e42ce659c176b6709fbdff905322d73c3c2e7d85475483676"
+  },
+  {
+    "file": "20261009232000_document_exercise_rows.sql",
+    "sha256": "2aaf31603757d35a39491d25c3c7e2b0da0d061fdbb7c1720722edd6791e9bd3"
+  },
+  {
+    "file": "20261009234844_integrated_nutrition_consent.sql",
+    "sha256": "4f502798e9fb4f0ef33293f9900f521bcd17a90bc9b77ed9c9b782707c96dc86"
+  },
+  {
+    "file": "20261010011804_workout_journal.sql",
+    "sha256": "4fa8f648fe6d21e5be4cf077b7b51bcd7ff822a99c0ce0b26a44726e84f34c7e"
+  },
+  {
+    "file": "20261010021546_body_weight.sql",
+    "sha256": "1ea2825982b8885fd4d1f7b208fac95e577fb054f64c22d3f1a4d9c5fcdfc21e"
+  },
+  {
+    "file": "20261010023753_progress_informed_weeks.sql",
+    "sha256": "d56188ff26aaadafd873332d4bd7c25226bad30806d240ac5bb6c8193fa811c2"
+  },
+  {
+    "file": "20261010030300_automatic_weekly_planning.sql",
+    "sha256": "26d7be1786a98fe255c7761a3ab666a2ac9dadd72a323e157c0c208b52ba93d4"
+  }
+]
