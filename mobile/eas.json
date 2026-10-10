@@ -11,6 +11,18 @@
       "ios": {
         "resourceClass": "medium"
       }
+    },
+    "preview": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "environment": "preview",
+      "credentialsSource": "remote",
+      "node": "24.21.0",
+      "ios": {
+        "buildConfiguration": "Release",
+        "resourceClass": "medium",
+        "simulator": false
+      }
     }
   }
 }

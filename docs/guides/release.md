@@ -2,7 +2,7 @@
 
 The current authorized release is bringing private `main` up to date and creating one standalone internal iOS preview for personal testing, as recorded in [AGENTS.md](../../AGENTS.md). Preserve history, existing app identity/signing/devices and all saved data. No backend redeploy or hosted migration is needed: current backend/database source matches Live `1859ef8`. Check deployment/Blueprint/EAS triggers before advancing main and included allowance before building. The repository remains private; no visibility, protection, resource, credential or policy change is authorized.
 
-The hosted rollout below is completed historical evidence, not an authorization to replay its commands. The later mobile preview uses its own documented delivery path; a Git push alone never updates an installed app.
+The hosted rollout below is completed historical evidence, not an authorization to replay its commands. The [standalone phone preview](phone-preview.md) uses its own documented delivery path; a Git push alone never updates an installed app.
 
 The owner's later October 10 clarification stops real-user test resets and revokes all prior standing owner-only test-reset authority. Preserve onboarding conversations, generated plans, profiles, logs and other saved data during deployment, testing, regeneration and verification. Use isolated fixtures or read-only checks; only disposable synthetic test databases may be cleaned up for testing. Explicit user-requested product deletions and existing unrelated retention policies remain unchanged. This policy update does not authorize a new deployment, migration or data change.
 

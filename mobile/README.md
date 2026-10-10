@@ -1,6 +1,6 @@
 # FitQuest mobile
 
-React Native 0.86 / React 19 / Expo SDK 57, with TypeScript and an iOS-first interface. The app includes account/profile flows, five-question intake, plan review, Today/Week, workout journals, Nutrition, meal/recipe library, a separate Progress destination for dated weight, and recurring planning permission in Account. Matching JavaScript is served by the owner's Metro against the October 10 backend release; see [release verification](../docs/archive/releases/2026-10-10.md). [Product overview](../README.md).
+React Native 0.86 / React 19 / Expo SDK 57, with TypeScript and an iOS-first interface. The app includes account/profile flows, five-question intake, plan review, Today/Week, workout journals, Nutrition, meal/recipe library, a separate Progress destination for dated weight, and recurring planning permission in Account. Use the [standalone iPhone preview](../docs/guides/phone-preview.md) for personal testing without Metro, or the development flow below for coding. See [release verification](../docs/archive/releases/2026-10-10.md) and [product overview](../README.md).
 
 ## Setup and checks
 
@@ -44,4 +44,4 @@ The two unresolved upstream tooling advisories and CI exception expiry are docum
 
 [Historical mobile releases](https://github.com/nsoterop/FitQuest/blob/a297e2d/docs/history/mobile-release-notes-2026-10-10.md) retain earlier checkpoints without making them current instructions.
 
-The approved v3 brand and Lucide control artwork are documented in [mobile branding](../docs/reference/icons.md). In-app changes load through owner Metro. The home-screen icon requires the replacement development build linked in the current [release record](../docs/archive/releases/2026-10-10.md); update the existing app without uninstalling it. This scoped build exception does not authorize new signing credentials or additional charges.
+The approved v3 brand and Lucide control artwork are documented in [mobile branding](../docs/reference/icons.md). The standalone preview bundles these assets and the latest in-app changes. Use the verified installation link in the current [release record](../docs/archive/releases/2026-10-10.md); update the existing app without uninstalling it. The preview authorization does not permit new signing credentials or additional charges.
