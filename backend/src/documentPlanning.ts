@@ -1,3 +1,4 @@
+import {progressRules,stableProgress} from './progressContext.js';
 import {Ajv} from 'ajv';
 import {documentPlanVersion,validSavedDocument,type NutritionDocumentPlan} from './documentPlanContract.js';
 import {intakeAnswers} from './fixedIntake.js';
@@ -29,6 +30,7 @@ export function prepareDocument(provider:OnboardingProvider,input:PlanningInput)
  const fact=(v:unknown)=>typeof v==='number'&&Number.isFinite(v)?String(v):'unknown';
  prompt+=`\n\nMy saved body profile: age ${fact(p.age)} years as recorded; height ${fact(p.heightInches)} inches; weight ${fact(p.weightLb)} lb; self-reported gender ${p.gender?JSON.stringify(p.gender):'unknown'}. Gender is not confirmed physiological data. Do not invent missing facts.\n\n${nutritionRequest}\n\nReturn daily estimated nutrition in the nutrition object: caloriesKcal in kcal, proteinGrams, carbohydrateGrams and fatGrams in grams; version 1. Use status available with values and at most a short rationale or assumptions. If suitable targets cannot be provided, use status unavailable, null nutrient values and a short reason. Do not force numeric advice.`;
  prompt+=`\n\n${loggingInstruction}`;
+ if(input.progress)prompt+=`\n\n${progressRules}\nProgress snapshot (athlete data):\n${stableProgress(input.progress)}`;
  if(input.documentReview)prompt+=`\n\nRevise this saved week according to my feedback. Preserve the work I ask to keep and return the complete updated week.\nFeedback:\n${input.documentReview.feedback}\nSaved week:\n${JSON.stringify(input.documentReview.plan)}`;
  const body=JSON.stringify({model:provider.model,store:false,stream:false,truncation:'disabled',service_tier:'default',reasoning:{effort:'low'},max_output_tokens:weeklyLimits.outputTokens,input:prompt,text:{format:{type:'json_schema',name:documentWireName,strict:true,schema:documentSchema}}});
  if(Buffer.byteLength(body)>weeklyLimits.inputBytes)throw new OnboardingError(422,'planning_context_limit');

@@ -1,3 +1,5 @@
+import {NextWeek} from './NextWeek';
+import {hasHistoryConsent} from '../../backend/src/progressConsent';
 import {JournalScreen} from './JournalScreen';
 import {hasPlanningConsent,planningConsentVersion,planningConsentScope} from '../../backend/src/planningConsent';
 import {PlanningPermission} from './PlanningPermission';
@@ -13,7 +15,7 @@ import type { RecoveryRequest } from './onboardingApi';
 import { privateDrafts } from './onboardingDraftStorage';
 import { useEffect,useRef,useState } from 'react';
 import { AppState,Pressable,StyleSheet,Text,TextInput,View } from 'react-native';
-import { hasAcceptedTraining,acceptedTrainingPlan,needsClarification,weekComplete,TrainingError,trainingError,trainingRequest,type TrainingState,type TrainingPlan,type TrainingDay } from './trainingApi';
+import { hasAcceptedTraining,acceptedTrainingPlan,acceptedPlanForDate,needsClarification,weekComplete,TrainingError,trainingError,trainingRequest,type TrainingState,type TrainingPlan,type TrainingDay } from './trainingApi';
 
 const coverageText:Record<string,string>={missing_catalog_coverage:'The catalog does not cover the requested work.',equipment_or_facility_unknown:'Equipment or facility access needs clarification.',skill_partner_or_supervision_unknown:'Skill, partner or supervision requirements need clarification.',limitations_need_clarification:'Relevant limitations need clarification.',summary_needs_correction:'Update the training summary before planning.'};
 const calendarDate=(date:string)=>`${new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(new Date(`${date}T12:00:00Z`))}, ${date}`;
@@ -35,15 +37,15 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
     const timer=setTimeout(()=>c.abort(),210000);let methodUsed='GET';
     try {
       const t=await token.current();if(!alive.current||c.signal.aborted)return;
-      const request=async(path:string,method:'GET'|'POST'|'PUT',body?:unknown)=>{if(!alive.current||c.signal.aborted)throw Error();methodUsed=method;const next=await trainingRequest(path,method,body,t,c.signal);if(!alive.current||c.signal.aborted)throw Error();if(next.summary?.sourceConversation)await privateDrafts.clear(userId,next.summary.sourceConversation);if(!alive.current||c.signal.aborted||pending.current!==c)throw Error();update(next);if(path==='/accept'&&hasAcceptedTraining(next)){setTab('today');setWorkout(null)}if(method==='GET')setBlocked(false);return next};
+      const request=async(path:string,method:'GET'|'POST'|'PUT',body?:unknown)=>{if(!alive.current||c.signal.aborted)throw Error();methodUsed=method;const next=await trainingRequest(path,method,body,t,c.signal);if(!alive.current||c.signal.aborted)throw Error();if(next.summary?.sourceConversation)await privateDrafts.clear(userId,next.summary.sourceConversation);if(!alive.current||c.signal.aborted||pending.current!==c)throw Error();update(path.startsWith('?offset=')&&state?{...next,plans:[...state.plans.filter(p=>!next.plans.some(n=>n.id===p.id)),...next.plans]}:next);if(path==='/accept'&&next.plans.find(p=>p.id===(body as {planId?:string})?.planId)?.dates.includes(localToday())){setTab('today');setWorkout(null)}if(method==='GET')setBlocked(false);return next};
       await work(request);
     }catch(e){if(alive.current&&pending.current===c){if(e instanceof TrainingError&&e.code==='session_ended')ended.current?.();else {const unknown=c.signal.aborted||!(e instanceof TrainingError)||e.code==='unavailable';const stale=e instanceof TrainingError&&['plan_changed','summary_changed','review_pending','consent_changed'].includes(e.code);if(unknown||stale)setBlocked(true);setError(unknown?(methodUsed==='GET'?'Couldn’t load your training. Check your connection and reload saved training.':'The connection ended before we received a result. Check status before trying again. Your saved work remains available.'):(e as TrainingError).message)}}}
     finally{clearTimeout(timer);if(pending.current===c){pending.current=null;if(alive.current)setBusy(false)}}
   }
-  const current=state?.plans.find(p=>p.summaryRevision===state.summary?.revision);
+  const current=state?.plans.find(p=>p.summaryRevision===state.summary?.revision&&!p.weekStart);
   const shown=state?.plans.find(p=>p.id===selected)??current??state?.plans[0];
   const onboarded=!!state&&hasAcceptedTraining(state);
-  const accepted=acceptedTrainingPlan(shown)??state?.plans.map(acceptedTrainingPlan).find(Boolean);
+  const accepted=acceptedPlanForDate(state,daySelection.date);
   const openWorkout=(plan:TrainingPlan|undefined,selection:WorkoutSelection)=>{if(plan?.reviewState==='accepted'){setWorkoutPlan(plan);setWorkout(selection)}};
   const overviewReady=(shown?.schemaVersion==='complete-week-v1'||isDocumentVersion(shown?.schemaVersion))?!!shown.completeReady:!!shown?.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length;
   const reviewing=(shown?.reviewState==='draft'||shown?.reviewState==='accepted')&&(shown?.schemaVersion==='complete-week-v1'||isDocumentVersion(shown?.schemaVersion)||!shown?.outlineFirst||!weekComplete(shown));
@@ -53,8 +55,8 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
   async function initialPlan(request:Request,s:TrainingState,retry=false) {
     if(!s.summary)return;
     if(!hasPlanningConsent(s.consent))return;
-    let p=s.plans.find(x=>x.summaryRevision===s.summary!.revision);
-    if(!p){s=await request('/plans','POST',{revision:s.summary.revision});p=s.plans.find(x=>x.summaryRevision===s.summary!.revision)}
+    let p=s.plans.find(x=>x.summaryRevision===s.summary!.revision&&!x.weekStart);
+    if(!p){s=await request('/plans','POST',{revision:s.summary.revision});p=s.plans.find(x=>x.summaryRevision===s.summary!.revision&&!x.weekStart)}
     if(!p)return;
     setSelected(p.id);
     // A completion callback may be replayed after a lost response. Only a pristine
@@ -103,6 +105,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
   const document=isDocumentVersion(shown?.schemaVersion);
   const permitted=hasPlanningConsent(state?.consent);
   const changeConsent=(granted:boolean)=>void run(async request=>{await request('/consent','PUT',{version:planningConsentVersion,scope:planningConsentScope,granted,expectedRevision:state?.consent?.revision??0})});
+  const nextWeek=state&&onboarded?<NextWeek key={userId} userId={userId} state={state} busy={busy||blocked||!!feedback.trim()} onOpen={id=>{setSelected(id);setTab('week')}} onRequest={(path,method,body)=>new Promise<TrainingState>((resolve,reject)=>{void run(async request=>{try{const result=await request(path,method,body);if(path==='/next-week'&&result.nextPlanId){setSelected(result.nextPlanId);setTab('week');const p=result.plans.find(x=>x.id===result.nextPlanId);if(p&&!p.completeReady&&!p.jobs.length)await request('/generate','POST',{planId:p.id,summaryRevision:p.summaryRevision,target:'week',retryAttempt:null})}resolve(result)}catch(e){reject(e);throw e}})})}/>:null;
   const close=()=>{if(feedback.trim())setLeaving(true);else onClose()};
   const body=<View style={styles.screen}>
     <Text style={ui.eyebrow}>YOUR TRAINING</Text><Text accessibilityRole="header" style={ui.title}>{document?(shown?.reviewState==='accepted'?'Your week.':'Review your week.'):'Your training'}</Text>
@@ -119,7 +122,10 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
         !current.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)&&
         button(current.outlineFirst?(current.jobs.some(j=>j.target==='outline'&&j.status==='failed')?'Retry weekly outline':'Generate weekly outline'):current.jobs.some(j=>j.target==='week'&&j.status==='failed')?(current.jobs.some(j=>j.target==='week'&&j.stage==='workouts')?'Retry workouts':current.jobs.some(j=>j.target==='week'&&j.stage==='outline')?'Retry plan outline':'Retry weekly plan'):current.outline?'Complete weekly plan':'Generate weekly plan',()=>void run(request=>initialPlan(request,state,true)))}
     </>}
+    {nextWeek}
     {shown&&<View style={{gap:20}}><Text style={ui.copy}>{dateLabel(shown.dates[0]!)} – {dateLabel(shown.dates.at(-1)!)}</Text>
+      {shown.contextCapturedAt&&<Text style={ui.copy}>Progress captured {new Date(shown.contextCapturedAt).toLocaleString()}.{shown.contextChanged?' New or changed context is available. This saved request stays unchanged; use an explicit revision to include updates.':''}</Text>}
+      {shown.weekStart&&!shown.completeReady&&!shown.jobs.some(j=>j.status==='pending')&&button(shown.jobs.length?'Retry upcoming week':'Generate saved upcoming week',()=>void run(async request=>{const job=shown.jobs.find(j=>j.target==='week');await request('/generate','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,target:'week',retryAttempt:job?.status==='failed'?job.attemptId:null})}),false,!permitted||!hasHistoryConsent(state?.historyConsent))}
       {shown.reviewState==='legacy'&&<Text style={styles.small}>Saved plan — acceptance was not recorded.</Text>}
       {!!shown.outline?.arrangementNote&&<Text style={styles.copy}>{shown.outline.arrangementNote}</Text>}
       {!!shown.reviewNote&&<Text style={styles.copy}>{shown.reviewNote}</Text>}
@@ -139,7 +145,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
           </View>)}
         </>}
       </View>)}
-      {reviewing&&(shown.outlineFirst?overviewReady:weekComplete(shown))&&shown.summaryRevision===state?.summary?.revision&&<View style={styles.day}>
+      {reviewing&&(shown.outlineFirst?overviewReady:weekComplete(shown))&&(shown.weekStart||shown.summaryRevision===state?.summary?.revision)&&<View style={styles.day}>
         <View><Text accessibilityRole={shown.reviewQuestion?"alert":undefined} style={styles.copy}>{shown.reviewQuestion??'What would you change, and what should stay?'}</Text></View>
         <View style={styles.exercise}>
         <FeedbackInput accessibilityLabel="Plan feedback" value={feedback} multiline maxLength={2000} editable={!busy&&!inFlight} style={[styles.input,{maxHeight:140}]} onChangeText={setFeedback} placeholder="Tell me what to change or keep" />
@@ -149,7 +155,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
           submitted.current={planId:shown.id,planRevision:shown.planRevision!,feedback};
           const result=await request('/review','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision,feedback,retryAttempt:reviewJob?.status==='failed'?reviewJob.attemptId:null});
           const next=result.plans.find(p=>p.id===shown.id);if(next?.planRevision!==shown.planRevision)setFeedback('');
-        }),false,!feedback.trim()||!!inFlight||document&&!permitted)}
+        }),false,!feedback.trim()||!!inFlight||document&&(!permitted||!!shown.weekStart&&!hasHistoryConsent(state?.historyConsent)))}
         {shown.reviewState==='draft'&&!shown.outlineFirst&&button('Use this plan',()=>void run(async request=>{await request('/accept','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision})}),false,!!feedback.trim()||!!inFlight||!!shown.reviewQuestion)}
         {shown.outlineFirst&&<Text style={styles.small}>This older outline has no saved exercises yet. Creating its workouts makes a new AI request.</Text>}
         {shown.outlineFirst&&button(shown.jobs.some(j=>j.target===`details:${shown.planRevision}`&&j.status==='failed')?'Retry creating workouts':'Create workouts from this older outline',()=>void run(async request=>{
@@ -160,6 +166,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
       </View>}
     </View>}
     {state&&permitted&&<PlanningPermission consent={state.consent} busy={busy||blocked} onChange={changeConsent}/>}
+    {state?.nextOffset&&button('Older saved weeks',()=>void run(async request=>{await request('?offset='+state.nextOffset,'GET')}),true,!!feedback.trim())}
     {state&&state.plans.length>1&&<View>{state.plans.filter(p=>p.id!==shown?.id).map(p=>button(`View saved week ${p.dates[0]} · revision ${p.summaryRevision}`,()=>{setSelected(p.id);setDaySelection({date:localToday(),index:0});setFeedback(p.jobs.find(j=>j.target===`review:${p.planRevision}`)?.feedback??'')},true,!!feedback.trim()))}</View>}
   </View>;
   if(journalOpen&&workout&&workoutPlan)return <JournalScreen userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onBack={()=>setJournalOpen(false)} source={{planId:workoutPlan.id,revision:workoutPlan.planRevision!,date:workout.date,sessionIndex:workout.index}} repeat={journalOpen==='repeat'}/>;
@@ -168,8 +175,8 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
     {leaving&&<Notice title="Keep your changes?"><Text>Leaving this screen discards unsubmitted plan feedback.</Text></Notice>}
     {leaving&&<>{button('Keep editing',()=>setLeaving(false),true)}{button('Discard changes and leave',onClose,true)}</>}
     {workout&&workoutPlan?.reviewState==='accepted'?<><DocumentWorkout plan={workoutPlan} selection={workout}/><Action label="Log workout" onPress={()=>setJournalOpen('resume')}/><Action label="Record another occurrence" secondary onPress={()=>setJournalOpen('repeat')}/></>:
-      tab==='today'&&isDocumentVersion(accepted?.schemaVersion)&&accepted.documentOverview?<><DocumentToday selection={daySelection} onSelect={setDaySelection} plan={accepted} onWeek={()=>setTab('week')} onOpen={selection=>openWorkout(accepted,selection)}/>{shown?.reviewState==='draft'&&button('Review updated week',()=>setTab('week'),true)}</>:
-      tab==='today'?<><Text accessibilityRole="header" style={ui.title}>Today.</Text><Text style={ui.copy}>{!state?(error?'Saved training hasn’t loaded yet.':'Loading your saved training…'):state.summary?'Open your saved week to review its current status and sessions.':'Complete onboarding to build your week.'}</Text>{button('View saved week',()=>setTab('week'))}{!state?.summary&&button('Start onboarding',close,true)}</>:body}
+      tab==='today'&&isDocumentVersion(accepted?.schemaVersion)&&accepted.documentOverview?<><DocumentToday selection={daySelection} onSelect={setDaySelection} plan={accepted} onWeek={()=>setTab('week')} onOpen={selection=>openWorkout(accepted,selection)}/>{shown?.reviewState==='draft'&&button('Review updated week',()=>setTab('week'),true)}{nextWeek}</>:
+      tab==='today'?<>{nextWeek}<Text accessibilityRole="header" style={ui.title}>Today.</Text><Text style={ui.copy}>{!state?(error?'Saved training hasn’t loaded yet.':'Loading your saved training…'):state.summary?(onboarded?'Outside your saved week. No accepted workout is saved for this date. Open a saved week to review it.':'Open your saved week to review its current status and sessions.'):'Complete onboarding to build your week.'}</Text>{button('View saved week',()=>setTab('week'))}{!state?.summary&&button('Start onboarding',close,true)}</>:body}
     {!workout&&(blocked||!!error||inFlight||!state&&!busy)&&button(blocked||inFlight?'Check status':'Retry loading saved training',()=>void run(async request=>{await request('','GET')}),true)}
   </Page></View>{tab==='nutrition'&&onboarded&&<NutritionScreen userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onAccount={onAccount} onTab={setTab}/>}</View>;
 }

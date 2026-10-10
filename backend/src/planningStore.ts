@@ -1,5 +1,7 @@
+import {captureProgress,nextWeekDates,type ProgressSnapshot} from './progressContext.js';
+import {historyConsentVersion,historyConsentScope,hasHistoryConsent,type HistoryConsent} from './progressConsent.js';
 import {planningConsentVersion,planningConsentScope,hasPlanningConsent,type PlanningConsent} from './planningConsent.js';
-import {foodDate} from './foodContract.js';
+import {foodDate,foodId,foodToday} from './foodContract.js';
 import {prepareDocument,documentPlanVersion} from './documentPlanning.js';
 import {documentOverview,isDocumentVersion,nutritionDocumentPlanVersion,validDailyNutrition,type AcceptedNutrition,type SavedDocumentPlan} from './documentPlanContract.js';
 import { prepareComplete,prepareCompleteOutline,completeActivities,completePlanVersion } from './completePlanning.js';
@@ -23,7 +25,7 @@ import { checkTimeZone,checkedSummary,planDates,hasGoalSet,type TrainingSummary 
 import { preparePlanning,planningPromptVersion,savedDetail,type PlanningInput,type Outline,type Detail } from './planningDomain.js';
 
 export type GenerationRequest={summaryRevision:number;planId:string;target:string;retryAttempt:string|null;planRevision?:number;confirmOutline?:boolean};
-export type PlanningWork={consentRevision?:number;stage?:'outline'|'workouts';attempt:string;planId:string;target:string;revision:number;planRevision?:number;profileVersion:string;input:PlanningInput;body:string};
+export type PlanningWork={historyConsentRevision?:number;progressSnapshot?:ProgressSnapshot;consentRevision?:number;stage?:'outline'|'workouts';attempt:string;planId:string;target:string;revision:number;planRevision?:number;profileVersion:string;input:PlanningInput;body:string};
 export function planningStore(pool:Pool) {
   async function tx<T>(a:Account,fn:(c:PoolClient)=>Promise<T>,session=true):Promise<T>{
     const c=await pool.connect();try {
@@ -45,19 +47,26 @@ export function planningStore(pool:Pool) {
     if(!s)throw new OnboardingError(409,'summary_required');return s;
   }
   async function profile(c:PoolClient,a:Account) {
-    const p=(await c.query('SELECT age,height_inches,weight_lb,gender,planning_consent,first_name,last_name,updated_at::text AS version FROM fitquest.profiles WHERE user_id=$1 FOR SHARE',[a.userId])).rows[0];
+    const p=(await c.query('SELECT age,height_inches,weight_lb,gender,planning_consent,history_consent,first_name,last_name,updated_at::text AS version FROM fitquest.profiles WHERE user_id=$1 FOR SHARE',[a.userId])).rows[0];
     if(!p)throw new OnboardingError(409,'profile_required');return p;
   }
   async function recover(c:PoolClient,a:Account) {
     const expired=await c.query("UPDATE fitquest.training_generations SET status='failed',error_code='interrupted' WHERE user_id=$1 AND status='pending' AND deadline<=now() RETURNING attempt_id",[a.userId]);
     for(const row of expired.rows)await c.query('SELECT fitquest.settle_onboarding($1,NULL)',[row.attempt_id]);
   }
-  async function view(c:PoolClient,a:Account) {
+  async function view(c:PoolClient,a:Account,offset=0) {
     const s=(await c.query('SELECT revision,document,preferences,time_zone AS "timeZone",source_conversation AS "sourceConversation" FROM fitquest.training_summaries WHERE user_id=$1',[a.userId])).rows[0]??null;
-    const plans=(await c.query(`SELECT id,summary_revision AS "summaryRevision",time_zone AS "timeZone",dates,catalog_version AS "catalogVersion",outline,schema_version AS "schemaVersion",complete_plan AS "completePlan",document_plan AS "documentPlan",accepted_at AS "acceptedAt",created_at AS "createdAt",CASE WHEN review_state<>'accepted' THEN document_history->-1 ELSE NULL END AS "acceptedDocument",
+    const plans=(await c.query(`SELECT id,week_start::text AS "weekStart",next_operation AS "nextOperation",progress_snapshot AS "progressSnapshot",summary_revision AS "summaryRevision",time_zone AS "timeZone",dates,catalog_version AS "catalogVersion",outline,schema_version AS "schemaVersion",complete_plan AS "completePlan",document_plan AS "documentPlan",accepted_at AS "acceptedAt",created_at AS "createdAt",CASE WHEN review_state<>'accepted' THEN document_history->-1 ELSE NULL END AS "acceptedDocument",
       outline_first AS "outlineFirst",confirmed_outline_revision AS "confirmedOutlineRevision",review_state AS "reviewState",review_revision AS "planRevision",review_note AS "reviewNote",review_context->>'question' AS "reviewQuestion"
-      FROM fitquest.training_plans WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20`,[a.userId])).rows;
+      FROM fitquest.training_plans WHERE user_id=$1 ORDER BY (dates ? $2) DESC,created_at DESC,id DESC LIMIT 21 OFFSET $3`,[a.userId,foodToday(s?.timeZone??'UTC'),offset])).rows;
+    const more=plans.length>20;if(more)plans.pop();
+    const nextOffset=more?offset+20:null;
     for(const p of plans) {
+      if(p.progressSnapshot){
+        const snapshot=p.progressSnapshot as ProgressSnapshot;p.contextCapturedAt=snapshot.capturedAt;
+        try{const latest=await profile(c,a);const fresh=await captureProgress(c,a.userId,p.dates,p.timeZone,s?.document??snapshot.input.summary,{age:latest.age,heightInches:latest.height_inches,weightLb:Number(latest.weight_lb),gender:latest.gender},snapshot.changes,new Date(),{summary:s?.revision??0,profile:latest.version});p.contextChanged=fresh.fingerprint!==snapshot.fingerprint}catch{p.contextChanged=true}
+      }
+      delete p.progressSnapshot;
       p.days=(await c.query('SELECT date::text,detail FROM fitquest.training_days WHERE user_id=$1 AND plan_id=$2 ORDER BY date',[a.userId,p.id])).rows;
       p.jobs=(await c.query('SELECT target,status,error_code AS error,attempt_id AS "attemptId",feedback,complete_stage AS stage,raw_response AS "rawResponse" FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND (target NOT LIKE \'review:%\' OR target=$3) AND (target NOT LIKE \'details:%\' OR target=$4)',[a.userId,p.id,`review:${p.planRevision}`,`details:${p.planRevision}`])).rows;
       if(!isDocumentVersion(p.schemaVersion))delete p.acceptedDocument;
@@ -77,12 +86,12 @@ export function planningStore(pool:Pool) {
     }
     // Acceptance is durable server evidence, independent of the current draft or calendar.
     const onboarded=(await c.query("SELECT EXISTS(SELECT 1 FROM fitquest.training_plans WHERE user_id=$1 AND (review_state='accepted' OR jsonb_array_length(document_history)>0)) AS accepted",[a.userId])).rows[0].accepted;
-    const consent=(await c.query('SELECT planning_consent FROM fitquest.profiles WHERE user_id=$1',[a.userId])).rows[0]?.planning_consent??null;
-    return {summary:s,plans,onboarded,consent};
+    const permissions=(await c.query('SELECT planning_consent,history_consent FROM fitquest.profiles WHERE user_id=$1',[a.userId])).rows[0];
+    return {summary:s,plans,onboarded,nextOffset,consent:permissions?.planning_consent??null,historyConsent:permissions?.history_consent??null};
   }
   async function claimDocument(c:PoolClient,a:Account,plan:any,r:GenerationRequest|ReviewRequest,provider?:OnboardingProvider):Promise<PlanningWork|undefined>{
     const s=await summary(c,a),p=await profile(c,a),review='feedback' in r;
-    if(s.revision!==r.summaryRevision||plan.summary_revision!==s.revision)throw new OnboardingError(409,'summary_changed');
+    if(plan.week_start?plan.summary_revision!==r.summaryRevision:s.revision!==r.summaryRevision||plan.summary_revision!==s.revision)throw new OnboardingError(409,'summary_changed');
     if(!review&&(r.target!=='week'||r.confirmOutline))throw new OnboardingError(409,'review_unavailable');
     const target=review?`review:${r.planRevision}`:'week',feedback=review?r.feedback:null;
     const hash=feedback===null?null:createHash('sha256').update(feedback).digest('hex');
@@ -94,7 +103,9 @@ export function planningStore(pool:Pool) {
     if(job&&(job.status!=='failed'||r.retryAttempt!==job.attempt_id))return;
     if(!job&&r.retryAttempt)throw new OnboardingError(409,'retry_unavailable');
     if(!hasPlanningConsent(p.planning_consent))throw new OnboardingError(409,'planning_consent_required');
-    const input:PlanningInput={schemaVersion:documentPlanVersion,kind:'week',summary:s.document,profile:{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb),gender:p.gender},dates:plan.dates,...(review?{documentReview:{plan:plan.document_plan,feedback:r.feedback}}:{})};
+    if(plan.week_start&&!hasHistoryConsent(p.history_consent))throw new OnboardingError(409,'history_consent_required');
+    const progressSnapshot:ProgressSnapshot|undefined=plan.week_start?((job?.feedback_hash===hash?job.progress_snapshot:null)??(review?await captureProgress(c,a.userId,plan.dates,plan.time_zone,s.document,{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb),gender:p.gender},plan.progress_snapshot.changes,new Date(),{summary:s.revision,profile:p.version}):plan.progress_snapshot)):undefined;
+    const input:PlanningInput={schemaVersion:documentPlanVersion,kind:'week',summary:s.document,profile:{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb),gender:p.gender},dates:plan.dates,...(progressSnapshot?progressSnapshot.input:{}),...(review?{documentReview:{plan:plan.document_plan,feedback:r.feedback}}:{})};
     const attempt=randomUUID();let prepared:ReturnType<typeof prepareDocument>|undefined,failure:string|undefined;
     if(p.age<18)failure='adults_only';else if(!provider)failure='ai_disabled';else{
       await rate(c,a,true);
@@ -107,7 +118,8 @@ export function planningStore(pool:Pool) {
     await c.query(`INSERT INTO fitquest.training_generations(user_id,plan_id,target,status,error_code,attempt_id,deadline,profile_version,summary_revision,feedback,feedback_hash)
       VALUES($1,$2,$3,$4,$5,$6,now()+($11*interval '1 second'),$7,$8,$9,$10) ON CONFLICT(user_id,plan_id,target) DO UPDATE SET status=EXCLUDED.status,error_code=EXCLUDED.error_code,attempt_id=EXCLUDED.attempt_id,deadline=EXCLUDED.deadline,profile_version=EXCLUDED.profile_version,summary_revision=EXCLUDED.summary_revision,feedback=EXCLUDED.feedback,feedback_hash=EXCLUDED.feedback_hash`,
       [a.userId,plan.id,target,failure?'failed':'pending',failure??null,attempt,p.version,s.revision,feedback,hash,weeklyLimits.leaseSeconds]);
-    if(prepared&&!failure)return {consentRevision:p.planning_consent.revision,attempt,planId:plan.id,target,revision:s.revision,planRevision:plan.review_revision,profileVersion:p.version,input,body:prepared.body};
+    if(progressSnapshot)await c.query('UPDATE fitquest.training_generations SET progress_snapshot=$4 WHERE user_id=$1 AND plan_id=$2 AND target=$3',[a.userId,plan.id,target,JSON.stringify(progressSnapshot)]);
+    if(prepared&&!failure)return {historyConsentRevision:p.history_consent?.revision,progressSnapshot,consentRevision:p.planning_consent.revision,attempt,planId:plan.id,target,revision:plan.summary_revision,planRevision:plan.review_revision,profileVersion:p.version,input,body:prepared.body};
   }
 
   async function claimComplete(c:PoolClient,a:Account,plan:any,r:GenerationRequest|ReviewRequest,provider?:OnboardingProvider,checkpoint?:{work:PlanningWork;text:string}):Promise<PlanningWork|undefined>{
@@ -153,6 +165,27 @@ export function planningStore(pool:Pool) {
   }
 
   return {
+    historyConsent:(a:Account,request:{version:string;scope:string;granted:boolean;expectedRevision:number})=>tx(a,async c=>{
+      if(request.version!==historyConsentVersion||request.scope!==historyConsentScope||typeof request.granted!=='boolean'||!Number.isSafeInteger(request.expectedRevision)||request.expectedRevision<0)throw new OnboardingError(400,'invalid_request');
+      const p=await profile(c,a),old=p.history_consent as HistoryConsent|null;if((old?.revision??0)!==request.expectedRevision)throw new OnboardingError(409,'consent_changed');
+      const consent:HistoryConsent={version:historyConsentVersion,scope:historyConsentScope,granted:request.granted,revision:(old?.revision??0)+1,updatedAt:new Date().toISOString()};
+      await c.query('UPDATE fitquest.profiles SET history_consent=$2 WHERE user_id=$1',[a.userId,JSON.stringify(consent)]);return view(c,a);
+    }),
+    ensureNextWeek:(a:Account,r:{operationId:string;changes:string},now=new Date())=>tx(a,async c=>{
+      if(!foodId(r.operationId)||typeof r.changes!=='string'||r.changes.length>2000)throw new OnboardingError(400,'invalid_request');
+      await rate(c,a);await recover(c,a);
+      const existing=(await c.query('SELECT id,progress_snapshot FROM fitquest.training_plans WHERE user_id=$1 AND next_operation=$2',[a.userId,r.operationId])).rows[0];
+      if(existing){if(existing.progress_snapshot.changes!==r.changes)throw new OnboardingError(409,'operation_conflict');return {...await view(c,a),nextPlanId:existing.id}};
+      const s=await summary(c,a),p=await profile(c,a),dates=nextWeekDates(s.time_zone,now);
+      const prior=(await c.query('SELECT id FROM fitquest.training_plans WHERE user_id=$1 AND dates->>0=$2 ORDER BY created_at DESC LIMIT 1',[a.userId,dates[0]])).rows[0];
+      if(prior)return {...await view(c,a),nextPlanId:prior.id};
+      if(!hasPlanningConsent(p.planning_consent))throw new OnboardingError(409,'planning_consent_required');
+      if(!hasHistoryConsent(p.history_consent))throw new OnboardingError(409,'history_consent_required');
+      const snapshot=await captureProgress(c,a.userId,dates,s.time_zone,s.document,{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb),gender:p.gender},r.changes,now,{summary:s.revision,profile:p.version}),id=randomUUID();
+      await c.query(`INSERT INTO fitquest.training_plans(user_id,id,summary_revision,summary,time_zone,dates,catalog_version,outline_first,schema_version,week_start,next_operation,progress_snapshot)
+        VALUES($1,$2,$3,$4,$5,$6,$7,false,$8,$9,$10,$11)`,[a.userId,id,s.revision,JSON.stringify(s.document),s.time_zone,JSON.stringify(dates),catalog.version,documentPlanVersion,dates[0],r.operationId,JSON.stringify(snapshot)]);
+      return {...await view(c,a),nextPlanId:id};
+    }),
     consent:(a:Account,request:{version:string;scope:string;granted:boolean;expectedRevision:number})=>tx(a,async c=>{
       if(request.version!==planningConsentVersion||request.scope!==planningConsentScope||typeof request.granted!=='boolean'||!Number.isSafeInteger(request.expectedRevision)||request.expectedRevision<0)throw new OnboardingError(400,'invalid_request');
       const p=await profile(c,a),old=p.planning_consent as PlanningConsent|null;
@@ -164,7 +197,7 @@ export function planningStore(pool:Pool) {
     canDispatch:(a:Account,w:PlanningWork,onAllowed?:()=>void)=>tx(a,async c=>{
       if(w.input.schemaVersion!==documentPlanVersion)return true;
       const p=await profile(c,a);
-      const allowed=hasPlanningConsent(p.planning_consent)&&p.planning_consent.revision===w.consentRevision&&p.version===w.profileVersion;
+      const allowed=hasPlanningConsent(p.planning_consent)&&p.planning_consent.revision===w.consentRevision&&(w.progressSnapshot?hasHistoryConsent(p.history_consent)&&p.history_consent.revision===w.historyConsentRevision:p.version===w.profileVersion);
       if(allowed)onAllowed?.(); // Start transmission while holding the same account lock as revocation.
       return allowed;
     }),
@@ -184,14 +217,14 @@ export function planningStore(pool:Pool) {
       const request=w.input.completeReview?{summaryRevision:w.revision,planId:w.planId,planRevision:w.planRevision!,feedback:w.input.completeReview.feedback,retryAttempt:null}:{summaryRevision:w.revision,planId:w.planId,target:'week',retryAttempt:null};
       return claimComplete(c,a,plan,request,provider,{work:w,text});
     }),
-    read:(a:Account)=>tx(a,async c=>{await rate(c,a);await recover(c,a);return view(c,a)}),
+    read:(a:Account,offset=0)=>tx(a,async c=>{if(!Number.isSafeInteger(offset)||offset<0||offset>1000000)throw new OnboardingError(400,'invalid_request');await rate(c,a);await recover(c,a);return view(c,a,offset)}),
     accept:(a:Account,r:PlanVersion)=>tx(a,async c=>{
       await rate(c,a);await recover(c,a);
       const p=(await c.query('SELECT * FROM fitquest.training_plans WHERE user_id=$1 AND id=$2 FOR UPDATE',[a.userId,r.planId])).rows[0];
       if(!p)throw new OnboardingError(404,'not_found');
       const s=await summary(c,a);
       if(p.review_revision!==r.planRevision)throw new OnboardingError(409,'plan_changed');
-      if(s.revision!==r.summaryRevision||p.summary_revision!==s.revision)throw new OnboardingError(409,'summary_changed');
+      if(p.week_start?p.summary_revision!==r.summaryRevision:s.revision!==r.summaryRevision||p.summary_revision!==s.revision)throw new OnboardingError(409,'summary_changed');
       if((await c.query("SELECT 1 FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND status='pending'",[a.userId,r.planId])).rowCount)throw new OnboardingError(409,'review_pending');
       if(isDocumentVersion(p.schema_version)){
         if(!p.document_plan||!p.review_revision)throw new OnboardingError(409,'review_unavailable');
@@ -275,7 +308,7 @@ export function planningStore(pool:Pool) {
     async ensurePlan(a:Account,expected:number) {
       return tx(a,async c=>{await rate(c,a);const s=await summary(c,a);if(s.revision!==expected)throw new OnboardingError(409,'summary_changed');
         await c.query(`INSERT INTO fitquest.training_plans(user_id,id,summary_revision,summary,time_zone,dates,catalog_version,outline_first,schema_version)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(user_id,summary_revision) DO NOTHING`,[a.userId,randomUUID(),s.revision,JSON.stringify(s.document),s.time_zone,JSON.stringify(planDates(s.time_zone)),catalog.version,!intakeAnswers(s.document),intakeAnswers(s.document)?documentPlanVersion:null]);
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(user_id,summary_revision) WHERE week_start IS NULL DO NOTHING`,[a.userId,randomUUID(),s.revision,JSON.stringify(s.document),s.time_zone,JSON.stringify(planDates(s.time_zone)),catalog.version,!intakeAnswers(s.document),intakeAnswers(s.document)?documentPlanVersion:null]);
         return view(c,a);
       });
     },
@@ -382,11 +415,12 @@ export function planningStore(pool:Pool) {
       const job=(await c.query('SELECT * FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND target=$3 FOR UPDATE',[a.userId,w.planId,w.target])).rows[0];
       if(!job||job.status!=='pending'||job.attempt_id!==w.attempt)return;
       if((!w.input.schemaVersion||w.stage==='outline')&&rawResponse!==undefined&&Buffer.byteLength(rawResponse)<=64000)await c.query('UPDATE fitquest.training_generations SET raw_response=$4 WHERE user_id=$1 AND plan_id=$2 AND target=$3',[a.userId,w.planId,w.target,rawResponse]);
-      if(s.revision!==w.revision||p.version!==w.profileVersion||new Date(job.deadline).getTime()<=Date.now()){failure='summary_changed';value=undefined}
+      if((!w.progressSnapshot&&(s.revision!==w.revision||p.version!==w.profileVersion))||new Date(job.deadline).getTime()<=Date.now()){failure='summary_changed';value=undefined}
       if(w.input.schemaVersion===documentPlanVersion){
         const plan=(await c.query('SELECT review_revision FROM fitquest.training_plans WHERE user_id=$1 AND id=$2 FOR UPDATE',[a.userId,w.planId])).rows[0];
         if(plan?.review_revision!==w.planRevision){failure='plan_changed';value=undefined;}
         if(value){
+          if(w.progressSnapshot)await c.query('UPDATE fitquest.training_plans SET progress_snapshot=$3 WHERE user_id=$1 AND id=$2',[a.userId,w.planId,JSON.stringify(w.progressSnapshot)]);
           await c.query("UPDATE fitquest.training_plans SET document_plan=$3,schema_version=$4,review_revision=review_revision+1,review_state='draft',accepted_at=NULL,review_note=NULL,review_context=NULL WHERE user_id=$1 AND id=$2",[a.userId,w.planId,JSON.stringify(value),documentPlanVersion]);
           await c.query('UPDATE fitquest.training_generations SET feedback=NULL WHERE user_id=$1 AND plan_id=$2 AND target=$3',[a.userId,w.planId,w.target]);
         }

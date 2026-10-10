@@ -17,7 +17,7 @@ import type { GenerationRequest,PlanningStore } from './planningStore.js';
 export function planningService(store:PlanningStore,provider?:OnboardingProvider,environment=process.env.NODE_ENV) {
   if(provider?.mode==='test'&&environment==='production')throw Error('Test AI is not allowed in production.');
   return {
-    read:store.read,edit:store.edit,ensurePlan:store.ensurePlan,accept:store.accept,consent:store.consent,nutrition:store.nutrition,
+    historyConsent:store.historyConsent,ensureNextWeek:store.ensureNextWeek,read:store.read,edit:store.edit,ensurePlan:store.ensurePlan,accept:store.accept,consent:store.consent,nutrition:store.nutrition,
     review:(a:Account,r:ReviewRequest,authorize:()=>Promise<boolean>)=>run(a,()=>store.claimReview(a,r,provider),authorize),
     generate:(a:Account,r:GenerationRequest,authorize:()=>Promise<boolean>)=>run(a,()=>store.claim(a,r,provider),authorize),
   };

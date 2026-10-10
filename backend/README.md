@@ -1,5 +1,9 @@
 # FitQuest API
 
+## Progress-informed manual next week — batch 2
+
+Private routes `POST /training/next-week`, `PUT /training/history-consent` and paginated `GET /training?offset=20` support distinct upcoming weeks, frozen context/retries and separate history-sharing permission. Snapshot provenance stays private; date-matched accepted work and nutrition remain active while a future week is reviewed. One existing accounted Sol 6.1 low request creates the document; acceptance/reopen and logging remain free. Migration `20261010023753_progress_informed_weeks.sql` is hosted as `20261010025244_progress_informed_weeks`. [Context selection, retention, tests and native evidence](../docs/next-week-native/README.md) document the boundaries. Sunday scheduling is not part of this batch.
+
 ## Body weight — batch 1
 
 Private no-store routes `GET /body-weight`, `GET /body-weight/:id`, `GET /body-weight/operations/:id` and `POST /body-weight/commands` implement dated measurements, owned revisions and idempotent save/delete receipts without AI or ledger writes. History is ordered by measurement date; lb/kg decimals retain their explicit units. Private forced-RLS records, receipts and encrypted account-scoped device drafts survive training resets. Explicit deletion clears the measurement immediately while retaining minimal replay metadata. Neither table references resettable plans. Never include weight records or receipts in the nine-table testing reset. [Tests, retention and native evidence](../docs/body-weight-native/README.md) document the implementation; root release evidence records live verification.
