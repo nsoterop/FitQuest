@@ -58,11 +58,13 @@ test('document request uses exact concise context and small display schema, no c
   const p = prepareDocument(provider, input),
     r = JSON.parse(p.body);
   assert.equal(documentPrompt(answers, dates), expected);
-  assert.equal(
-    r.input,
-    expected +
-      `\n\nMy saved body profile: age 30 years as recorded; height 68 inches; weight 155 lb; self-reported gender "Not specified". Gender is not confirmed physiological data. Do not invent missing facts.\n\nI also want you to return an object with macronutrient targets based on my body profile and goals. These targets should be whatever levels would best help me achieve all my goals.\n\nReturn daily estimated nutrition in the nutrition object: caloriesKcal in kcal, proteinGrams, carbohydrateGrams and fatGrams in grams; version 1. Use status available with values and at most a short rationale or assumptions. If suitable targets cannot be provided, use status unavailable, null nutrient values and a short reason. Do not force numeric advice.\n\nFor each exercise row, add loggingMode: weighted_reps for a prescription accurately logged with weight, sets and reps; reps for sets and reps without weight; completion for everything else or ambiguous/composite work. Choose from the actual prescription, not its name alone. This selects only the logging layout; keep activities and prescriptions unrestricted.`,
-  );
+  const data = JSON.parse(r.input);
+  assert.deepEqual(Object.values(data.answers), answers);
+  assert.deepEqual(data.dates, dates);
+  assert.deepEqual(data.profile, input.profile);
+  assert(r.instructions.includes(expected.split('\n\n')[1]));
+  assert(r.instructions.includes(expected.split('\n\n')[3]));
+  assert(!r.instructions.includes(answers[0]));
   assert.deepEqual(r.reasoning, { effort: 'low' });
   assert.equal(r.model, 'gpt-6.1-sol');
   assert.equal(p.reserveMicro, 19);
@@ -76,9 +78,9 @@ test('document request uses exact concise context and small display schema, no c
       documentReview: { feedback: 'Change Tuesday; keep Monday.', plan: documentFixture(dates) },
     }).body,
   );
-  assert(revised.input.startsWith(expected));
+  assert.deepEqual(JSON.parse(revised.input).answers, data.answers);
   assert(revised.input.includes('Change Tuesday; keep Monday.'));
-  assert(revised.input.endsWith(JSON.stringify(documentFixture(dates))));
+  assert.deepEqual(JSON.parse(revised.input).review.plan, documentFixture(dates));
   assert.deepEqual(revised.reasoning, { effort: 'low' });
 });
 test('document validates only display structure, dates and bounds; arbitrary activity prose survives unchanged', () => {
@@ -214,8 +216,8 @@ test('formatting is the only prompt change; coaching prefix and legacy work rema
       },
     }).body,
   );
-  assert(revision.input.startsWith(expected));
-  assert(revision.input.endsWith(JSON.stringify(legacy)));
+  assert.deepEqual(Object.values(JSON.parse(revision.input).answers), answers);
+  assert.deepEqual(JSON.parse(revision.input).review.plan, legacy);
   const rowSchema = (documentSchema.properties.days as any).items.properties.sessions.items
     .properties.exercises;
   assert.deepEqual(Object.keys(rowSchema.items.properties), [
@@ -281,8 +283,8 @@ test('nutrition checks integrity without diet rules or clamping; unavailable and
       profile: { age: NaN, heightInches: 68, weightLb: 155, gender: null },
     }).body,
   );
-  assert(missing.input.includes('age unknown years'));
-  assert(missing.input.includes('gender unknown'));
+  assert.equal(JSON.parse(missing.input).profile.age, null);
+  assert.equal(JSON.parse(missing.input).profile.gender, null);
   assert(!missing.input.includes('NaN'));
   const privateProfile = {
     ...input.profile,

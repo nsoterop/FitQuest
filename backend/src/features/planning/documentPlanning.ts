@@ -1,4 +1,5 @@
-import { progressRules, stableProgress } from '../weekly-planning/progressContext.js';
+import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
+import { progressRules } from '../weekly-planning/progressContext.js';
 import { Ajv } from 'ajv';
 import {
   documentPlanVersion,
@@ -69,28 +70,57 @@ export const documentSchema = object({
 export const loggingInstruction =
   'For each exercise row, add loggingMode: weighted_reps for a prescription accurately logged with weight, sets and reps; reps for sets and reps without weight; completion for everything else or ambiguous/composite work. Choose from the actual prescription, not its name alone. This selects only the logging layout; keep activities and prescriptions unrestricted.';
 const validate = new Ajv({ strict: true }).compile<NutritionDocumentPlan>(documentSchema);
+export const documentCoachingInstructions =
+  "I want you to build a plan for the week to help me achieve my goals. First give the high level plan, then after that, create a workout/exercise list for each session. For the high level plan, return a list with days of the week until Sunday, with each day's session(s) underneath it, the goal for each session and the rough time to complete the session.";
+export const documentDisplayInstructions =
+  "Return each day's sessions with a title, goal, timing if useful (otherwise null), approximate duration range in minutes, optionality, and ordered exercises. Rest days have empty session lists. Each exercise row has a free-text exercise name and a concise free-text prescription. Preserve essential sets, reps, load, time, distance, units, intervals, recovery, per-side/per-round meaning, effort and superset or mixed-work relationships as applicable. Keep essential execution and safety instructions in the relevant prescription. Use plain text, not Markdown, for rows. Do not repeat session goals or introductions in rows. Omit unrequested general weekly commentary; never attach a weekly approach to the first or any other session. Return only the provided display schema.";
 export function documentPrompt(answers: string[], dates: string[]) {
   return `I want you to come up with a workout plan for me. My goals are: ${answers[0]}. My current activity is: ${answers[1]}. My available equipment is: ${answers[2]}. My training preferences are: ${answers[3]}. My limitations are: ${answers[4]}.
 
-I want you to build a plan for the week to help me achieve my goals. First give the high level plan, then after that, create a workout/exercise list for each session. For the high level plan, return a list with days of the week until Sunday, with each day's session(s) underneath it, the goal for each session and the rough time to complete the session.
+${documentCoachingInstructions}
 
 The week is Monday, ${dates[0]}, through Sunday, ${dates[6]}, inclusive.
 
-Return each day's sessions with a title, goal, timing if useful (otherwise null), approximate duration range in minutes, optionality, and ordered exercises. Rest days have empty session lists. Each exercise row has a free-text exercise name and a concise free-text prescription. Preserve essential sets, reps, load, time, distance, units, intervals, recovery, per-side/per-round meaning, effort and superset or mixed-work relationships as applicable. Keep essential execution and safety instructions in the relevant prescription. Use plain text, not Markdown, for rows. Do not repeat session goals or introductions in rows. Omit unrequested general weekly commentary; never attach a weekly approach to the first or any other session. Return only the provided display schema.`;
+${documentDisplayInstructions}`;
 }
 export function prepareDocument(provider: OnboardingProvider, input: PlanningInput) {
   const answers = intakeAnswers(input.summary);
   if (!answers) throw new OnboardingError(409, 'summary_needs_correction');
-  let prompt = documentPrompt(answers, input.dates);
   const p = input.profile;
-  const fact = (v: unknown) =>
-    typeof v === 'number' && Number.isFinite(v) ? String(v) : 'unknown';
-  prompt += `\n\nMy saved body profile: age ${fact(p.age)} years as recorded; height ${fact(p.heightInches)} inches; weight ${fact(p.weightLb)} lb; self-reported gender ${p.gender ? JSON.stringify(p.gender) : 'unknown'}. Gender is not confirmed physiological data. Do not invent missing facts.\n\n${nutritionRequest}\n\nReturn daily estimated nutrition in the nutrition object: caloriesKcal in kcal, proteinGrams, carbohydrateGrams and fatGrams in grams; version 1. Use status available with values and at most a short rationale or assumptions. If suitable targets cannot be provided, use status unavailable, null nutrient values and a short reason. Do not force numeric advice.`;
-  prompt += `\n\n${loggingInstruction}`;
-  if (input.progress)
-    prompt += `\n\n${progressRules}\nProgress snapshot (athlete data):\n${stableProgress(input.progress)}`;
-  if (input.documentReview)
-    prompt += `\n\nRevise this saved week according to my feedback. Preserve the work I ask to keep and return the complete updated week.\nFeedback:\n${input.documentReview.feedback}\nSaved week:\n${JSON.stringify(input.documentReview.plan)}`;
+  const fact = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const instructions = [
+    athleteDataPolicy,
+    documentCoachingInstructions,
+    documentDisplayInstructions,
+    'Use exactly the supplied Monday–Sunday dates in order. Gender is self-reported, not confirmed physiological data. Do not invent missing facts.',
+    nutritionRequest,
+    'Return daily estimated nutrition in the nutrition object: caloriesKcal in kcal, proteinGrams, carbohydrateGrams and fatGrams in grams; version 1. Use status available with values and at most a short rationale or assumptions. If suitable targets cannot be provided, use status unavailable, null nutrient values and a short reason. Do not force numeric advice.',
+    loggingInstruction,
+    ...(input.progress ? [progressRules] : []),
+    ...(input.documentReview
+      ? [
+          'Revise the saved week according to the athlete feedback. Preserve the work they ask to keep and return the complete updated week.',
+        ]
+      : []),
+  ].join('\n\n');
+  const data = {
+    answers: {
+      goals: answers[0],
+      currentActivity: answers[1],
+      equipment: answers[2],
+      preferences: answers[3],
+      limitations: answers[4],
+    },
+    dates: input.dates,
+    profile: {
+      age: fact(p.age),
+      heightInches: fact(p.heightInches),
+      weightLb: fact(p.weightLb),
+      gender: p.gender || null,
+    },
+    ...(input.progress ? { progress: input.progress } : {}),
+    ...(input.documentReview ? { review: input.documentReview } : {}),
+  };
   const body = JSON.stringify({
     model: provider.model,
     store: false,
@@ -99,7 +129,8 @@ export function prepareDocument(provider: OnboardingProvider, input: PlanningInp
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: weeklyLimits.outputTokens,
-    input: prompt,
+    instructions,
+    input: JSON.stringify(data),
     text: {
       format: { type: 'json_schema', name: documentWireName, strict: true, schema: documentSchema },
     },

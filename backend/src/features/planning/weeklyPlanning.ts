@@ -1,3 +1,4 @@
+import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
 import { invalidPlan, atPlanPosition } from './planningValidation.js';
 import { providerSchema } from '../../ai/providerSchema.js';
 import { checkDurations } from './planningDuration.js';
@@ -257,7 +258,7 @@ If this approved arrangement cannot be implemented with the catalog or actual co
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: weeklyLimits.outputTokens,
-    instructions,
+    instructions: athleteDataPolicy + '\n\n' + instructions,
     input: JSON.stringify({
       preferredUnits: 'imperial',
       ...input,

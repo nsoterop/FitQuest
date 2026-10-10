@@ -4,13 +4,13 @@
 
 The owner's latest explicit instructions control the work. Follow the owner's roadmap; do not invent features, milestones, architecture initiatives or paid evaluations. Feature work is paused.
 
-The current assignment is the owner's October 10 request to organize the whole project and remove files no longer needed. Group mobile/backend source by feature, separate tests and support code, give documentation a clear index, and remove verified obsolete tracked artifacts. Preserve behavior, necessary legacy readers, migrations, accounting, private records and owner-managed files. MIT remains selected. Feature work remains paused.
+The current assignment is the owner's bounded security hardening: separate trusted AI instructions from athlete data, represent explicit non-plan outcomes, close throttling gaps and enforce durable per-account fairness through the existing accounting system. Preserve useful coaching behavior, saved/legacy work, consent, records and global caps. Keep code within existing feature/AI/database boundaries; avoid unrelated refactors and generic policy frameworks. See [security status](docs/reference/security.md).
 
 Prior instructions and duplicate release notes were removed from the working tree because Git preserves their historical versions. Git history is evidence, not an active work queue or permission to deploy, migrate, reset or spend. The concise retained release record is under `docs/archive/releases`.
 
 ## Publication boundary
 
-Local scoped edits, proportionate tests, self-review, commits and private publication through `codex/publication-safety` are authorized. Inspect the actual deployment branch and triggers before pushing. Check for a matching PR before creating one, and verify that it cannot start a preview/deployment or provision a resource. Attach any created PR to this chat. If trigger safety cannot be established, finish safe work and report the precise blocker.
+Local scoped edits, proportionate tests, self-review, commits and private publication through `codex/security-hardening`, based on current `main` are authorized. Inspect the actual deployment branch and triggers before pushing. Check for a matching PR before creating one, and verify that it cannot start a preview/deployment or provision a resource. Attach any created PR to this chat. If trigger safety cannot be established, finish safe work and report the precise blocker.
 
 Do not merge, change visibility/default branch/protection, deploy, apply hosted migrations, reset training content, modify credentials/trust/signing, rewrite history, force-push, provision resources or make a native build. No new paid AI call or owner-plan regeneration is assigned. Keep the live service and scheduler unchanged. MIT is selected; no further license-choice approval is required.
 

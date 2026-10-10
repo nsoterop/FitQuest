@@ -1,3 +1,4 @@
+import { athleteDataPolicy } from './athleteDataPolicy.js';
 import { providerSchema } from './providerSchema.js';
 import { safeDiagnostic, type ProviderDiagnostic } from './providerDiagnostics.js';
 import { hasGoalSet } from '../features/planning/trainingSummary.js';
@@ -139,7 +140,7 @@ export function serializeInput(input: ModelInput, model: string): string {
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: limits.output,
-    instructions,
+    instructions: athleteDataPolicy + '\n\n' + instructions,
     input: JSON.stringify(compactModelInput(input)),
     text: {
       format: {

@@ -1,3 +1,4 @@
+import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
 import { parsePlainOutline, plainReviewSchema } from './plainOutline.js';
 import { intakeAnswers } from '../onboarding/fixedIntake.js';
 import {
@@ -134,6 +135,8 @@ export function prepareOverview(provider: OnboardingProvider, input: PlanningInp
       reasoning: { effort: 'low' },
       max_output_tokens: 2000,
       instructions:
+        athleteDataPolicy +
+        '\n\n' +
         'Revise the saved high-level list only as explicitly requested. Keep all unaffected and explicitly kept days and sessions verbatim, including purpose, timing, duration ranges, optionality and rest. No exercises or nutrition. Return outlineText as the complete updated list for exactly the saved dates. scope identifies original session indices permitted to change and an exact feedback quote; an empty index list allows additions only. Keep instructions do not permit changes. For a conflict return outlineText null, scope null, a concise question and explanation. Otherwise question null. Do not confirm or create detailed workouts.',
       input: JSON.stringify({
         answers: intakeAnswers(input.summary),
@@ -204,7 +207,7 @@ ${nutritionInstructions}`;
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: 2000,
-    instructions: instructions + reviewInstructions,
+    instructions: athleteDataPolicy + '\n\n' + instructions + reviewInstructions,
     input: JSON.stringify(payload),
     text: {
       format: {

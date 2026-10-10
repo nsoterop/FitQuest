@@ -1,3 +1,4 @@
+import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Ajv } from 'ajv';
@@ -102,6 +103,7 @@ function assertWorkflowRequest(body: any) {
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: 48000,
+    instructions: athleteDataPolicy,
   });
   assert.deepEqual(
     { ...text.format, schema: undefined },
@@ -121,6 +123,7 @@ test('two-stage payloads use faithful answers, low effort and exact saved outlin
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: 2000,
+    instructions: athleteDataPolicy,
     input: `I want you to come up with an exercise plan for me. My goals are: ${workflowAnswers[0]}. My current activity is: ${workflowAnswers[1]}. My available equipment is: ${workflowAnswers[2]}. My training preferences are: ${workflowAnswers[3]}. My limitations are: ${workflowAnswers[4]}. I want you to build a plan to help me achieve my goals. Return a high level plan for the full Monday–Sunday calendar week, 2026-10-05 through 2026-10-11 inclusive, don't give exercises yet. Just return a list with days of the week up until Sunday, with each day's session(s) underneath it, the goal for each session and the rough time to complete the session.`,
   });
   assertWorkflowRequest(JSON.parse(prepareComplete(p, workoutInput).body));

@@ -242,7 +242,7 @@ export async function verifyProgressDatabase(
       assert(req.input.includes('Older evidence'));
       assert(req.input.includes('70.125'));
       assert(req.input.includes('140'));
-      assert(req.input.includes('load basis'));
+      assert(req.instructions.includes('load basis'));
       assert(!req.input.includes(f.a.userId));
       assert(!req.input.includes(recorded.id));
       assert(!req.input.includes('Private'));

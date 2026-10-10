@@ -1,3 +1,4 @@
+import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -40,7 +41,7 @@ test('outline request is compact and contains no catalog, exercises, prescriptio
   assert(!('expectedGoals' in payload));
   for (const key of ['activityIds', 'activities', 'repRange', 'goalDecisions', 'activityIndex'])
     assert(!JSON.stringify(prepared.text).includes(key));
-  assert(prepared.instructions.length < 3000);
+  assert(prepared.instructions.replace(athleteDataPolicy + '\n\n', '').length < 3000);
   for (const distributed of [false, true]) {
     const outline = checkOverview(overviewFixture(input.dates, distributed), input);
     assert.equal(outline.days[0]!.sessions.length, distributed ? 2 : 1);

@@ -1,3 +1,4 @@
+import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
 import { invalidPlan, atPlanPosition } from './planningValidation.js';
 import type { PlainSession } from './plainOutline.js';
 import type { Nutrition } from '../nutrition/nutrition.js';
@@ -377,7 +378,7 @@ Previous entries are PRESCRIPTIONS only; there are no completion logs or readine
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: 2000,
-    instructions,
+    instructions: athleteDataPolicy + '\n\n' + instructions,
     input: JSON.stringify(payload),
     text: {
       format: {

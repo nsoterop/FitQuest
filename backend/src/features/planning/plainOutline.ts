@@ -1,3 +1,4 @@
+import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
 import { OnboardingError } from '../onboarding/onboardingError.js';
 import { intakeAnswers } from '../onboarding/fixedIntake.js';
 import type { Outline, PlanningInput } from './planningDomain.js';
@@ -19,6 +20,7 @@ export function preparePlainOutline(provider: OnboardingProvider, input: Plannin
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: 2000,
+    instructions: athleteDataPolicy,
     input: initialOutlinePrompt(answers, input.dates),
   });
   if (Buffer.byteLength(body) > 48000) throw new OnboardingError(422, 'planning_context_limit');

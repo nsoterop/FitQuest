@@ -1,3 +1,4 @@
+import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
 import { Ajv } from 'ajv';
 import { validFoodCandidate, foodToday, type FoodCandidate } from '../../shared/foodContract.js';
 import { OnboardingError } from '../onboarding/onboardingError.js';
@@ -55,7 +56,7 @@ export function prepareFood(
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: 2000,
-    instructions: foodInstructions,
+    instructions: athleteDataPolicy + '\n\n' + foodInstructions,
     input: JSON.stringify(input),
     text: {
       format: { type: 'json_schema', name: 'food_candidate_v1', strict: true, schema: foodSchema },

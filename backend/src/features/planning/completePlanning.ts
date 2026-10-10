@@ -1,3 +1,4 @@
+import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
 import {
   CompleteValidationError,
   invalidComplete,
@@ -52,6 +53,7 @@ export function prepareCompleteOutline(provider: OnboardingProvider, input: Plan
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: 2000,
+    instructions: athleteDataPolicy,
     input: prompt,
   });
   if (Buffer.byteLength(body) > 48000) throw new OnboardingError(422, 'planning_context_limit');
@@ -160,6 +162,7 @@ export function prepareComplete(provider: OnboardingProvider, input: PlanningInp
     service_tier: 'default',
     reasoning: { effort: 'low' },
     max_output_tokens: weeklyLimits.outputTokens,
+    instructions: athleteDataPolicy,
     input: prompt,
     text: {
       format: {

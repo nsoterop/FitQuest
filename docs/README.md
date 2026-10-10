@@ -13,4 +13,6 @@ Start here. Current documentation is separated from dated verification evidence.
 | Read long-term product aspirations | [Product goals](reference/product-goals.md); not an implementation checklist |
 | Inspect previous releases, audits or native checks | [Archive index](archive/README.md); historical evidence only |
 
+[Security implementation and release status](reference/security.md) records the current bounded security work.
+
 Keep everyday instructions in `guides/`, explanations in `reference/`, and dated evidence in `archive/`. Do not add another release history to the root, backend or mobile README. Superseded prototypes and duplicated records can be recovered from Git; they do not need permanent copies in the working tree.
