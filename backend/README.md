@@ -1,5 +1,9 @@
 # FitQuest API
 
+## Automatic Sunday planning — batch 3
+
+`PUT /training/schedule` manages explicit owned enrollment/pause (`sunday-21-v1`, expected revision). A production-only scan within the existing Render process checks enrolled accounts every minute and on startup. Sunday 21:00 in the enrolled saved timezone prepares one upcoming document; downtime considers only the latest eligible week. Durable dispatch fencing allows provably undispatched recovery and prevents automatic uncertain/failed retries. Interactive auth, both sharing permissions, one-request accounting and caps remain enforced. No new service, credentials or public trigger. [Mechanics, retention, native/tests and limitations](../docs/sunday-scheduler-native/README.md).
+
 ## Progress-informed manual next week — batch 2
 
 Private routes `POST /training/next-week`, `PUT /training/history-consent` and paginated `GET /training?offset=20` support distinct upcoming weeks, frozen context/retries and separate history-sharing permission. Snapshot provenance stays private; date-matched accepted work and nutrition remain active while a future week is reviewed. One existing accounted Sol 6.1 low request creates the document; acceptance/reopen and logging remain free. Migration `20261010023753_progress_informed_weeks.sql` is hosted as `20261010025244_progress_informed_weeks`. [Context selection, retention, tests and native evidence](../docs/next-week-native/README.md) document the boundaries. Sunday scheduling is not part of this batch.

@@ -26,7 +26,10 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
   const alive=useRef(true),pending=useRef<AbortController|null>(null),token=useRef(accessToken),ended=useRef(onSessionEnded);token.current=accessToken;ended.current=onSessionEnded;
   const [tab,setTab]=useState<'today'|'week'|'nutrition'>(initialTab??'week'),[workout,setWorkout]=useState<WorkoutSelection|null>(null),[blocked,setBlocked]=useState(false),[leaving,setLeaving]=useState(false),[daySelection,setDaySelection]=useState<WorkoutSelection>({date:localToday(),index:0});
   const lastToday=useRef(localToday());
-  useEffect(()=>{const refresh=()=>{const today=localToday();if(today!==lastToday.current){lastToday.current=today;setDaySelection({date:today,index:0})}};const timer=setInterval(refresh,60000);const subscription=AppState.addEventListener('change',s=>{if(s==='active')refresh()});return()=>{clearInterval(timer);subscription.remove()}},[]);
+  const calendarRefresh=useRef(()=>{}),calendarZone=useRef<string|undefined>(undefined);calendarZone.current=state?.summary?.timeZone;
+  useEffect(()=>{const refresh=(foreground=false)=>{const today=localToday(calendarZone.current);if(today!==lastToday.current){lastToday.current=today;setDaySelection({date:today,index:0});calendarRefresh.current()}else if(foreground)calendarRefresh.current()};const timer=setInterval(()=>refresh(),60000);const subscription=AppState.addEventListener('change',s=>{if(s==='active')refresh(true)});return()=>{clearInterval(timer);subscription.remove()}},[]);
+
+  useEffect(()=>{if(state?.summary?.timeZone){const date=localToday(state.summary.timeZone);lastToday.current=date;setDaySelection({date,index:0})}},[state?.summary?.timeZone]);
   const [journalOpen,setJournalOpen]=useState<false|'resume'|'repeat'>(false);
   const [workoutPlan,setWorkoutPlan]=useState<TrainingPlan|null>(null);
   const initial=useRef(generateOnOpen),firstLoad=useRef(true);
@@ -37,11 +40,12 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
     const timer=setTimeout(()=>c.abort(),210000);let methodUsed='GET';
     try {
       const t=await token.current();if(!alive.current||c.signal.aborted)return;
-      const request=async(path:string,method:'GET'|'POST'|'PUT',body?:unknown)=>{if(!alive.current||c.signal.aborted)throw Error();methodUsed=method;const next=await trainingRequest(path,method,body,t,c.signal);if(!alive.current||c.signal.aborted)throw Error();if(next.summary?.sourceConversation)await privateDrafts.clear(userId,next.summary.sourceConversation);if(!alive.current||c.signal.aborted||pending.current!==c)throw Error();update(path.startsWith('?offset=')&&state?{...next,plans:[...state.plans.filter(p=>!next.plans.some(n=>n.id===p.id)),...next.plans]}:next);if(path==='/accept'&&next.plans.find(p=>p.id===(body as {planId?:string})?.planId)?.dates.includes(localToday())){setTab('today');setWorkout(null)}if(method==='GET')setBlocked(false);return next};
+      const request=async(path:string,method:'GET'|'POST'|'PUT',body?:unknown)=>{if(!alive.current||c.signal.aborted)throw Error();methodUsed=method;const next=await trainingRequest(path,method,body,t,c.signal);if(!alive.current||c.signal.aborted)throw Error();if(next.summary?.sourceConversation)await privateDrafts.clear(userId,next.summary.sourceConversation);if(!alive.current||c.signal.aborted||pending.current!==c)throw Error();update(path.startsWith('?offset=')&&state?{...next,plans:[...state.plans.filter(p=>!next.plans.some(n=>n.id===p.id)),...next.plans]}:next);if(path==='/accept'&&next.plans.find(p=>p.id===(body as {planId?:string})?.planId)?.dates.includes(localToday(next.summary?.timeZone))){setTab('today');setWorkout(null)}if(method==='GET')setBlocked(false);return next};
       await work(request);
     }catch(e){if(alive.current&&pending.current===c){if(e instanceof TrainingError&&e.code==='session_ended')ended.current?.();else {const unknown=c.signal.aborted||!(e instanceof TrainingError)||e.code==='unavailable';const stale=e instanceof TrainingError&&['plan_changed','summary_changed','review_pending','consent_changed'].includes(e.code);if(unknown||stale)setBlocked(true);setError(unknown?(methodUsed==='GET'?'Couldn’t load your training. Check your connection and reload saved training.':'The connection ended before we received a result. Check status before trying again. Your saved work remains available.'):(e as TrainingError).message)}}}
     finally{clearTimeout(timer);if(pending.current===c){pending.current=null;if(alive.current)setBusy(false)}}
   }
+  calendarRefresh.current=()=>{if(!pending.current&&!feedback.trim()&&!journalOpen)void run(async request=>{await request('','GET')})};
   const current=state?.plans.find(p=>p.summaryRevision===state.summary?.revision&&!p.weekStart);
   const shown=state?.plans.find(p=>p.id===selected)??current??state?.plans[0];
   const onboarded=!!state&&hasAcceptedTraining(state);
@@ -167,7 +171,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
     </View>}
     {state&&permitted&&<PlanningPermission consent={state.consent} busy={busy||blocked} onChange={changeConsent}/>}
     {state?.nextOffset&&button('Older saved weeks',()=>void run(async request=>{await request('?offset='+state.nextOffset,'GET')}),true,!!feedback.trim())}
-    {state&&state.plans.length>1&&<View>{state.plans.filter(p=>p.id!==shown?.id).map(p=>button(`View saved week ${p.dates[0]} · revision ${p.summaryRevision}`,()=>{setSelected(p.id);setDaySelection({date:localToday(),index:0});setFeedback(p.jobs.find(j=>j.target===`review:${p.planRevision}`)?.feedback??'')},true,!!feedback.trim()))}</View>}
+    {state&&state.plans.length>1&&<View>{state.plans.filter(p=>p.id!==shown?.id).map(p=>button(`View saved week ${p.dates[0]} · revision ${p.summaryRevision}`,()=>{setSelected(p.id);setDaySelection({date:localToday(state.summary?.timeZone),index:0});setFeedback(p.jobs.find(j=>j.target===`review:${p.planRevision}`)?.feedback??'')},true,!!feedback.trim()))}</View>}
   </View>;
   if(journalOpen&&workout&&workoutPlan)return <JournalScreen userId={userId} accessToken={accessToken} onSessionEnded={onSessionEnded} onBack={()=>setJournalOpen(false)} source={{planId:workoutPlan.id,revision:workoutPlan.planRevision!,date:workout.date,sessionIndex:workout.index}} repeat={journalOpen==='repeat'}/>;
   return <View style={{flex:1}}><View style={{flex:1,display:tab==='nutrition'?'none':'flex'}} accessibilityElementsHidden={tab==='nutrition'} importantForAccessibility={tab==='nutrition'?'no-hide-descendants':'auto'}><Page onAccount={onAccount} onBack={workout?()=>setWorkout(null):undefined} backLabel={tab==='week'?'Back to week':'Back to day'} scrollKey={workout?`${workout.date}:${workout.index}`:`${tab}:${error?blocked?'blocked':'error':'ready'}`} footer={!workout&&onboarded?<Tabs nutrition value={tab} onChange={setTab}/>:undefined}>
