@@ -4,7 +4,7 @@ Everything here is dated evidence, not current setup instructions, an active wor
 
 ## Releases and audits
 
-- [October 10 security/UX release](releases/2026-10-10.md): Live application `a5894ad`, both scoped forward migrations, data/accounting preservation and matching owner Metro bundle; account limits remain disabled by owner choice.
+- [October 10 releases](releases/2026-10-10.md): initial security/UX rollout, birthday backend `1859ef8`, mobile corrections, main integration and finished standalone preview build 3. Each section retains its own source/CI and delivery scope; account policy remains disabled.
 - [October 3–9 release record](releases/2026-10-09.md): accumulated earlier application releases, runtime verification and evidence boundaries. Its final production checkpoint was `2e779e5`.
 - [Publication safety, October 9](audits/publication-safety-2026-10-09.md): privacy/secret scan scope, dependency findings and safe-install verification.
 - [Code quality, October 10](audits/code-quality-2026-10-10.md): build boundaries, tooling and CI results.
@@ -23,5 +23,11 @@ Everything here is dated evidence, not current setup instructions, an active wor
 | Dated measurements | [Body weight](verification/2026-10-09/body-weight/README.md) |
 | Progress-informed planning | [Next week](verification/2026-10-09/next-week/README.md) |
 | Enrollment and pause | [Sunday scheduling](verification/2026-10-09/sunday-scheduling/README.md) |
+
+## Native verification — October 10, 2026
+
+- [Branding and controls](verification/2026-10-10/branding/README.md): normal/large-text synthetic rendering, followed by the transparent-header correction. Native IPA checks are in the release record.
+- [Nutrition repeat visits](verification/2026-10-10/nutrition-cache/README.md): cached data visible during delayed background refresh; in-memory/account-isolation limits.
+- [Flow-simplification checkpoint](../reference/flow-simplification.md): dated mock/native evidence and links to its captures.
 
 These captures use synthetic fixtures. Their checks and limitations apply to the recorded checkpoint and were not rerun merely because files were moved. Some local temporary evidence paths in old records may no longer exist. Duplicate records and superseded design/instruction documents are available in Git at `a297e2d`; they are intentionally absent from the working tree.

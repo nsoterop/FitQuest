@@ -1,8 +1,14 @@
 # FitQuest mobile
 
-React Native 0.86 / React 19 / Expo SDK 57, with TypeScript and an iOS-first interface. The app includes account/profile flows, five-question intake, plan review, Today/Week, workout journals, Nutrition, meal/recipe library, a separate Progress destination for dated weight, and recurring planning permission in Account. Use the [standalone iPhone preview](../docs/guides/phone-preview.md) for personal testing without Metro, or the development flow below for coding. See [release verification](../docs/archive/releases/2026-10-10.md) and [product overview](../README.md).
+React Native 0.86 / React 19 / Expo SDK 57, with TypeScript and an iOS-first interface. Account/profile setup, five-question intake, plan review, Today/Week, workout journals, Nutrition/food library and Progress use the existing hosted API/Auth services. See the [current project overview](../README.md) and [architecture](../docs/reference/architecture.md).
 
-## Setup and checks
+## Personal phone testing
+
+Use [standalone iPhone preview build 3](../docs/guides/phone-preview.md). It bundles source `1733958`, including birthday/profile navigation, v3 branding, transparent header, Lucide controls and Nutrition tab caching. It runs without Mac/Metro or shared Wi-Fi; hosted features still need internet. Install over the existing app without uninstalling it. Git pushes and Metro reloads do not update this embedded preview; no OTA/EAS Update channel is configured.
+
+The owner reports installing this preview and seeing prior saved data without another sign-in. This is consistent with an existing same-device Keychain session. Full Mac-off cold launch, saved-data/layout acceptance, VoiceOver and Sunday dispatch remain separate checks. See [delivery evidence](../docs/archive/releases/2026-10-10.md#main-integration-and-standalone-personal-preview).
+
+## Development setup and checks
 
 Use Node 24.21.0. From the repository root:
 
@@ -14,34 +20,30 @@ cp -n mobile/.env.example mobile/.env.local
 npm run check --prefix mobile
 ```
 
-The checks compile TypeScript, check Expo dependency compatibility and run mocked component/storage tests. They do not require sign-in, a provider key or a running backend. Full repository verification is in [development checks](../docs/guides/development.md).
+This mobile-only setup installs its three required dependency sets; the full repository also installs `database/`. Mobile checks run TypeScript, Expo dependency compatibility and mocked component/storage tests without sign-in, a provider key or a running backend. See [all development checks](../docs/guides/development.md). The October 10 preview checkpoint passed 160 mobile tests; dated counts are evidence, not a permanent suite size.
 
-In the ignored environment file, set your own `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. All `EXPO_PUBLIC_*` values are bundled into the client. Never place database, service-role or OpenAI credentials there. Match the API and Auth project; use the API computer's reachable LAN address for physical-device testing, not the phone's `localhost`.
+Set the three public client settings privately in the ignored environment file: `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Match the intended API/Auth project. All `EXPO_PUBLIC_*` values are bundled into the client; never place database, secret/service-role or OpenAI keys there. For hosted-API development, use its approved HTTPS endpoint. Only when intentionally testing a local API should a physical phone use that computer's reachable LAN address; the phone's `localhost` points to the phone.
 
-When you choose to start Metro:
+The owner chooses when to start Metro:
 
 ```sh
 npm run start --prefix mobile
 ```
 
-This starts the configured development-client flow (`fitquest-dev` scheme). A compatible installed development client is a prerequisite; it must contain the project's native modules, including SecureStore. JavaScript reload cannot add native dependencies. This cleanup does not create a new native build or establish compatibility of an old installed binary. The historical simulator previews used an installed Expo Go 57 runtime with isolated synthetic data; they are not evidence that every installed FitQuest binary works today.
+This serves JavaScript to a compatible **development client** with the `fitquest-dev` scheme. The separate `development` EAS profile is retained; the standalone Release preview does not connect to Metro. Native-module or native-icon changes require an authorized replacement build; a JavaScript reload cannot add them. Historical simulator checks used Expo Go 57 and isolated fixtures, not the device-signed preview IPA.
 
-Keep the computer and device on the intended network and use the current address printed by Metro. Environment or Metro configuration changes require the server owner to restart it. Temporary test servers must be stopped; agents must leave owner-started servers untouched. The cleanup moved shared imports, so an already running owner Metro may need its owner's restart before phone testing.
+Use Metro's current printed address and the intended development network. Environment/Metro configuration changes may require the server owner to restart their process. Agents must leave owner-started servers untouched and stop their own temporary test processes. The shared-import configuration is already present; repository reorganization alone does not require another restart now.
 
 ## Accounts and shared code
 
-Configure `fitquest-dev://auth` as an allowed redirect in your authorized development Auth project; keep email confirmation enabled. Supabase's default email sender is restricted to pre-authorized team addresses and is not a general signup service. Public signup requires suitable email delivery; do not bypass confirmation or grant testers privileged membership. [Official SMTP guidance](https://supabase.com/docs/guides/auth/auth-smtp).
+Keep `fitquest-dev://auth` allowed in the intended Auth project and email confirmation enabled. Supabase's default email sender is restricted; public signup requires suitable email delivery. Do not bypass confirmation or grant testers privileged membership. [Official SMTP guidance](https://supabase.com/docs/guides/auth/auth-smtp).
 
-Sessions and recoverable account-scoped drafts use Expo SecureStore; component tests mock the native surface. The API verifies live identity before private operations. Sign-out/account changes clear private UI, and delayed responses must not populate another account. Provider/backups and permanent accounting have separate retention from resettable training content.
+Sessions and recoverable account-scoped drafts use Expo SecureStore. The app verifies a restored session with Auth before showing private data; the API independently verifies identity for private operations. Sign-out/account changes hide private UI and reject delayed former-account responses. Session entries use `WHEN_UNLOCKED_THIS_DEVICE_ONLY`: iOS Keychain can survive same-device uninstall/reinstall, but these entries do not migrate to a different device through backup restoration. Sign out inside the app to end its session; deleting it is not a reliable logout. [SecureStore persistence and device-only behavior](https://docs.expo.dev/versions/latest/sdk/securestore/).
 
-Mobile imports only the platform-neutral modules in [backend/src/shared](../backend/src/shared/README.md). Metro watches that directory; backend implementation and test fixtures stay outside the mobile module graph. Keep these contracts free of Node/native dependencies.
+Mobile imports only the nine platform-neutral TypeScript modules in [backend/src/shared](../backend/src/shared/README.md). Metro watches that directory; backend implementation and test fixtures remain outside the production mobile graph. Keep shared contracts free of Node/native dependencies.
 
-## Evidence and limitations
+## Evidence and limits
 
-Batch 2 recorded 128 passing mobile tests and a finite offline iOS export of 682 modules. Those checks establish JavaScript compatibility, not physical-device acceptance or a native build. [Synthetic screen provenance](../docs/reference/screenshots.md) and [known limitations](../docs/reference/architecture.md#known-limitations) cover keyboard/accessibility and scheduler evidence.
+[Screen provenance](../docs/reference/screenshots.md), [mobile branding](../docs/reference/icons.md) and [known limitations](../docs/reference/architecture.md#known-limitations) distinguish mocks, synthetic native rendering, artifact inspection and owner-reported use. Two unresolved upstream tooling advisories retain time-limited CI exceptions in [security guidance](../SECURITY.md).
 
-The two unresolved upstream tooling advisories and CI exception expiry are documented in [security guidance](../SECURITY.md). Existing [Expo MIT attribution](LICENSE) remains unchanged; FitQuest's project license is at [the repository root](../LICENSE).
-
-[Historical mobile releases](https://github.com/nsoterop/FitQuest/blob/a297e2d/docs/history/mobile-release-notes-2026-10-10.md) retain earlier checkpoints without making them current instructions.
-
-The approved v3 brand and Lucide control artwork are documented in [mobile branding](../docs/reference/icons.md). The standalone preview bundles these assets and the latest in-app changes. Use the verified installation link in the current [release record](../docs/archive/releases/2026-10-10.md); update the existing app without uninstalling it. The preview authorization does not permit new signing credentials or additional charges.
+The existing [Expo MIT attribution](LICENSE), root [project license](../LICENSE) and dependency notices remain unchanged. Earlier [mobile release notes in Git](https://github.com/nsoterop/FitQuest/blob/a297e2d/docs/history/mobile-release-notes-2026-10-10.md) are historical evidence, not current commands or release authority.

@@ -18,7 +18,7 @@ mobile/
     components/          Shared visual layout and keyboard/scroll components
     services/            Cross-feature backend health check
   tests/                 Mobile unit and mocked component regressions
-  assets/                App icons and splash assets
+  assets/                Branding and licensed local UI-icon artwork
 
 backend/
   src/
@@ -49,11 +49,11 @@ database/
 
 docs/
   README.md              Navigation for all documentation
-  guides/                Current development instructions
-  reference/             Current architecture, diagnostics and product context
+  guides/                Current development, release and phone-testing instructions
+  reference/             Architecture/diagnostics, retained goals and dated implementation context
   archive/
     README.md            Historical evidence index
-    releases/            One retained dated release record
+    releases/            Dated release records with exact delivery evidence
     audits/              Dated privacy/dependency and code-quality evidence
     verification/        Dated native checks with their synthetic screenshots
 

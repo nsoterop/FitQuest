@@ -2,7 +2,7 @@
 
 FitQuest is an iOS-focused training and nutrition app for adults. It turns five written intake answers into a weekly plan, keeps prescribed work separate from actual workout results, and brings food, weight and training history together for the next week.
 
-Private `main` includes the completed organization, security, UX, birthday, branding and Nutrition caching changes. The existing API remains Live at `1859ef8`, with its reviewed forward migrations applied and account-limit policy disabled. The [standalone iPhone preview](docs/guides/phone-preview.md) bundles mobile source `1733958` for personal testing without Mac/Metro; install over the existing app without uninstalling it. Both PRs remain closed, with branches and history preserved. See [release procedure](docs/guides/release.md) and [actual verification](docs/archive/releases/2026-10-10.md). Physical-phone acceptance remains pending; feature work remains paused.
+Private `main` includes the completed organization, security, UX, birthday, branding and Nutrition caching changes. The existing API remains Live at `1859ef8`, with its reviewed forward migrations applied and account-limit policy disabled. The [standalone iPhone preview](docs/guides/phone-preview.md) bundles mobile source `1733958` for personal testing without Mac/Metro; install over the existing app without uninstalling it. Both PRs remain closed, with branches and history preserved. See [release procedure](docs/guides/release.md) and [actual verification](docs/archive/releases/2026-10-10.md). The owner reports installing the preview and seeing saved data without another sign-in; full phone acceptance remains incomplete. Feature work is frozen for personal testing.
 
 ## What it does
 
@@ -31,7 +31,7 @@ Historical native captures from October 9, 2026, using synthetic fixtures. They 
 | `mobile/` | React Native 0.86, React 19, Expo SDK 57 and TypeScript; account-scoped UI and recoverable SecureStore drafts. |
 | `backend/` | Fastify 5 on Node 24; verified Supabase sessions, application authorization, validation, AI dispatch/accounting and the production scheduler. |
 | Supabase | Email/password Auth and PostgreSQL. Private application tables are accessed through the API using the restricted database role and owner-scoped transactions. |
-| `backend/src/shared/` | Eight platform-neutral contracts consumed by both API and mobile, kept inside the existing Docker build context. |
+| `backend/src/shared/` | Nine platform-neutral modules consumed by both API and mobile, kept inside the existing Docker build context. |
 | `database/` | Immutable migrations and independently installed, guarded fresh-setup tooling. |
 | `.github/workflows/` | Formatting, lint, types, isolated PostgreSQL/mobile regressions, packaging, dependency triage and full-history secret scanning. |
 
@@ -60,11 +60,11 @@ To run the application, follow [API configuration and fresh setup](backend/READM
 
 ## Status and limits
 
-Batch 2 passed [GitHub Actions at `54e0b03`](https://github.com/nsoterop/FitQuest/actions/runs/38023698280), including isolated database checks. Its local record contains 301 backend, 5 installation, 128 mobile and 7 repository tests, plus an offline iOS export. These are dated results, not proof of physical-phone acceptance or coaching quality.
+The October 10 standalone-preview checkpoint passed 160 mobile tests, types/Expo compatibility, formatting/lint, repository packaging/publication checks and full CI including isolated PostgreSQL. See [exact-source CI](https://github.com/nsoterop/FitQuest/actions/runs/38087183717) and [dated release evidence](docs/archive/releases/2026-10-10.md#main-integration-and-standalone-personal-preview). Mocked tests, synthetic native checks and artifact inspection establish their stated scope, not coaching quality.
 
-Two upstream mobile-tooling advisories remain: `braces` and `node-forge`, producing 16 propagated high audit findings at the cleanup checkpoint. They have explicit time-limited CI exceptions, not fixes. See [security guidance](SECURITY.md) and [dependency evidence](docs/archive/audits/publication-safety-2026-10-09.md#dependency-triage).
+Two upstream mobile-tooling advisories remain: `braces` and `node-forge`. CI permits only their reviewed ranges through November 9, 2026; these are exceptions, not fixes. Affected-node counts differ by dated dependency checkpoint. See [security guidance](SECURITY.md) and [dependency evidence](docs/archive/audits/publication-safety-2026-10-09.md#dependency-triage).
 
-A real Sunday dispatch, full physical-phone acceptance and VoiceOver coverage remain unverified. The largest accessibility-only text size can overlap the shared header/navigation. Public email signup also requires an appropriate email-delivery configuration. See [known limitations](docs/reference/architecture.md#known-limitations).
+The owner reports installing the standalone preview and seeing prior saved data without another sign-in. Full Mac-off cold launch, comprehensive saved-data/layout acceptance, VoiceOver, a real Sunday dispatch and live coaching quality remain unverified. Earlier header/tab text overlap was followed by tested 1.3× brand/tab scaling at 320 points and accessibility-large text; that does not establish complete accessibility coverage. Public signup needs suitable email delivery. Historical Actions logs/artifacts and a confidential vulnerability-reporting channel still need review before public release; this documentation update is not publication clearance. See [known limitations](docs/reference/architecture.md#known-limitations).
 
 [Documentation index](docs/README.md) · [Repository layout](docs/guides/repository-layout.md) · [Contributing](CONTRIBUTING.md) · [Current agent rules](AGENTS.md) · [Historical release evidence](docs/archive/README.md)
 

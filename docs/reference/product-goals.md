@@ -10,7 +10,7 @@ This document retains product goals from the previous brief. It is not a roadmap
 
 ## Current reading
 
-These are retained product aspirations, not an implementation checklist. Feature work is paused during repository cleanup. Read the [current overview](../../README.md) for implemented capabilities and evidence boundaries; the [October 2 boundary](https://github.com/nsoterop/FitQuest/blob/a297e2d/docs/history/product-boundary-2026-10-02.md) is archived and no longer describes the application.
+These are retained product aspirations, not an implementation checklist. Feature work is frozen during the owner's one-to-two-week personal test. These retained goals do not assign the next feature or expand the docs-only task. Read the [current overview](../../README.md) for implemented capabilities and evidence boundaries; the [October 2 boundary](https://github.com/nsoterop/FitQuest/blob/a297e2d/docs/history/product-boundary-2026-10-02.md) is archived and no longer describes the application.
 
 ## Retained product preferences
 

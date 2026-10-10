@@ -4,7 +4,7 @@ Fastify 5 / TypeScript on Node 24. The API owns profile, intake, planning, journ
 
 ## Verify without hosted access
 
-From the repository root, install all three locked dependency sets and run the commands in [development checks](../docs/guides/development.md). `npm run check:database` creates, tests and removes a disposable loopback PostgreSQL cluster. It runs 301 application plus 5 installation checks at the batch-2 checkpoint. No production credentials or paid provider calls are needed.
+From the repository root, install all four locked dependency sets (root, backend, database and mobile) and run the commands in [development checks](../docs/guides/development.md). `npm run check:database` creates, tests and removes a disposable loopback PostgreSQL cluster. It runs the current backend persistence and guarded-installer suites; dated counts and exact CI are in [release evidence](../docs/archive/releases/2026-10-10.md). No production credentials or paid provider calls are needed. Current backend/database source matches the existing Live `1859ef8` release; this documentation task requires no redeploy or migration.
 
 `npm run build --prefix backend` compiles the server import graph to `backend/dist`. `build:test` produces `backend/dist-test` separately. Tests, synthetic fixtures and evaluation entry points are excluded from production output. The Docker build context remains `backend/`; runtime includes the catalog and public database CA.
 
@@ -46,7 +46,7 @@ The route definitions in [app.ts](src/app.ts) are the source of truth. Interacti
 
 A complete new plan is saved in one accounted generation. Only its overview is returned before acceptance. Acceptance and reopen reveal saved details without a provider request. Explicit revisions preserve prior usable work on failure. Journal/weight/food/library saves are independent of training-content retention. Food AI interpretation requires an explicit request and reviewed candidate before saving.
 
-The production scheduler scans roughly every minute for explicitly enrolled Sunday 9 PM schedules. Both sharing permissions and a usable accepted baseline are required. Existing weeks win over duplicate requests; failed/uncertain dispatches need explicit retry. [Scheduler mechanics and limits](../docs/reference/architecture.md#weekly-scheduling).
+The production scheduler scans at startup and roughly every minute for enabled Sunday 9 PM schedules in the saved timezone. Acceptance plus the explicit recurring profile/intake and workout/weight sharing agreement enrolls eligible document histories automatically. Legacy explicit enrollment/pauses remain compatible; consent withdrawal stops consent-managed future dispatch. Both permissions and a usable accepted baseline are required. Existing weeks win over duplicate requests; failed/uncertain dispatches need explicit retry. [Scheduler mechanics and limits](../docs/reference/architecture.md#weekly-scheduling).
 
 Do not run the separately authorized `eval:*` or coaching-evaluation scripts as setup checks: they can spend money and require separate authorization. The removal of retired comparison harnesses is recorded in [development checks](../docs/guides/development.md).
 
