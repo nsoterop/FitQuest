@@ -1,5 +1,9 @@
 # FitQuest
 
+## Integrated nutrition targets — batch 3, 2026-10-09
+
+New weekly plans include estimated daily calories and macros in the same Sol 6.1 low request, after explicit per-account permission to share the saved body profile and intake context with OpenAI. Targets preview below the overview; Use this plan accepts the exact workouts and targets together. Nutrition compares consumed values only with the accepted version for the diary date. Legacy plans, food arithmetic, recipe snapshots and accounting remain intact. **279 backend tests including isolated PostgreSQL and zero skips, 119 mobile tests, both TypeScript checks and compact/large-text native checks pass.** [Implementation, prompt addition and verification](docs/batch-3-native/README.md). Publication/live evidence is pending.
+
 ## Workout-content corrections — batch 2, 2026-10-09
 
 New document plans use ordered free-text exercise/prescription rows. Essential units, effort, recovery and mixed/superset relationships stay in each prescription. Workout detail omits its repeated session goal; final formatting asks the model to omit unrequested weekly commentary instead of attaching it to Monday. The five-answer coaching request, dates, Sol 6.1 low, rates/bounds, one-request flow and ledger are unchanged. Existing Markdown remains readable without conversion; successful explicit revisions publish the new version while preserving accepted history. [Formatting diff and native evidence](docs/batch-2-native/README.md) distinguish this change from live coaching-quality acceptance.

@@ -17,7 +17,7 @@ import type { GenerationRequest,PlanningStore } from './planningStore.js';
 export function planningService(store:PlanningStore,provider?:OnboardingProvider,environment=process.env.NODE_ENV) {
   if(provider?.mode==='test'&&environment==='production')throw Error('Test AI is not allowed in production.');
   return {
-    read:store.read,edit:store.edit,ensurePlan:store.ensurePlan,accept:store.accept,
+    read:store.read,edit:store.edit,ensurePlan:store.ensurePlan,accept:store.accept,consent:store.consent,nutrition:store.nutrition,
     review:(a:Account,r:ReviewRequest,authorize:()=>Promise<boolean>)=>run(a,()=>store.claimReview(a,r,provider),authorize),
     generate:(a:Account,r:GenerationRequest,authorize:()=>Promise<boolean>)=>run(a,()=>store.claim(a,r,provider),authorize),
   };
@@ -29,13 +29,22 @@ export function planningService(store:PlanningStore,provider?:OnboardingProvider
         const controller=new AbortController();let timer:ReturnType<typeof setTimeout>;
         const timeout=new Promise<ProviderResult>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve({failure:'provider_error',diagnostic:{transport:'aborted'}})},work.stage==='outline'?30000:work.input.kind==='week'?weeklyLimits.timeoutMs:30000)});
         // Settlement survives sign-out, a changed summary, timeout and content publication failure.
-        const pending=Promise.resolve().then(()=>provider.call(work.body,controller.signal)).catch(():ProviderResult=>({failure:'provider_error'})).then(async result=>{
+        let consentDenied=false;
+        const pending=(async():Promise<ProviderResult>=>{
+          if(work.input.schemaVersion!==documentPlanVersion)return provider.call(work.body,controller.signal);
+          let started:Promise<ProviderResult>|undefined;
+          try{
+            const allowed=await store.canDispatch(a,work,()=>{started=Promise.resolve().then(()=>provider.call(work.body,controller.signal)).catch(():ProviderResult=>({failure:'provider_error'}));});
+            if(!allowed)consentDenied=true;
+          }catch{/* If a commit fails after dispatch, still await and settle the actual request. */}
+          return started??{failure:'provider_error',usage:{input:0,output:0,cached:0,cacheWrite:0}};
+        })().catch(():ProviderResult=>({failure:'provider_error'})).then(async result=>{
           await store.settle(a,attempt,result.usage?provider.cost(result.usage):null,result.diagnostic);return result;
         });
         let result:ProviderResult;try{result=await Promise.race([timeout,pending])}finally{clearTimeout(timer!)}
         if(controller.signal.aborted)await store.settle(a,attempt,null,{transport:'aborted'});
         if(!await authorize())throw new OnboardingError(401,'session_ended');
-        let value;let failure:string|undefined=result.failure;
+        let value;let failure:string|undefined=consentDenied?'planning_consent_required':result.failure;
         if(!failure)try{value=work.input.schemaVersion===documentPlanVersion?checkDocument(result.proposal,work.input):work.stage==='outline'?completeOutline(result.rawText!,work.input.dates):work.input.schemaVersion==='complete-week-v1'?checkComplete(result.proposal,work.input):work.input.outlineFirst&&work.input.kind==='outline'?(work.input.review?checkOverviewReview(result.proposal,work.input):intakeAnswers(work.input.summary)?parsePlainOutline(result.rawText!,work.input.dates):checkOverview(result.proposal,work.input)):work.input.review?checkReview(result.proposal,work.input):work.input.kind==='week'?checkWeek(result.proposal,work.input):work.target==='outline'?checkGeneratableOutline(provider,work.input,result.proposal):checkDetail(result.proposal,work.input.outline!.days.find(d=>d.date===work.target)!);if(!Array.isArray(value)&&'coverage' in value&&informationCoverage(value.coverage)){value=undefined;throw new OnboardingError(422,'invalid_plan')}}catch(e){
           failure=validationFailureCode(e)??(e instanceof OnboardingError?e.code:'invalid_plan');
           if(work.input.schemaVersion==='complete-week-v1'||work.input.schemaVersion===documentPlanVersion)try{

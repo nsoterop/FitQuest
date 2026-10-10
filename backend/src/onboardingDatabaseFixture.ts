@@ -75,6 +75,10 @@ export async function verifyOnboardingDatabase(t:TestContext,owner:Pool,pool:Poo
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261009211639_food_diary.sql',import.meta.url),'utf8'));await owner.query(await readFile(new URL('../supabase/migrations/20261009220046_saved_food_library.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
   const beforeRows=(await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.training_plans p ORDER BY user_id,id')).rows;
   await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261009232000_document_exercise_rows.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  const beforeConsentProfiles=(await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.profiles p ORDER BY user_id')).rows;
+  await owner.query('BEGIN');await owner.query(await readFile(new URL('../supabase/migrations/20261009234844_integrated_nutrition_consent.sql',import.meta.url),'utf8'));await owner.query('COMMIT');
+  assert.deepEqual((await owner.query("SELECT to_jsonb(p)-'planning_consent' AS value FROM fitquest.profiles p ORDER BY user_id")).rows,beforeConsentProfiles);
+  assert.equal((await owner.query('SELECT 1 FROM fitquest.profiles WHERE planning_consent IS NOT NULL')).rowCount,0);
   assert.deepEqual((await owner.query('SELECT to_jsonb(p) AS value FROM fitquest.training_plans p ORDER BY user_id,id')).rows,beforeRows);
   // Synthetic fixture only. Real evaluation/production accounting is never initialized here.
   await owner.query('UPDATE fitquest.ai_budget SET app_enabled=true');

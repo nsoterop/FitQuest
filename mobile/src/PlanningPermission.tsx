@@ -1,0 +1,7 @@
+import {Linking,Pressable,Text,View} from 'react-native';
+import {hasPlanningConsent,planningDisclosure,planningPolicyUrl,type PlanningConsent} from '../../backend/src/planningConsent';
+import {Action,ui} from './Design';
+export function PlanningPermission({consent,busy,onChange}:{consent:PlanningConsent|null|undefined;busy:boolean;onChange:(granted:boolean)=>void}){
+ const granted=hasPlanningConsent(consent);
+ return <View style={{gap:12,paddingVertical:12}}><Text style={ui.section}>OpenAI sharing permission</Text>{granted?<><Text style={ui.copy}>You allow your body profile and intake context to be shared with OpenAI for new workout and nutrition plans. Withdraw to stop future plan requests; saved plans stay available.</Text><Action label="Withdraw profile sharing permission" secondary disabled={busy} onPress={()=>onChange(false)}/></>:<><Text style={ui.copy}>{planningDisclosure}</Text><Action label="Allow profile sharing with OpenAI" disabled={busy} onPress={()=>onChange(true)}/><Action label="Decline profile sharing" secondary disabled={busy||consent?.granted===false} onPress={()=>onChange(false)}/>{consent?.granted===false&&<Text style={ui.copy}>Sharing declined. No new plan request will be sent.</Text>}</>}<Pressable accessibilityRole="link" accessibilityLabel="OpenAI data-use and retention information" onPress={()=>void Linking.openURL(planningPolicyUrl)} style={{minHeight:44,justifyContent:'center'}}><Text style={[ui.copy,{textDecorationLine:'underline'}]}>OpenAI data-use and retention information</Text></Pressable></View>;
+}

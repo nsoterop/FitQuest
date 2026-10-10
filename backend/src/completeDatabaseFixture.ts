@@ -28,7 +28,7 @@ export async function verifyCompleteDatabase(t:TestContext,owner:Pool,pool:Pool,
   const before=await budget();let c=await intake.create(a,'America/New_York',1);
   for(const [index,value]of syntheticAnswers.entries()){const next=await intake.command(a,c.id,{kind:'edit',topic:`intake:${index}`,itemId:null,value,operationId:randomUUID(),expectedRevision:c.revision},async()=>true);assert(!('deleted'in next));c=next;}
   await intake.command(a,c.id,{kind:'confirm',reviewedRevision:c.revision,expectedRevision:c.revision,operationId:randomUUID()},async()=>true);
-  assert.equal(calls,0);assert.deepEqual(await budget(),before);assert.equal((await store.read(a)).plans[0]!.schemaVersion,'document-week-v2');await owner.query("UPDATE fitquest.training_plans SET schema_version='complete-week-v1' WHERE user_id=$1",[a.userId]);plan=(await store.read(a)).plans[0];assert.equal(plan.schemaVersion,'complete-week-v1');assert.equal(plan.outlineFirst,false);assert.equal(plan.completeReady,false);assert.equal(plan.dates.length,7);
+  assert.equal(calls,0);assert.deepEqual(await budget(),before);assert.equal((await store.read(a)).plans[0]!.schemaVersion,'document-week-v3');await owner.query("UPDATE fitquest.training_plans SET schema_version='complete-week-v1' WHERE user_id=$1",[a.userId]);plan=(await store.read(a)).plans[0];assert.equal(plan.schemaVersion,'complete-week-v1');assert.equal(plan.outlineFirst,false);assert.equal(plan.completeReady,false);assert.equal(plan.dates.length,7);
  });
  await t.test('refusal, incomplete, unavailable and invalid initial output are distinct; only explicit retries dispatch',async()=>{
   const r={summaryRevision:plan.summaryRevision,planId:plan.id,target:'week',retryAttempt:null as string|null};

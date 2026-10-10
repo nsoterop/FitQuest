@@ -1,5 +1,9 @@
 # FitQuest API
 
+## Integrated nutrition targets — batch 3
+
+New document-week-v3 adds a small versioned daily nutrition object to the existing single generation/revision request. Authenticated no-store routes PUT /training/consent and GET /training/nutrition?date=YYYY-MM-DD manage explicit versioned profile-sharing permission and read date-matched accepted targets. Permission defaults to null; claim and dispatch enforce it, with withdrawal serialized against dispatch. The latter route searches all owned accepted history, independently of the recent-plan page. Draft targets never activate; legacy plans return no targets. Migration 20261009234844_integrated_nutrition_consent.sql adds the nullable permission column and extends existing version constraints without data backfill. All 279 backend tests pass with isolated PostgreSQL and zero skips. [Batch 3 evidence](../docs/batch-3-native/README.md) documents request minimization, retention disclosure, mock and native checks; live deployment evidence is pending.
+
 ## Workout-content batch 2 — 2026-10-09
 
 New `document-week-v2` plans store free-text exercise/prescription rows. The display contract replaces only the final formatting paragraph; the five-answer coaching prefix, Sol 6.1 low, one request, pricing/limits and accounting remain unchanged. Both version readers derive the hidden-detail overview explicitly. Accept/reopen is free; successful explicit legacy revisions publish v2 atomically while retaining versioned accepted history, including old untagged v1 snapshots. Failed/stale revisions preserve prior work. Legacy Markdown remains unconverted.

@@ -136,6 +136,8 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
     });
   });
   app.get('/training',privateRoute,async request=>planning().read(accounts.get(request)!));
+  app.put<{Body:{version:string;scope:string;granted:boolean;expectedRevision:number}}>('/training/consent',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['version','scope','granted','expectedRevision'],properties:{version:{type:'string',maxLength:80},scope:{type:'string',maxLength:80},granted:{type:'boolean'},expectedRevision:{type:'integer',minimum:0,maximum:1000000}}}}},async request=>planning().consent(accounts.get(request)!,request.body));
+  app.get<{Querystring:{date:string}}>('/training/nutrition',{...privateRoute,schema:{querystring:{type:'object',additionalProperties:false,required:['date'],properties:{date:{type:'string',maxLength:10}}}}},async request=>planning().nutrition(accounts.get(request)!,request.query.date));
   app.put<{Body:{revision:number;document:TrainingSummary;timeZone:string}}>('/training/summary',{...privateRoute,bodyLimit:96000,schema:{body:{type:'object',additionalProperties:false,required:['revision','document','timeZone'],properties:{revision,document:summarySchema,timeZone:{type:'string',minLength:1,maxLength:80}}}}},async request=>planning().edit(accounts.get(request)!,request.body.revision,request.body.document,request.body.timeZone));
   app.post<{Body:{revision:number}}>('/training/plans',{...privateRoute,schema:{body:{type:'object',additionalProperties:false,required:['revision'],properties:{revision}}}},async request=>planning().ensurePlan(accounts.get(request)!,request.body.revision));
   const planVersion={summaryRevision:revision,planRevision:revision,planId};

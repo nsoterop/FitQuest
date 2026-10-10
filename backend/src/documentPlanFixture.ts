@@ -1,4 +1,4 @@
-import type {DocumentPlan,RowDocumentPlan} from './documentPlanContract.js';
+import type {DocumentPlan,RowDocumentPlan,NutritionDocumentPlan} from './documentPlanContract.js';
 export function documentFixture(dates:string[]):DocumentPlan{return {days:dates.map((date,i)=>({date,sessions:[2,6].includes(i)?[]:[{title:'Skill and strength',goal:'Build confident movement',timing:null,durationMinutes:{min:20,max:30},optional:false,workoutMarkdown:'## Warm-up\n- Easy movement for **5 minutes**.\n## Practice\n1. Crab reach: 3 sets of 5–8 per side.\n2. Cushion balance: 2 rounds of 30 seconds.\nRest **45–60 seconds** between sets.\n## Finish\n- Walk easily for 3 minutes.'},...(i===0?[{title:'Later easy practice',goal:'Relax and move comfortably',timing:'Evening',durationMinutes:{min:10,max:15},optional:true,workoutMarkdown:'- Easy dance practice for **10–15 minutes**.\n- Pause for 30 seconds when needed.'}]:[])]}))};}
 
 export function rowDocumentFixture(dates:string[]):RowDocumentPlan{return {days:dates.map((date,i)=>({date,sessions:[2,6].includes(i)?[]:[{title:'Skill and strength',goal:'Build confident movement',timing:null,durationMinutes:{min:20,max:30},optional:false,exercises:[
@@ -9,3 +9,5 @@ export function rowDocumentFixture(dates:string[]):RowDocumentPlan{return {days:
  {exercise:'Crab reach',prescription:'2 rounds of 5–8 per side; pause 2 seconds at each reach. Rest 30 seconds between rounds.'},
  {exercise:'Cushion balance + catch',prescription:'2 × 30 seconds per side; 5 gentle catches during each hold. Rest 45 seconds between sets.'}
  ]},...(i===0?[{title:'Later easy practice',goal:'Relax and move comfortably',timing:'Evening',durationMinutes:{min:10,max:15},optional:true,exercises:[{exercise:'Easy dance practice',prescription:'10–15 minutes; pause for 30 seconds when needed.'}]}]:[])]}))};}
+
+export function nutritionDocumentFixture(dates:string[]):NutritionDocumentPlan{return {...rowDocumentFixture(dates),nutrition:{version:1,status:'available',caloriesKcal:2350,proteinGrams:140,carbohydrateGrams:290,fatGrams:70,rationale:'Synthetic estimate balancing training and recovery; adjust with observed results.'}};}

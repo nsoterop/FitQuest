@@ -279,7 +279,7 @@ test('disclosure precedes a minimal conversation; structured context is never si
     return{status:200,json:async()=>saved};
   };
   const screen=await mount();await act(async()=>{press(screen,'Start onboarding')});
-  assert.ok(text(screen).includes('adults 18+'));assert.ok(text(screen).includes('shared with OpenAI'));assert.ok(text(screen).includes('Provider retention'));
+  assert.ok(text(screen).includes('adults 18+'));assert.ok(text(screen).includes('OpenAI'));assert.ok(text(screen).includes('Provider retention'));
   assert.equal(screen.root.findAllByProps({accessibilityLabel:'Onboarding message'}).length,0);
   await act(async()=>{press(screen,'Continue to onboarding');await flush()});
   assert.ok(text(screen).includes(saved.opening));
@@ -480,7 +480,8 @@ test('a completion receipt arriving after account switch cannot close or populat
   await act(async()=>screen.unmount());
 });
 
-const trainingState=()=>({summary:{revision:1,timeZone:'America/New_York',document:['goals','availability','equipment','experience','limitations'].map(category=>({category,text:`Synthetic ${category}`,origin:category==='limitations'?'unknown':'user_report'}))},plans:[{id:'cccccccc-1111-4111-8111-111111111111',summaryRevision:1,timeZone:'America/New_York',dates:Array.from({length:7},(_,i)=>`2026-10-${String(4+i).padStart(2,'0')}`),catalogVersion:'fitquest-2026-10-03-v1',outline:null,days:[],jobs:[]}]});
+const grantedPlanningConsent=()=>({version:'openai-workout-nutrition-v1',scope:'weekly-workout-nutrition-profile',granted:true,revision:1,updatedAt:'2026-10-04T12:00:00Z'});
+const trainingState=()=>({consent:grantedPlanningConsent(),summary:{revision:1,timeZone:'America/New_York',document:['goals','availability','equipment','experience','limitations'].map(category=>({category,text:`Synthetic ${category}`,origin:category==='limitations'?'unknown':'user_report'}))},plans:[{id:'cccccccc-1111-4111-8111-111111111111',summaryRevision:1,timeZone:'America/New_York',dates:Array.from({length:7},(_,i)=>`2026-10-${String(4+i).padStart(2,'0')}`),catalogVersion:'fitquest-2026-10-03-v1',outline:null,days:[],jobs:[]}]});
 function trainingServer(initial=trainingState()) {
   let saved=initial;const requests=[];
   globalThis.fetch=async(url,options)=>{
@@ -1352,4 +1353,28 @@ test('new pending revision keeps legacy accepted Markdown accessible without con
  t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());resetAuth(alice);const {saved}=await batchDocumentState('history');saved.plans[0].schemaVersion='document-week-v2';
  globalThis.fetch=async(url,options)=>{assert.equal(options.method??'GET','GET');return{status:200,json:async()=>url.endsWith('/profile')?{profile:payload}:structuredClone(saved)}};
  const screen=await mount();t.after(async()=>act(async()=>screen.unmount()));assert(hasTrainingAccess(screen));await act(async()=>press(screen,'Open session 1: Skill and strength'));assert.match(renderedTrainingText(screen),/Crab reach/);await act(async()=>press(screen,'Back to day'));await act(async()=>press(screen,'Week'));assert.doesNotMatch(renderedTrainingText(screen),/Crab reach/);assert.equal(input(screen,'Session 1 on 2026-10-05').props.disabled,true);
+});
+
+test('body-profile permission is explicit, revocable and does not auto-generate',async t=>{
+ const saved=trainingState();saved.consent=null;saved.plans=[];const requests=[];
+ globalThis.fetch=async(url,options)=>{requests.push({url,method:options.method});if(url.endsWith('/consent')){const b=JSON.parse(options.body);assert.equal(b.expectedRevision,saved.consent?.revision??0);saved.consent={...grantedPlanningConsent(),granted:b.granted,revision:b.expectedRevision+1}}return{status:200,json:async()=>structuredClone(saved)}};
+ const screen=await mountTraining({generateOnOpen:true});t.after(async()=>act(async()=>screen.unmount()));assert(requests.every(r=>r.method==='GET'));for(const phrase of ['OpenAI','age, height, weight','self-reported gender','up to 30 days','decline','nutrition'])assert(text(screen).includes(phrase),phrase);
+ await act(async()=>{press(screen,'Decline profile sharing');await flush()});assert.equal(saved.consent.granted,false);assert(!requests.some(r=>r.url.endsWith('/generate')));
+ await act(async()=>{press(screen,'Allow profile sharing with OpenAI');await flush()});assert.equal(saved.consent.granted,true);assert(!requests.some(r=>r.url.endsWith('/generate')));assert(input(screen,'Generate weekly plan'));
+ await act(async()=>{press(screen,'Withdraw profile sharing permission');await flush()});assert.equal(saved.consent.granted,false);assert(!requests.some(r=>r.url.endsWith('/generate')));
+});
+
+test('combined nutrition preview and acceptance keep workouts hidden and retain targets on reopen without generation',async t=>{
+ const {nutritionDocumentFixture}=await import('../../backend/src/documentPlanFixture.ts'),{documentOverview}=await import('../../backend/src/documentPlanContract.ts');const {saved}=await batchDocumentState(),p=saved.plans[0],doc=nutritionDocumentFixture(p.dates);p.schemaVersion='document-week-v3';p.documentOverview=documentOverview(doc);let accepts=0;
+ globalThis.fetch=async(url,options)=>{if(url.endsWith('/accept')){accepts++;p.documentPlan=doc;p.reviewState='accepted';p.acceptedAt='2026-10-05T12:00:00Z';saved.onboarded=true}else assert.equal(options.method,'GET');return{status:200,json:async()=>structuredClone(saved)}};
+ let screen=await mountTraining();assert(text(screen).includes('Recommended nutrition targets'));assert(text(screen).includes('2350'));assert(!text(screen).includes('Dumbbell squat'));await act(async()=>{press(screen,'Use this plan');await flush()});assert.equal(accepts,1);await act(async()=>screen.unmount());screen=await mountTraining({initialTab:'week'});t.after(async()=>act(async()=>screen.unmount()));assert(text(screen).includes('2350'));assert.equal(accepts,1);
+});
+
+test('nutrition compares consumed values only to the accepted dated version; unknown values and late dates cannot become zero or leak',async t=>{
+ globalThis.__fitquestSecure.clear();const {nutritionDocumentFixture}=await import('../../backend/src/documentPlanFixture.ts');const state=emptyFood(),doc=nutritionDocumentFixture(state.dates);const target={planId:'synthetic-plan',planRevision:3,schemaVersion:'document-week-v3',acceptedAt:'2026-10-04T12:00:00Z',dates:state.dates,timeZone:'UTC',nutrition:doc.nutrition};let targetMode='valid',oldReply;
+ globalThis.fetch=async(url,options)=>{url=String(url);assert.equal(options.method,'GET');if(url.includes('/training/nutrition')){if(targetMode==='late')return new Promise(resolve=>{oldReply=resolve});return{status:200,json:async()=>({target:targetMode==='valid'?target:null})}}return{status:200,json:async()=>state}};
+ state.entries.push({id:'99999999-1111-4111-8111-111111111111',revision:1,createdAt:'2026-10-04T12:00:00Z',updatedAt:'2026-10-04T12:00:00Z',deletedAt:null,undoUntil:null,document:{name:'Unknown snack',meal:'Snack',date:foodDay,time:null,timeZone:'UTC',servings:1,assumptions:[],items:[{name:'Snack',portion:'1 portion',quantity:null,unit:null,nutrients:{calories:{value:null,source:'unknown'},protein:{value:null,source:'unknown'},carbs:{value:null,source:'unknown'},fat:{value:null,source:'unknown'}}}]}});
+ const screen=await mountFood();t.after(async()=>act(async()=>screen.unmount()));assert(text(screen).includes('/ 2350 kcal'));assert(renderedTrainingText(screen).includes('— / 140'));assert.match(renderedTrainingText(screen),/known subtotal/i);assert(text(screen).includes('accepted plan revision 3'));assert(!text(screen).includes('0 / 2350'));
+ targetMode='none';await act(async()=>{press(screen,'Previous day');await flush()});assert(text(screen).includes('No accepted nutrition targets for this date'));assert(!text(screen).includes('2350'));
+ targetMode='late';await act(async()=>{press(screen,'Previous day');await flush()});targetMode='none';await act(async()=>{press(screen,'Previous day');await flush()});await act(async()=>{oldReply({status:200,json:async()=>({target})});await flush()});assert(!text(screen).includes('2350'));
 });

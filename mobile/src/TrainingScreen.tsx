@@ -1,3 +1,6 @@
+import {hasPlanningConsent,planningConsentVersion,planningConsentScope} from '../../backend/src/planningConsent';
+import {PlanningPermission} from './PlanningPermission';
+import {NutritionTargets} from './NutritionTargets';
 import {isDocumentVersion} from '../../backend/src/documentPlanContract';
 import {NutritionScreen} from './NutritionScreen';
 import { CompleteWeekView } from './CompleteWeekView';
@@ -32,7 +35,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
       const t=await token.current();if(!alive.current||c.signal.aborted)return;
       const request=async(path:string,method:'GET'|'POST'|'PUT',body?:unknown)=>{if(!alive.current||c.signal.aborted)throw Error();methodUsed=method;const next=await trainingRequest(path,method,body,t,c.signal);if(!alive.current||c.signal.aborted)throw Error();if(next.summary?.sourceConversation)await privateDrafts.clear(userId,next.summary.sourceConversation);if(!alive.current||c.signal.aborted||pending.current!==c)throw Error();update(next);if(path==='/accept'&&hasAcceptedTraining(next)){setTab('today');setWorkout(null)}if(method==='GET')setBlocked(false);return next};
       await work(request);
-    }catch(e){if(alive.current&&pending.current===c){if(e instanceof TrainingError&&e.code==='session_ended')ended.current?.();else {const unknown=c.signal.aborted||!(e instanceof TrainingError)||e.code==='unavailable';const stale=e instanceof TrainingError&&['plan_changed','summary_changed','review_pending'].includes(e.code);if(unknown||stale)setBlocked(true);setError(unknown?(methodUsed==='GET'?'Couldn’t load your training. Check your connection and reload saved training.':'The connection ended before we received a result. Check status before trying again. Your saved work remains available.'):(e as TrainingError).message)}}}
+    }catch(e){if(alive.current&&pending.current===c){if(e instanceof TrainingError&&e.code==='session_ended')ended.current?.();else {const unknown=c.signal.aborted||!(e instanceof TrainingError)||e.code==='unavailable';const stale=e instanceof TrainingError&&['plan_changed','summary_changed','review_pending','consent_changed'].includes(e.code);if(unknown||stale)setBlocked(true);setError(unknown?(methodUsed==='GET'?'Couldn’t load your training. Check your connection and reload saved training.':'The connection ended before we received a result. Check status before trying again. Your saved work remains available.'):(e as TrainingError).message)}}}
     finally{clearTimeout(timer);if(pending.current===c){pending.current=null;if(alive.current)setBusy(false)}}
   }
   const current=state?.plans.find(p=>p.summaryRevision===state.summary?.revision);
@@ -47,6 +50,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
   type Request=Parameters<Parameters<typeof run>[0]>[0];
   async function initialPlan(request:Request,s:TrainingState,retry=false) {
     if(!s.summary)return;
+    if(!hasPlanningConsent(s.consent))return;
     let p=s.plans.find(x=>x.summaryRevision===s.summary!.revision);
     if(!p){s=await request('/plans','POST',{revision:s.summary.revision});p=s.plans.find(x=>x.summaryRevision===s.summary!.revision)}
     if(!p)return;
@@ -95,6 +99,8 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
     </View>;
   }
   const document=isDocumentVersion(shown?.schemaVersion);
+  const permitted=hasPlanningConsent(state?.consent);
+  const changeConsent=(granted:boolean)=>void run(async request=>{await request('/consent','PUT',{version:planningConsentVersion,scope:planningConsentScope,granted,expectedRevision:state?.consent?.revision??0})});
   const close=()=>{if(feedback.trim())setLeaving(true);else onClose()};
   const body=<View style={styles.screen}>
     <Text style={ui.eyebrow}>YOUR TRAINING</Text><Text accessibilityRole="header" style={ui.title}>{document?(shown?.reviewState==='accepted'?'Your week.':'Review your week.'):'Your training'}</Text>
@@ -103,9 +109,10 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
 
     {state&&!state.summary&&<Text style={styles.copy}>Complete onboarding to save a training summary and create your week.</Text>}
     {state?.summary&&<>
-      {!current&&button('Create week from updated summary',()=>void run(request=>initialPlan(request,state,true)))}
+      {!permitted&&<PlanningPermission consent={state.consent} busy={busy||blocked} onChange={changeConsent}/>}
+      {!current&&permitted&&button(onboarded?'Create week from updated summary':'Generate weekly plan',()=>void run(request=>initialPlan(request,state,true)))}
       {current&&current.jobs.some(j=>j.error==='summary_needs_correction')?clarification({coverage:['summary_needs_correction']},'outline',current):
-        current&&(!current.outlineFirst||!current.outline)&&!weekComplete(current)&&!current.jobs.some(j=>j.status==='pending')&&
+        current&&permitted&&(!current.outlineFirst||!current.outline)&&!weekComplete(current)&&!current.jobs.some(j=>j.status==='pending')&&
         !(current.outline&&(needsClarification(current.outline)||current.outline.coverage.length))&&
         !current.days.some(d=>needsClarification(d.detail)||d.detail.coverage.length)&&
         button(current.outlineFirst?(current.jobs.some(j=>j.target==='outline'&&j.status==='failed')?'Retry weekly outline':'Generate weekly outline'):current.jobs.some(j=>j.target==='week'&&j.status==='failed')?(current.jobs.some(j=>j.target==='week'&&j.stage==='workouts')?'Retry workouts':current.jobs.some(j=>j.target==='week'&&j.stage==='outline')?'Retry plan outline':'Retry weekly plan'):current.outline?'Complete weekly plan':'Generate weekly plan',()=>void run(request=>initialPlan(request,state,true)))}
@@ -120,7 +127,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
       {shown.jobs.filter(j=>j.status!=='completed'&&(j.target===`review:${shown.planRevision}`||j.target==='week'||j.target===`details:${shown.planRevision}`||!shown.jobs.some(x=>x.target==='week'))).map(j=><Text key={j.target} style={styles.copy}>{j.stage==='outline'?'Plan outline':j.stage==='workouts'?'Workouts':j.target.startsWith('review:')?'Changes':j.target==='week'?'Week':j.target.startsWith('details:')?'Workouts':j.target}: {j.status==='pending'?'Generation in progress. Reload to check.':j.stage==='outline'&&j.error==='outline_conversion'?'The outline could not be read reliably. No workouts were requested. You can explicitly retry the outline.':trainingError(j.error??'unavailable')}{j.stage==='workouts'&&j.status==='failed'?' Your outline is saved. Retry uses it without another outline request unless your answers, profile or revision feedback have changed.':''}</Text>)}
       {!shown.outline&&shown.jobs.filter(j=>j.rawResponse&&j.status==='failed').map(j=><View key={`raw-${j.target}`} style={styles.day}><Text style={styles.label}>Response saved for recovery — not a usable plan</Text><Text style={styles.copy}>{j.error==='outline_conversion'?'The response could not be converted into a complete dated outline. Retry checks the saved response first; a new AI request is used only if it still cannot be converted.':'The response did not produce a usable outline. An explicit retry requests a new plan.'}</Text></View>)}
       {isDocumentVersion(shown.schemaVersion)?<DocumentWeek plan={shown} onOpen={selection=>openWorkout(shown,selection)}/>:shown.schemaVersion==='complete-week-v1'&&<CompleteWeekView plan={shown}/>}
-      {shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.map(d=><View key={d.date} accessibilityLabel={`Training day ${d.date}`} style={styles.day}>
+      <NutritionTargets nutrition={shown.documentOverview?.nutrition} pending={shown.reviewState!=='accepted'}/>{shown.outline&&!needsClarification(shown.outline)&&!shown.outline.coverage.length&&shown.outline.days.map(d=><View key={d.date} accessibilityLabel={`Training day ${d.date}`} style={styles.day}>
         <Text accessibilityRole="header" style={styles.label}>{calendarDate(d.date)}</Text>
         {d.restText&&<Text style={styles.copy}>{d.restText}</Text>}
         {shown.days.some(x=>x.date===d.date)&&shown.reviewState!=='draft'?showDay(shown.days.find(x=>x.date===d.date)!):<>
@@ -140,7 +147,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
           submitted.current={planId:shown.id,planRevision:shown.planRevision!,feedback};
           const result=await request('/review','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision,feedback,retryAttempt:reviewJob?.status==='failed'?reviewJob.attemptId:null});
           const next=result.plans.find(p=>p.id===shown.id);if(next?.planRevision!==shown.planRevision)setFeedback('');
-        }),false,!feedback.trim()||!!inFlight)}
+        }),false,!feedback.trim()||!!inFlight||document&&!permitted)}
         {shown.reviewState==='draft'&&!shown.outlineFirst&&button('Use this plan',()=>void run(async request=>{await request('/accept','POST',{planId:shown.id,summaryRevision:shown.summaryRevision,planRevision:shown.planRevision})}),false,!!feedback.trim()||!!inFlight||!!shown.reviewQuestion)}
         {shown.outlineFirst&&<Text style={styles.small}>This older outline has no saved exercises yet. Creating its workouts makes a new AI request.</Text>}
         {shown.outlineFirst&&button(shown.jobs.some(j=>j.target===`details:${shown.planRevision}`&&j.status==='failed')?'Retry creating workouts':'Create workouts from this older outline',()=>void run(async request=>{
@@ -150,6 +157,7 @@ function AccountTrainingScreen({initialTab,onAccount,userId,accessToken,onClose,
         </View>
       </View>}
     </View>}
+    {state&&permitted&&<PlanningPermission consent={state.consent} busy={busy||blocked} onChange={changeConsent}/>}
     {state&&state.plans.length>1&&<View>{state.plans.filter(p=>p.id!==shown?.id).map(p=>button(`View saved week ${p.dates[0]} · revision ${p.summaryRevision}`,()=>{setSelected(p.id);setDaySelection({date:localToday(),index:0});setFeedback(p.jobs.find(j=>j.target===`review:${p.planRevision}`)?.feedback??'')},true,!!feedback.trim()))}</View>}
   </View>;
   return <View style={{flex:1}}><View style={{flex:1,display:tab==='nutrition'?'none':'flex'}} accessibilityElementsHidden={tab==='nutrition'} importantForAccessibility={tab==='nutrition'?'no-hide-descendants':'auto'}><Page onAccount={onAccount} onBack={workout?()=>setWorkout(null):undefined} backLabel={tab==='week'?'Back to week':'Back to day'} scrollKey={workout?`${workout.date}:${workout.index}`:`${tab}:${error?blocked?'blocked':'error':'ready'}`} footer={!workout&&onboarded?<Tabs nutrition value={tab} onChange={setTab}/>:undefined}>

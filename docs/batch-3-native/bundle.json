@@ -1,0 +1,15 @@
+{
+  "bytes": 1956024,
+  "sha256": "2241e14a7ed054dd712800fe608e3f33a1ff2322b5762787c8e2f5da9dcfde8a",
+  "matchingSourceFiles": [
+    "mobile/src/NutritionScreen.tsx",
+    "mobile/src/OnboardingScreen.tsx",
+    "mobile/src/TrainingScreen.tsx",
+    "mobile/src/trainingApi.ts",
+    "mobile/src/PlanningPermission.tsx",
+    "mobile/src/NutritionTargets.tsx",
+    "backend/src/documentPlanContract.ts",
+    "backend/src/planningConsent.ts"
+  ],
+  "verification": "Offline production iOS Hermes export; not owner Metro or physical-phone acceptance"
+}

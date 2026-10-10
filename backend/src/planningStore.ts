@@ -1,5 +1,7 @@
+import {planningConsentVersion,planningConsentScope,hasPlanningConsent,type PlanningConsent} from './planningConsent.js';
+import {foodDate} from './foodContract.js';
 import {prepareDocument,documentPlanVersion} from './documentPlanning.js';
-import {documentOverview,isDocumentVersion,type SavedDocumentPlan} from './documentPlanContract.js';
+import {documentOverview,isDocumentVersion,validDailyNutrition,type AcceptedNutrition,type SavedDocumentPlan} from './documentPlanContract.js';
 import { prepareComplete,prepareCompleteOutline,completeActivities,completePlanVersion } from './completePlanning.js';
 import { recordPlanDiagnostic } from './planDiagnosticStore.js';
 import { planOverview,type PlanResponse } from './completePlanContract.js';
@@ -21,7 +23,7 @@ import { checkTimeZone,checkedSummary,planDates,hasGoalSet,type TrainingSummary 
 import { preparePlanning,planningPromptVersion,savedDetail,type PlanningInput,type Outline,type Detail } from './planningDomain.js';
 
 export type GenerationRequest={summaryRevision:number;planId:string;target:string;retryAttempt:string|null;planRevision?:number;confirmOutline?:boolean};
-export type PlanningWork={stage?:'outline'|'workouts';attempt:string;planId:string;target:string;revision:number;planRevision?:number;profileVersion:string;input:PlanningInput;body:string};
+export type PlanningWork={consentRevision?:number;stage?:'outline'|'workouts';attempt:string;planId:string;target:string;revision:number;planRevision?:number;profileVersion:string;input:PlanningInput;body:string};
 export function planningStore(pool:Pool) {
   async function tx<T>(a:Account,fn:(c:PoolClient)=>Promise<T>,session=true):Promise<T>{
     const c=await pool.connect();try {
@@ -43,7 +45,7 @@ export function planningStore(pool:Pool) {
     if(!s)throw new OnboardingError(409,'summary_required');return s;
   }
   async function profile(c:PoolClient,a:Account) {
-    const p=(await c.query('SELECT age,height_inches,weight_lb,first_name,last_name,updated_at::text AS version FROM fitquest.profiles WHERE user_id=$1 FOR SHARE',[a.userId])).rows[0];
+    const p=(await c.query('SELECT age,height_inches,weight_lb,gender,planning_consent,first_name,last_name,updated_at::text AS version FROM fitquest.profiles WHERE user_id=$1 FOR SHARE',[a.userId])).rows[0];
     if(!p)throw new OnboardingError(409,'profile_required');return p;
   }
   async function recover(c:PoolClient,a:Account) {
@@ -75,7 +77,8 @@ export function planningStore(pool:Pool) {
     }
     // Acceptance is durable server evidence, independent of the current draft or calendar.
     const onboarded=(await c.query("SELECT EXISTS(SELECT 1 FROM fitquest.training_plans WHERE user_id=$1 AND (review_state='accepted' OR jsonb_array_length(document_history)>0)) AS accepted",[a.userId])).rows[0].accepted;
-    return {summary:s,plans,onboarded};
+    const consent=(await c.query('SELECT planning_consent FROM fitquest.profiles WHERE user_id=$1',[a.userId])).rows[0]?.planning_consent??null;
+    return {summary:s,plans,onboarded,consent};
   }
   async function claimDocument(c:PoolClient,a:Account,plan:any,r:GenerationRequest|ReviewRequest,provider?:OnboardingProvider):Promise<PlanningWork|undefined>{
     const s=await summary(c,a),p=await profile(c,a),review='feedback' in r;
@@ -90,7 +93,8 @@ export function planningStore(pool:Pool) {
     if((await c.query("SELECT 1 FROM fitquest.training_generations WHERE user_id=$1 AND plan_id=$2 AND status='pending'",[a.userId,plan.id])).rowCount)return;
     if(job&&(job.status!=='failed'||r.retryAttempt!==job.attempt_id))return;
     if(!job&&r.retryAttempt)throw new OnboardingError(409,'retry_unavailable');
-    const input:PlanningInput={schemaVersion:documentPlanVersion,kind:'week',summary:s.document,profile:{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb)},dates:plan.dates,...(review?{documentReview:{plan:plan.document_plan,feedback:r.feedback}}:{})};
+    if(!hasPlanningConsent(p.planning_consent))throw new OnboardingError(409,'planning_consent_required');
+    const input:PlanningInput={schemaVersion:documentPlanVersion,kind:'week',summary:s.document,profile:{age:p.age,heightInches:p.height_inches,weightLb:Number(p.weight_lb),gender:p.gender},dates:plan.dates,...(review?{documentReview:{plan:plan.document_plan,feedback:r.feedback}}:{})};
     const attempt=randomUUID();let prepared:ReturnType<typeof prepareDocument>|undefined,failure:string|undefined;
     if(p.age<18)failure='adults_only';else if(!provider)failure='ai_disabled';else{
       await rate(c,a,true);
@@ -103,7 +107,7 @@ export function planningStore(pool:Pool) {
     await c.query(`INSERT INTO fitquest.training_generations(user_id,plan_id,target,status,error_code,attempt_id,deadline,profile_version,summary_revision,feedback,feedback_hash)
       VALUES($1,$2,$3,$4,$5,$6,now()+($11*interval '1 second'),$7,$8,$9,$10) ON CONFLICT(user_id,plan_id,target) DO UPDATE SET status=EXCLUDED.status,error_code=EXCLUDED.error_code,attempt_id=EXCLUDED.attempt_id,deadline=EXCLUDED.deadline,profile_version=EXCLUDED.profile_version,summary_revision=EXCLUDED.summary_revision,feedback=EXCLUDED.feedback,feedback_hash=EXCLUDED.feedback_hash`,
       [a.userId,plan.id,target,failure?'failed':'pending',failure??null,attempt,p.version,s.revision,feedback,hash,weeklyLimits.leaseSeconds]);
-    if(prepared&&!failure)return {attempt,planId:plan.id,target,revision:s.revision,planRevision:plan.review_revision,profileVersion:p.version,input,body:prepared.body};
+    if(prepared&&!failure)return {consentRevision:p.planning_consent.revision,attempt,planId:plan.id,target,revision:s.revision,planRevision:plan.review_revision,profileVersion:p.version,input,body:prepared.body};
   }
 
   async function claimComplete(c:PoolClient,a:Account,plan:any,r:GenerationRequest|ReviewRequest,provider?:OnboardingProvider,checkpoint?:{work:PlanningWork;text:string}):Promise<PlanningWork|undefined>{
@@ -149,6 +153,31 @@ export function planningStore(pool:Pool) {
   }
 
   return {
+    consent:(a:Account,request:{version:string;scope:string;granted:boolean;expectedRevision:number})=>tx(a,async c=>{
+      if(request.version!==planningConsentVersion||request.scope!==planningConsentScope||typeof request.granted!=='boolean'||!Number.isSafeInteger(request.expectedRevision)||request.expectedRevision<0)throw new OnboardingError(400,'invalid_request');
+      const p=await profile(c,a),old=p.planning_consent as PlanningConsent|null;
+      if((old?.revision??0)!==request.expectedRevision)throw new OnboardingError(409,'consent_changed');
+      const consent:PlanningConsent={version:planningConsentVersion,scope:planningConsentScope,granted:request.granted,revision:(old?.revision??0)+1,updatedAt:new Date().toISOString()};
+      await c.query('UPDATE fitquest.profiles SET planning_consent=$2 WHERE user_id=$1',[a.userId,JSON.stringify(consent)]);
+      return view(c,a);
+    }),
+    canDispatch:(a:Account,w:PlanningWork,onAllowed?:()=>void)=>tx(a,async c=>{
+      if(w.input.schemaVersion!==documentPlanVersion)return true;
+      const p=await profile(c,a);
+      const allowed=hasPlanningConsent(p.planning_consent)&&p.planning_consent.revision===w.consentRevision&&p.version===w.profileVersion;
+      if(allowed)onAllowed?.(); // Start transmission while holding the same account lock as revocation.
+      return allowed;
+    }),
+    nutrition:(a:Account,date:string):Promise<{target:AcceptedNutrition|null}>=>tx(a,async c=>{
+      if(!foodDate(date))throw new OnboardingError(400,'invalid_request');
+      // Search all owned accepted weeks, not the most-recent training page. Drafts never win.
+      const rows=(await c.query(`SELECT id,time_zone,dates,document_history->-1 AS accepted FROM fitquest.training_plans
+        WHERE user_id=$1 AND dates ? $2 AND jsonb_array_length(document_history)>0
+        ORDER BY (document_history->-1->>'acceptedAt')::timestamptz DESC,id DESC LIMIT 1`,[a.userId,date])).rows;
+      const p=rows[0],h=p?.accepted;
+      if(h?.schemaVersion!==documentPlanVersion||!validDailyNutrition(h.plan?.nutrition))return {target:null};
+      return {target:{planId:p.id,planRevision:h.revision,schemaVersion:h.schemaVersion,acceptedAt:h.acceptedAt,dates:p.dates,timeZone:p.time_zone,nutrition:h.plan.nutrition}};
+    }),
     advanceComplete:(a:Account,w:PlanningWork,text:string,provider:OnboardingProvider)=>tx(a,async c=>{
       const plan=(await c.query('SELECT * FROM fitquest.training_plans WHERE user_id=$1 AND id=$2 FOR UPDATE',[a.userId,w.planId])).rows[0];
       if(!plan)return;
