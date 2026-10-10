@@ -8,7 +8,12 @@ import { planningService } from '../../features/planning/planning.js';
 import { planDates } from '../../features/planning/trainingSummary.js';
 import { intakeSummary } from '../../features/onboarding/fixedIntake.js';
 import { journalDocumentFixture } from './documentPlanFixture.js';
-import { planningConsentVersion, planningConsentScope } from '../../shared/planningConsent.js';
+import {
+  planningConsentVersion,
+  planningConsentScope,
+  recurringConsentVersion,
+  recurringConsentScope,
+} from '../../shared/planningConsent.js';
 import { historyConsentVersion, historyConsentScope } from '../../shared/progressConsent.js';
 import { weeklyScheduleVersion } from '../../shared/weeklyScheduleContract.js';
 import { scheduledDates } from '../../features/weekly-planning/weeklySchedule.js';
@@ -26,7 +31,7 @@ export async function verifySchedulerDatabase(
     bg = planningStore(pool, true, clock);
   const dates = planDates('America/New_York', now),
     permission = { version: weeklyScheduleVersion, enabled: true, expectedRevision: 0 };
-  async function fresh() {
+  async function fresh(accepted = true) {
     now = new Date('2026-10-10T16:00:00Z');
     const a = { userId: randomUUID(), sessionId: randomUUID() };
     await owner.query('INSERT INTO auth.users VALUES($1)', [a.userId]);
@@ -59,7 +64,7 @@ export async function verifySchedulerDatabase(
       'UPDATE fitquest.training_plans SET dates=$2,document_plan=$3,review_revision=1 WHERE user_id=$1',
       [a.userId, JSON.stringify(dates), JSON.stringify(journalDocumentFixture(dates))],
     );
-    await store.accept(a, { planId: p.id, summaryRevision: 1, planRevision: 1 });
+    if (accepted) await store.accept(a, { planId: p.id, summaryRevision: 1, planRevision: 1 });
     await store.consent(a, {
       version: planningConsentVersion,
       scope: planningConsentScope,
@@ -74,6 +79,115 @@ export async function verifySchedulerDatabase(
     });
     return a;
   }
+  async function recurring(a: Parameters<typeof store.consent>[0], granted = true) {
+    const s = await store.read(a);
+    return store.consent(a, {
+      version: recurringConsentVersion,
+      scope: recurringConsentScope,
+      granted,
+      expectedRevision: s.consent!.revision,
+      expectedHistoryRevision: s.historyConsent!.revision,
+    });
+  }
+  await t.test(
+    'recurring agreement and first acceptance atomically enroll once without a separate setup action',
+    async () => {
+      const a = await fresh(false);
+      const agreed = await recurring(a);
+      assert.equal(agreed.schedule, null);
+      assert.equal(agreed.historyConsent.version, 'openai-progress-recurring-v2');
+      const p = agreed.plans[0];
+      const version = { planId: p.id, summaryRevision: 1, planRevision: 1 };
+      await Promise.all([store.accept(a, version), store.accept(a, version)]);
+      const s = await store.read(a);
+      assert.equal(s.schedule.enabled, true);
+      assert.equal(s.schedule.autoEnrolled, true);
+      assert.equal(s.schedule.revision, 1);
+      now = new Date('2026-10-12T00:59:59Z');
+      const provider = mock();
+      await planningService(bg, provider.p).scheduled(a);
+      assert.equal(provider.bodies.length, 0);
+      now = new Date('2026-10-12T01:00:00Z');
+      await Promise.all([
+        planningService(bg, provider.p).scheduled(a),
+        planningService(bg, provider.p).scheduled(a),
+      ]);
+      assert.equal(provider.bodies.length, 1);
+      assert.equal(
+        (await store.read(a)).plans.find((p) => p.weekStart === '2026-10-12')!.reviewState,
+        'draft',
+      );
+    },
+  );
+  await t.test(
+    'old permissions and explicit pauses are never silently upgraded or re-enabled',
+    async () => {
+      const a = await fresh();
+      assert.equal((await store.read(a)).schedule, null);
+      await store.schedule(a, { ...permission, enabled: false });
+      await recurring(a);
+      const s = await store.read(a);
+      assert.equal(s.schedule.enabled, false);
+      assert.equal(s.schedule.autoEnrolled, false);
+      const p = s.plans[0];
+      await store.accept(a, { planId: p.id, summaryRevision: 1, planRevision: 1 });
+      assert.equal((await store.read(a)).schedule.enabled, false);
+      await recurring(a, false);
+      await recurring(a);
+      assert.equal((await store.read(a)).schedule.enabled, false);
+    },
+  );
+  await t.test(
+    'recurring withdrawal fences claimed work and a stale history revision cannot overwrite it',
+    async () => {
+      const a = await fresh();
+      await recurring(a);
+      const before = await store.read(a);
+      now = new Date('2026-10-12T01:00:00Z');
+      const provider = mock(),
+        work = await bg.claimScheduled(a, provider.p);
+      assert(work);
+      await recurring(a, false);
+      assert.equal((await store.read(a)).schedule.enabled, false);
+      assert.equal(await bg.canDispatch(a, work), false);
+      await assert.rejects(
+        store.consent(a, {
+          version: recurringConsentVersion,
+          scope: recurringConsentScope,
+          granted: true,
+          expectedRevision: before.consent.revision + 1,
+          expectedHistoryRevision: before.historyConsent.revision,
+        }),
+        /consent_changed/,
+      );
+      assert.equal((await store.read(a)).historyConsent.granted, false);
+      await bg.settle(a, work.attempt, 0);
+      await bg.finish(a, work, undefined, 'planning_consent_required');
+      await recurring(a);
+      assert.equal((await store.read(a)).schedule.enabled, true);
+      assert.equal(provider.bodies.length, 0);
+    },
+  );
+  await t.test(
+    'acceptance after the Sunday cutover waits for the next trigger, and expired recurring scope blocks dispatch',
+    async () => {
+      const a = await fresh(false);
+      await recurring(a);
+      now = new Date('2026-10-12T01:00:01Z');
+      const p = (await store.read(a)).plans[0];
+      await store.accept(a, { planId: p.id, summaryRevision: 1, planRevision: 1 });
+      const provider = mock();
+      await planningService(bg, provider.p).scheduled(a);
+      assert.equal(provider.bodies.length, 0);
+      await owner.query(
+        "UPDATE fitquest.profiles SET history_consent=jsonb_set(history_consent,'{version}','\"expired-invented-version\"') WHERE user_id=$1",
+        [a.userId],
+      );
+      now = new Date('2026-10-19T01:00:00Z');
+      await planningService(bg, provider.p).scheduled(a);
+      assert.equal(provider.bodies.length, 0);
+    },
+  );
   function mock(failure = false) {
     const bodies: string[] = [];
     const p: OnboardingProvider = {

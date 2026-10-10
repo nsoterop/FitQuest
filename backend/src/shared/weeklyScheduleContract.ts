@@ -6,12 +6,14 @@ export type WeeklySchedule = {
   enabledAt: string;
   lastWeek: string | null;
   error: string | null;
+  autoEnrolled?: boolean;
 };
 export function validWeeklySchedule(s: unknown): s is WeeklySchedule {
   const v = s as WeeklySchedule;
   return (
     !!v &&
     typeof v.enabled === 'boolean' &&
+    (v.autoEnrolled === undefined || typeof v.autoEnrolled === 'boolean') &&
     Number.isSafeInteger(v.revision) &&
     v.revision > 0 &&
     typeof v.timeZone === 'string' &&

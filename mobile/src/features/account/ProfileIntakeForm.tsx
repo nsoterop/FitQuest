@@ -22,11 +22,18 @@ type Props = {
   onSessionEnded?: () => void;
   userId?: string;
   onAccount?: () => void;
+  trainingRefresh?: number;
 };
 export function ProfileIntakeForm(props: Props) {
   return <AccountProfileForm key={props.userId ?? 'signed-out'} {...props} />;
 }
-function AccountProfileForm({ accessToken, onSessionEnded, userId, onAccount }: Props) {
+function AccountProfileForm({
+  accessToken,
+  onSessionEnded,
+  userId,
+  onAccount,
+  trainingRefresh,
+}: Props) {
   const [fields, setFields] = useState(emptyFields);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -223,6 +230,7 @@ function AccountProfileForm({ accessToken, onSessionEnded, userId, onAccount }: 
     if (training && userId)
       return (
         <TrainingScreen
+          refreshVersion={trainingRefresh}
           onAccount={onAccount}
           key={userId}
           userId={userId}

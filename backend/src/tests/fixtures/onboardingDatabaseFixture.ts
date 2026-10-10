@@ -529,6 +529,15 @@ export async function verifyOnboardingDatabase(
       );
     },
   );
+  await owner.query(
+    await readFile(
+      new URL(
+        '../../../../database/migrations/20261010154615_recurring_consent_enrollment.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
   const provider: OnboardingProvider = {
     mode: 'test',
     model: 'synthetic-contract',

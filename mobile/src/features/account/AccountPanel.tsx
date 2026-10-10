@@ -17,6 +17,7 @@ export function AccountPanel() {
   const [message, setMessage] = useState('');
   const [journalOpen, setJournalOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [trainingRefresh, setTrainingRefresh] = useState(0);
   const [confirmation, setConfirmation] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
@@ -303,6 +304,7 @@ export function AccountPanel() {
           importantForAccessibility={accountOpen ? 'no-hide-descendants' : 'auto'}
         >
           <ProfileIntakeForm
+            trainingRefresh={trainingRefresh}
             key={session.user.id}
             userId={session.user.id}
             accessToken={() => accessToken(session.user.id)}
@@ -312,11 +314,15 @@ export function AccountPanel() {
         </View>
         {accountOpen && (
           <AccountView
+            userId={session.user.id}
             onJournal={() => setJournalOpen(true)}
             key={session.user.id}
             email={session.user.email ?? ''}
             accessToken={() => accessToken(session.user.id)}
-            onBack={() => setAccountOpen(false)}
+            onBack={() => {
+              setAccountOpen(false);
+              setTrainingRefresh((n) => n + 1);
+            }}
             onSignOut={() => void signOut()}
             onSessionEnded={() => void signOut('Your session ended. Please sign in again.')}
           />

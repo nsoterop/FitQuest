@@ -82,5 +82,9 @@
   {
     "file": "20261010140607_security_account_limits.sql",
     "sha256": "d01c89de04ce70aac3f1b8f6ed4e4dfd9830a2675bd477738da2aa29df1dd4fc"
+  },
+  {
+    "file": "20261010154615_recurring_consent_enrollment.sql",
+    "sha256": "ced671452cf0cddb24c24630884eb6ff806e6a07f4a48e06a941bd38e4ae17c0"
   }
 ]

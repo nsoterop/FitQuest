@@ -5243,12 +5243,12 @@ test('server-confirmed initial acceptance opens Today; every session tap opens i
   for (const unwanted of [
     'Training summary',
     'Prescribed work',
-    'America/New_York',
     'Back to greeting',
     'Reload saved training',
     'Crab reach',
   ])
     assert(!overview.includes(unwanted), unwanted);
+  assert.match(overview, /Sunday 9 PM · America\/New_York/);
   assert.equal(
     screen.root.findAllByProps({ accessibilityLabel: 'Training day 2026-10-05' }).length,
     1,
@@ -6159,7 +6159,7 @@ test('weight durable request failure makes no network mutation; account change h
   assert(text(screen).includes('No weight measurements yet.'));
 });
 
-test('next week stays separate from Today through review/acceptance; history permission is explicit and unknown creation keeps one operation', async (t) => {
+test('legacy next-week input remains recoverable and unknown creation reconciles without replacing Today', async (t) => {
   t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
   globalThis.__fitquestSecure.clear();
   const { saved, document } = await batchDocumentState('accepted');
@@ -6200,6 +6200,7 @@ test('next week stays separate from Today through review/acceptance; history per
       };
     }
     if (path.endsWith('/next-week')) {
+      future.nextOperation = body.operationId;
       if (!saved.plans.some((p) => p.id === future.id)) saved.plans.unshift(future);
       if (lost) {
         lost = false;
@@ -6219,49 +6220,37 @@ test('next week stays separate from Today through review/acceptance; history per
     assert(!path.endsWith('/generate'));
     return { status: 200, json: async () => structuredClone(saved) };
   };
+  const { secureSessionStorage } = await import('../src/features/account/secureSessionStorage.ts');
+  const storage = secureSessionStorage({
+    getItemAsync: async (k) => globalThis.__fitquestSecure.get(k) ?? null,
+    setItemAsync: async (k, v) => globalThis.__fitquestSecure.set(k, v),
+    deleteItemAsync: async (k) => globalThis.__fitquestSecure.delete(k),
+  });
+  await storage.setItem(
+    'next-week.alice',
+    JSON.stringify({ changes: 'Travel on Tuesday', operationId: null }),
+  );
   let screen = await mountTraining({ initialTab: 'today' });
   t.after(() => act(async () => screen.unmount()));
   assert.ok(input(screen, 'View workout: Skill and strength'));
-  await act(async () => press(screen, 'Generate next week'));
-  assert.match(renderedTrainingText(screen), /health or pain feedback/);
-  assert.equal(
-    screen.root.findAllByProps({ accessibilityLabel: 'Generate upcoming week' }).length,
-    0,
-  );
+  await act(async () => press(screen, 'Recover saved next-week input'));
   await act(async () => {
-    press(screen, 'Decline history sharing');
-    await flush();
-  });
-  assert.match(renderedTrainingText(screen), /History sharing declined/);
-  await act(async () => {
-    press(screen, 'Allow workout and weight history sharing');
-    await flush();
-  });
-  await act(async () =>
-    input(screen, 'Anything different next week? (optional)').props.onChangeText(
-      'Travel on Tuesday',
-    ),
-  );
-  await act(async () => {
-    press(screen, 'Generate upcoming week');
+    press(screen, 'Check and recover saved next-week request');
     await flush();
   });
   const first = requests.find((r) => r.path.endsWith('/next-week')).body;
   assert.equal(first.changes, 'Travel on Tuesday');
   await act(async () => screen.unmount());
   screen = await mountTraining({ initialTab: 'today' });
-  await act(async () => press(screen, 'Generate next week'));
-  assert.equal(
-    input(screen, 'Anything different next week? (optional)').props.value,
-    'Travel on Tuesday',
-  );
+  await act(async () => press(screen, 'Recover saved next-week input'));
+  assert.equal(input(screen, 'Saved next-week changes').props.value, 'Travel on Tuesday');
   await act(async () => {
-    press(screen, 'Retry saved next-week request');
+    press(screen, 'Check and recover saved next-week request');
     await flush();
   });
   assert.deepEqual(
     requests.filter((r) => r.path.endsWith('/next-week')).map((r) => r.body),
-    [first, first],
+    [first],
   );
   assert.match(renderedTrainingText(screen), /Upcoming Skill/);
   assert.doesNotMatch(renderedTrainingText(screen), /Crab reach/);
@@ -6280,75 +6269,102 @@ test('next week stays separate from Today through review/acceptance; history per
   assert.ok(input(screen, 'View workout: Upcoming Skill and strength'));
 });
 
-test('Sunday automation requires explicit enrollment, can pause after history withdrawal, and restores server state after a lost reply', async (t) => {
+test('recurring permission in Account updates scheduling without generation and reconciles an uncertain reply', async (t) => {
   t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
   globalThis.__fitquestSecure.clear();
   const { saved } = await batchDocumentState('accepted');
-  saved.onboarded = true;
-  const { historyConsentVersion, historyConsentScope } =
-    await import('../../backend/src/shared/progressConsent.ts');
   saved.historyConsent = {
-    version: historyConsentVersion,
-    scope: historyConsentScope,
+    version: 'openai-progress-v1',
+    scope: 'weekly-workout-weight-history',
     granted: true,
     revision: 1,
     updatedAt: '2026-10-05T16:00:00Z',
   };
-  let lost = true;
   const writes = [];
+  let lost = true;
   globalThis.fetch = async (url, options) => {
-    const path = new URL(url).pathname,
-      b = options.body ? JSON.parse(options.body) : null;
+    assert(!url.endsWith('/generate'));
+    assert(!url.endsWith('/schedule'));
     if (options.method === 'PUT') {
-      writes.push({ path, b });
-      if (path.endsWith('/schedule')) {
-        saved.schedule = {
-          enabled: b.enabled,
-          revision: (saved.schedule?.revision ?? 0) + 1,
-          timeZone: 'America/New_York',
-          enabledAt: '2026-10-05T16:00:00Z',
-          lastWeek: null,
-          error: null,
-        };
-        if (lost) {
-          lost = false;
-          throw Error('lost');
-        }
+      const b = JSON.parse(options.body);
+      writes.push(b);
+      assert.equal(b.version, 'openai-recurring-week-v2');
+      assert.equal(b.expectedRevision, saved.consent.revision);
+      assert.equal(b.expectedHistoryRevision, saved.historyConsent.revision);
+      saved.consent = {
+        version: b.version,
+        scope: b.scope,
+        granted: b.granted,
+        revision: b.expectedRevision + 1,
+        updatedAt: '2026-10-05T16:00:00Z',
+      };
+      saved.historyConsent = {
+        version: 'openai-progress-recurring-v2',
+        scope: 'sunday-21-workout-weight-history',
+        granted: b.granted,
+        revision: b.expectedHistoryRevision + 1,
+        updatedAt: '2026-10-05T16:00:00Z',
+      };
+      saved.schedule = {
+        enabled: b.granted,
+        autoEnrolled: true,
+        revision: (saved.schedule?.revision ?? 0) + 1,
+        timeZone: 'America/New_York',
+        enabledAt: '2026-10-05T16:00:00Z',
+        lastWeek: null,
+        error: null,
+      };
+      if (lost) {
+        lost = false;
+        throw Error('Invented lost permission reply');
       }
-      if (path.endsWith('/history-consent'))
-        saved.historyConsent = { ...saved.historyConsent, granted: b.granted, revision: 2 };
     }
-    assert(!path.endsWith('/generate'));
     return { status: 200, json: async () => structuredClone(saved) };
   };
-  let screen = await mountTraining({ initialTab: 'today' });
-  await act(async () => press(screen, 'Generate next week'));
-  assert.match(renderedTrainingText(screen), /Automatic weekly plans/);
-  assert.match(renderedTrainingText(screen), /even when the app is closed/);
+  const { PlanningSettings } = await import('../src/features/account/PlanningSettings.tsx');
+  let screen;
+  await act(async () => {
+    screen = TestRenderer.create(
+      React.createElement(PlanningSettings, {
+        userId: 'alice',
+        accessToken: async () => 'alice-token',
+        onBack() {},
+        onSessionEnded() {},
+      }),
+    );
+    await flush();
+  });
+  assert.match(text(screen), /health or pain feedback/);
+  assert.match(text(screen), /Sunday at 9 PM/);
   assert.equal(writes.length, 0);
   await act(async () => {
-    press(screen, 'Enable Sunday 9 PM planning');
+    press(screen, 'Allow profile sharing with OpenAI');
     await flush();
   });
   assert.equal(writes.length, 1);
-  assert.deepEqual(writes[0].b, { version: 'sunday-21-v1', enabled: true, expectedRevision: 0 });
+  await act(async () => {
+    press(screen, 'Check saved permission');
+    await flush();
+  });
+  assert.match(text(screen), /Sunday planning · 9 PM · America\/New_York/);
+  await act(async () => {
+    press(screen, 'Withdraw profile sharing permission');
+    await flush();
+  });
+  assert.equal(saved.historyConsent.granted, false);
+  assert.equal(saved.schedule.enabled, false);
+  assert.equal(writes.length, 2);
   await act(async () => screen.unmount());
   screen = await mountTraining({ initialTab: 'today' });
   t.after(() => act(async () => screen.unmount()));
-  await act(async () => press(screen, 'Generate next week'));
-  assert.match(renderedTrainingText(screen), /On · Sunday 9 PM · America\/New_York/);
-  await act(async () => {
-    press(screen, 'Withdraw history sharing permission');
-    await flush();
-  });
-  assert.ok(input(screen, 'Pause automatic weekly plans'));
-  await act(async () => {
-    press(screen, 'Pause automatic weekly plans');
-    await flush();
-  });
-  assert.equal(saved.schedule.enabled, false);
-  assert.equal(writes.at(-1).b.expectedRevision, 1);
   assert.ok(input(screen, 'View workout: Skill and strength'));
+  for (const label of [
+    'Generate next week',
+    'Enable Sunday 9 PM planning',
+    'Pause automatic weekly plans',
+    'Generate saved upcoming week',
+  ])
+    assert.equal(screen.root.findAllByProps({ accessibilityLabel: label }).length, 0, label);
 });
 
 test('current saved plans render hostile exercise and nutrition text literally without remote requests', async (t) => {

@@ -10,12 +10,18 @@ import {
   historyConsentVersion,
   historyConsentScope,
   hasHistoryConsent,
+  hasRecurringHistoryConsent,
+  recurringHistoryConsentVersion,
+  recurringHistoryConsentScope,
   type HistoryConsent,
 } from '../../shared/progressConsent.js';
 import {
   planningConsentVersion,
   planningConsentScope,
   hasPlanningConsent,
+  hasRecurringPlanningConsent,
+  recurringConsentVersion,
+  recurringConsentScope,
   type PlanningConsent,
 } from '../../shared/planningConsent.js';
 import { foodDate, foodId, foodToday } from '../../shared/foodContract.js';
@@ -258,7 +264,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
     const schedule =
       (
         await c.query(
-          'SELECT enabled,revision::int,time_zone AS "timeZone",enabled_at AS "enabledAt",last_week::text AS "lastWeek",error_code AS error FROM fitquest.weekly_schedules WHERE user_id=$1',
+          'SELECT enabled,revision::int,time_zone AS "timeZone",enabled_at AS "enabledAt",last_week::text AS "lastWeek",error_code AS error,auto_enrolled AS "autoEnrolled" FROM fitquest.weekly_schedules WHERE user_id=$1',
           [a.userId],
         )
       ).rows[0] ?? null;
@@ -560,6 +566,34 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       };
   }
 
+  async function enrollAutomatic(c: PoolClient, a: Account, reenable = false) {
+    const p = await profile(c, a);
+    if (
+      !hasRecurringPlanningConsent(p.planning_consent) ||
+      !hasRecurringHistoryConsent(p.history_consent)
+    )
+      return;
+    const s = (
+      await c.query('SELECT time_zone FROM fitquest.training_summaries WHERE user_id=$1', [
+        a.userId,
+      ])
+    ).rows[0];
+    if (
+      !s ||
+      !(
+        await c.query(
+          'SELECT 1 FROM fitquest.training_plans WHERE user_id=$1 AND jsonb_array_length(document_history)>0 LIMIT 1',
+          [a.userId],
+        )
+      ).rowCount
+    )
+      return;
+    await c.query(
+      `INSERT INTO fitquest.weekly_schedules(user_id,enabled,revision,time_zone,enabled_at,auto_enrolled) VALUES($1,true,1,$2,$3,true)
+      ON CONFLICT(user_id) ${reenable ? `DO UPDATE SET enabled=true,revision=weekly_schedules.revision+1,time_zone=EXCLUDED.time_zone,enabled_at=EXCLUDED.enabled_at,auto_enrolled=true,error_code=NULL WHERE weekly_schedules.enabled OR weekly_schedules.auto_enrolled` : 'DO NOTHING'}`,
+      [a.userId, s.time_zone, clock()],
+    );
+  }
   return {
     schedule: (a: Account, r: { version: string; enabled: boolean; expectedRevision: number }) =>
       tx(a, async (c) => {
@@ -596,7 +630,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
         }
         await c.query(
           `INSERT INTO fitquest.weekly_schedules(user_id,enabled,revision,time_zone,enabled_at) VALUES($1,$2,1,$3,$4)
-        ON CONFLICT(user_id) DO UPDATE SET enabled=EXCLUDED.enabled,revision=weekly_schedules.revision+1,time_zone=EXCLUDED.time_zone,enabled_at=CASE WHEN EXCLUDED.enabled THEN EXCLUDED.enabled_at ELSE weekly_schedules.enabled_at END`,
+        ON CONFLICT(user_id) DO UPDATE SET enabled=EXCLUDED.enabled,revision=weekly_schedules.revision+1,time_zone=EXCLUDED.time_zone,auto_enrolled=false,enabled_at=CASE WHEN EXCLUDED.enabled THEN EXCLUDED.enabled_at ELSE weekly_schedules.enabled_at END`,
           [a.userId, r.enabled, zone, clock()],
         );
         return view(c, a);
@@ -648,6 +682,12 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
             throw new OnboardingError(409, 'planning_consent_required');
           if (!hasHistoryConsent(p.history_consent))
             throw new OnboardingError(409, 'history_consent_required');
+          if (
+            schedule.auto_enrolled &&
+            (!hasRecurringPlanningConsent(p.planning_consent) ||
+              !hasRecurringHistoryConsent(p.history_consent))
+          )
+            throw new OnboardingError(409, 'planning_consent_required');
           if (!plan) {
             const snapshot = await captureProgress(
               c,
@@ -746,6 +786,11 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
           a.userId,
           JSON.stringify(consent),
         ]);
+        if (!request.granted)
+          await c.query(
+            'UPDATE fitquest.weekly_schedules SET enabled=false,revision=revision+1 WHERE user_id=$1 AND enabled AND auto_enrolled',
+            [a.userId],
+          );
         return view(c, a);
       }),
     ensureNextWeek: (a: Account, r: { operationId: string; changes: string }, now = new Date()) =>
@@ -817,12 +862,21 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       }),
     consent: (
       a: Account,
-      request: { version: string; scope: string; granted: boolean; expectedRevision: number },
+      request: {
+        version: string;
+        scope: string;
+        granted: boolean;
+        expectedRevision: number;
+        expectedHistoryRevision?: number;
+      },
     ) =>
       tx(a, async (c) => {
         if (
-          request.version !== planningConsentVersion ||
-          request.scope !== planningConsentScope ||
+          !(
+            (request.version === planningConsentVersion &&
+              request.scope === planningConsentScope) ||
+            (request.version === recurringConsentVersion && request.scope === recurringConsentScope)
+          ) ||
           typeof request.granted !== 'boolean' ||
           !Number.isSafeInteger(request.expectedRevision) ||
           request.expectedRevision < 0
@@ -832,17 +886,39 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
           old = p.planning_consent as PlanningConsent | null;
         if ((old?.revision ?? 0) !== request.expectedRevision)
           throw new OnboardingError(409, 'consent_changed');
+        const recurring = request.version === recurringConsentVersion;
+        if (recurring && request.expectedHistoryRevision !== (p.history_consent?.revision ?? 0))
+          throw new OnboardingError(409, 'consent_changed');
         const consent: PlanningConsent = {
-          version: planningConsentVersion,
-          scope: planningConsentScope,
+          version: recurring ? recurringConsentVersion : planningConsentVersion,
+          scope: recurring ? recurringConsentScope : planningConsentScope,
           granted: request.granted,
           revision: (old?.revision ?? 0) + 1,
-          updatedAt: new Date().toISOString(),
+          updatedAt: clock().toISOString(),
         };
         await c.query('UPDATE fitquest.profiles SET planning_consent=$2 WHERE user_id=$1', [
           a.userId,
           JSON.stringify(consent),
         ]);
+        if (recurring) {
+          const history: HistoryConsent = {
+            version: recurringHistoryConsentVersion,
+            scope: recurringHistoryConsentScope,
+            granted: request.granted,
+            revision: (p.history_consent?.revision ?? 0) + 1,
+            updatedAt: clock().toISOString(),
+          };
+          await c.query('UPDATE fitquest.profiles SET history_consent=$2 WHERE user_id=$1', [
+            a.userId,
+            JSON.stringify(history),
+          ]);
+        }
+        if (!request.granted)
+          await c.query(
+            'UPDATE fitquest.weekly_schedules SET enabled=false,revision=revision+1 WHERE user_id=$1 AND enabled AND auto_enrolled',
+            [a.userId],
+          );
+        else if (recurring) await enrollAutomatic(c, a, true);
         return view(c, a);
       }),
     canDispatch: async (a: Account, w: PlanningWork, onAllowed?: () => void) => {
@@ -869,6 +945,10 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
             : null;
           scheduledAllowed =
             !!dates && dates[0] === w.input.dates[0] && Number(row.revision) === w.scheduleRevision;
+          if (row?.auto_enrolled)
+            scheduledAllowed &&=
+              hasRecurringPlanningConsent(p.planning_consent) &&
+              hasRecurringHistoryConsent(p.history_consent);
         }
         const allowed =
           scheduledAllowed &&
@@ -980,6 +1060,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
             "UPDATE fitquest.training_generations SET feedback=NULL WHERE user_id=$1 AND plan_id=$2 AND status<>'pending'",
             [a.userId, r.planId],
           );
+          await enrollAutomatic(c, a);
           return view(c, a);
         }
         if (p.schema_version === completePlanVersion) {

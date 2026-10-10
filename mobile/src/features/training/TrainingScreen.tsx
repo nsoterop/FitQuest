@@ -3,8 +3,9 @@ import { hasHistoryConsent } from '../../../../backend/src/shared/progressConsen
 import { JournalScreen } from '../journal/JournalScreen';
 import {
   hasPlanningConsent,
-  planningConsentVersion,
-  planningConsentScope,
+  hasRecurringPlanningConsent,
+  recurringConsentVersion,
+  recurringConsentScope,
 } from '../../../../backend/src/shared/planningConsent';
 import { PlanningPermission } from './PlanningPermission';
 import { NutritionTargets } from '../nutrition/NutritionTargets';
@@ -58,6 +59,7 @@ type TrainingProps = {
   onSessionEnded?: () => void;
   onClarify?: (request: RecoveryRequest) => void;
   generateOnOpen?: boolean;
+  refreshVersion?: number;
 };
 export function TrainingScreen(props: TrainingProps) {
   return <AccountTrainingScreen key={props.userId} {...props} />;
@@ -71,6 +73,7 @@ function AccountTrainingScreen({
   onSessionEnded,
   onClarify,
   generateOnOpen = false,
+  refreshVersion = 0,
 }: TrainingProps) {
   const [state, setState] = useState<TrainingState | null>(null),
     [busy, setBusy] = useState(false),
@@ -236,6 +239,12 @@ function AccountTrainingScreen({
         await request('', 'GET');
       });
   };
+  useEffect(() => {
+    if (refreshVersion) {
+      generationIntent.current = null;
+      calendarRefresh.current();
+    }
+  }, [refreshVersion]);
   const current = state?.plans.find(
     (p) => p.summaryRevision === state.summary?.revision && !p.weekStart,
   );
@@ -423,10 +432,11 @@ function AccountTrainingScreen({
     void run(async (request) => {
       if (!granted) generationIntent.current = null;
       const confirmed = await request('/consent', 'PUT', {
-        version: planningConsentVersion,
-        scope: planningConsentScope,
+        version: recurringConsentVersion,
+        scope: recurringConsentScope,
         granted,
         expectedRevision: state?.consent?.revision ?? 0,
+        expectedHistoryRevision: state?.historyConsent?.revision ?? 0,
       });
       if (granted) await continueGeneration(request, confirmed);
     });
@@ -441,31 +451,29 @@ function AccountTrainingScreen({
           setSelected(id);
           setTab('week');
         }}
-        onRequest={(path, method, body) =>
-          new Promise<TrainingState>((resolve, reject) => {
-            void run(async (request) => {
-              try {
-                const result = await request(path, method, body);
-                if (path === '/next-week' && result.nextPlanId) {
-                  setSelected(result.nextPlanId);
-                  setTab('week');
-                  const p = result.plans.find((x) => x.id === result.nextPlanId);
-                  if (p && !p.completeReady && !p.jobs.length)
-                    await request('/generate', 'POST', {
-                      planId: p.id,
-                      summaryRevision: p.summaryRevision,
-                      target: 'week',
-                      retryAttempt: null,
-                    });
-                }
-                resolve(result);
-              } catch (e) {
-                reject(e);
-                throw e;
-              }
-            });
-          })
-        }
+        onRequest={async (path, method, body) => {
+          if (pending.current) throw new TrainingError('unavailable');
+          let result: TrainingState | undefined;
+          await run(async (request) => {
+            const next = await request(path, method, body);
+            if (path === '/next-week' && next.nextPlanId) {
+              setSelected(next.nextPlanId);
+              setTab('week');
+              const p = next.plans.find((x) => x.id === next.nextPlanId);
+              if (p && !p.completeReady && !p.jobs.length)
+                await request('/generate', 'POST', {
+                  planId: p.id,
+                  summaryRevision: p.summaryRevision,
+                  target: 'week',
+                  retryAttempt: null,
+                });
+            }
+            result = next;
+          });
+          // Wait for run's finally to release the request lock before draft pagination/recovery.
+          if (!result) throw new TrainingError('unavailable');
+          return result;
+        }}
       />
     ) : null;
   const close = () => {
@@ -495,9 +503,11 @@ function AccountTrainingScreen({
       )}
       {state?.summary && (
         <>
-          {!permitted && (
+          {!hasRecurringPlanningConsent(state.consent) && (
             <PlanningPermission
               consent={state.consent}
+              historyConsent={state.historyConsent}
+              timeZone={state.summary.timeZone}
               busy={busy || blocked}
               onChange={changeConsent}
             />
@@ -553,10 +563,11 @@ function AccountTrainingScreen({
             </Text>
           )}
           {shown.weekStart &&
+            shown.jobs.some((j) => j.status === 'failed') &&
             !shown.completeReady &&
             !shown.jobs.some((j) => j.status === 'pending') &&
             button(
-              shown.jobs.length ? 'Retry upcoming week' : 'Generate saved upcoming week',
+              'Retry upcoming week',
               () =>
                 void run(async (request) => {
                   const job = shown.jobs.find((j) => j.target === 'week');
@@ -800,13 +811,6 @@ function AccountTrainingScreen({
               </View>
             )}
         </View>
-      )}
-      {state && permitted && (
-        <PlanningPermission
-          consent={state.consent}
-          busy={busy || blocked}
-          onChange={changeConsent}
-        />
       )}
       {state?.nextOffset &&
         button(

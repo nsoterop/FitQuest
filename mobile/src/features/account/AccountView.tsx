@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Action, Notice, Page, ui } from '../../components/Design';
 import { loadProfile, type SavedProfile } from './profileIntake';
+import { PlanningSettings } from './PlanningSettings';
 export function AccountView({
   email,
+  userId,
   accessToken,
   onBack,
   onSignOut,
@@ -11,13 +13,14 @@ export function AccountView({
   onJournal,
 }: {
   email: string;
+  userId: string;
   accessToken: () => Promise<string>;
   onBack: () => void;
   onSignOut: () => void;
   onSessionEnded: () => void;
   onJournal?: () => void;
 }) {
-  const [view, setView] = useState<'account' | 'profile' | 'signout'>('account'),
+  const [view, setView] = useState<'account' | 'profile' | 'signout' | 'sharing'>('account'),
     [profile, setProfile] = useState<SavedProfile | null>(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(false),
@@ -58,6 +61,15 @@ export function AccountView({
       clearTimeout(timer);
     };
   }, [view, retry]);
+  if (view === 'sharing')
+    return (
+      <PlanningSettings
+        userId={userId}
+        accessToken={accessToken}
+        onBack={() => setView('account')}
+        onSessionEnded={onSessionEnded}
+      />
+    );
   return (
     <Page
       onBack={view === 'account' ? onBack : () => setView('account')}
@@ -81,6 +93,8 @@ export function AccountView({
             )}
           </>
           <AccountLink label="Saved profile" onPress={() => setView('profile')} />
+          <View style={ui.divider} />
+          <AccountLink label="Sharing permission" onPress={() => setView('sharing')} />
           <View style={ui.divider} />
           <AccountLink label="Sign out" onPress={() => setView('signout')} />
         </>
