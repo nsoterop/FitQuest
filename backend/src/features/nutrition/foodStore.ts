@@ -1,3 +1,4 @@
+import { reserveAI } from '../../ai/allowance.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { Pool, PoolClient } from 'pg';
@@ -282,13 +283,6 @@ export function foodStore(pool: Pool) {
           let work: { attempt: string; body: string; date: string; timeZone: string } | undefined,
             error = 'ai_disabled';
           if (provider) {
-            const rate = (
-              await c.query(
-                `INSERT INTO fitquest.onboarding_request_limits(user_id,hour,requests,day,generations) VALUES($1,date_trunc('hour',now()),1,current_date,1) ON CONFLICT(user_id) DO UPDATE SET hour=EXCLUDED.hour,day=EXCLUDED.day,requests=CASE WHEN onboarding_request_limits.hour=EXCLUDED.hour THEN onboarding_request_limits.requests+1 ELSE 1 END,generations=CASE WHEN onboarding_request_limits.day=EXCLUDED.day THEN onboarding_request_limits.generations+1 ELSE 1 END RETURNING requests,generations`,
-                [a.userId],
-              )
-            ).rows[0];
-            if (rate.requests > 600 || rate.generations > 60) fail('rate_limit', 429);
             const prepared = prepareFood(provider, {
               message: cmd.message,
               date: cmd.date,
@@ -301,17 +295,9 @@ export function foodStore(pool: Pool) {
               "INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,'food-v1','food-v1')",
               [a.userId, attempt, provider.purpose ?? 'app', provider.model],
             );
-            if (
-              (
-                await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed', [
-                  attempt,
-                  prepared.reserveMicro,
-                  provider.capMicro,
-                ])
-              ).rows[0]?.allowed
-            )
+            error = (await reserveAI(c, attempt, prepared.reserveMicro, provider.capMicro)) ?? '';
+            if (!error)
               work = { attempt, body: prepared.body, date: cmd.date, timeZone: cmd.timeZone };
-            else error = 'budget_exhausted';
           }
           await c.query(
             "INSERT INTO fitquest.food_operations(user_id,id,digest,kind,status,error_code,message,previous_operation,attempt_id,entry_id,deadline) VALUES($1,$2,$3,'interpret',$4,$5,$6,$7,$8,$9,now()+interval '65 seconds')",

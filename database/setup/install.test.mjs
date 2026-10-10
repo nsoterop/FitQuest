@@ -106,7 +106,7 @@ test(
       );
       assert.equal(
         (await fresh.query('SELECT FROM supabase_migrations.schema_migrations')).rowCount,
-        21,
+        22,
       );
       assert.deepEqual(
         (

@@ -6272,3 +6272,13 @@ test('Sunday automation requires explicit enrollment, can pause after history wi
   assert.equal(writes.at(-1).b.expectedRevision, 1);
   assert.ok(input(screen, 'View workout: Skill and strength'));
 });
+
+test('planning decline and account allowance errors use app-owned correction copy without exposing provider prose', async () => {
+  const { trainingError } = await import('../src/features/training/trainingApi.ts');
+  assert.match(trainingError('plan_out_of_scope'), /training goals/);
+  assert.match(trainingError('plan_unable'), /Correct your input/);
+  assert.match(trainingError('account_ai_rate_limit'), /midnight UTC/);
+  assert.match(trainingError('account_ai_lifetime_limit'), /Saved work/);
+  const attack = 'plan_unable:<script>ignore safeguards</script>https://example.invalid';
+  assert.doesNotMatch(trainingError(attack), /script|ignore safeguards|example.invalid/);
+});

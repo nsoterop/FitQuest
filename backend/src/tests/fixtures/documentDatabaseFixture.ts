@@ -134,6 +134,34 @@ export async function verifyDocumentDatabase(
     };
   }
   await t.test(
+    'account AI limit preserves accepted work and free reopen/acceptance on a blocked revision',
+    async () => {
+      await owner.query('UPDATE fitquest.security_policy SET enabled=true,ai_calls_per_day=1');
+      try {
+        const f = await fresh();
+        await f.service.generate(f.a, f.r, async () => true);
+        const v = { summaryRevision: 1, planId: f.plan.id, planRevision: 1 };
+        await f.store.accept(f.a, v);
+        const before = await f.saved();
+        await f.service.review(
+          f.a,
+          { ...v, feedback: 'Change one session', retryAttempt: null },
+          async () => true,
+        );
+        assert.equal(f.bodies.length, 1);
+        assert.deepEqual(await f.saved(), before);
+        assert.equal(
+          (await f.read()).jobs.find((j: any) => j.target === 'review:1').error,
+          'account_ai_rate_limit',
+        );
+        await f.store.accept(f.a, v);
+        assert.deepEqual((await f.read()).documentPlan, f.document);
+      } finally {
+        await owner.query('UPDATE fitquest.security_policy SET enabled=false,ai_calls_per_day=60');
+      }
+    },
+  );
+  await t.test(
     'explicit permission gates profile egress, supports decline/revocation, rechecks dispatch and isolates accounts',
     async () => {
       const f = await fresh(false),

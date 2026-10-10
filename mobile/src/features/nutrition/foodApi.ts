@@ -43,6 +43,12 @@ export const foodMessage = (code: string) =>
         'A changed food or portion needs newly supplied values or a new estimate.',
       invalid_request: 'Check the date, time, portion and nutrient values.',
       adults_only: 'AI food interpretation is available for adults 18+.',
+      account_ai_rate_limit:
+        'Your daily AI request limit is reached. It resets at midnight UTC. Saved work and manual logging remain available.',
+      account_ai_daily_limit:
+        'Your daily AI allowance cannot cover this request. Try after midnight UTC or after pending requests finish. Saved work remains available.',
+      account_ai_lifetime_limit:
+        'Your account AI spending allowance cannot cover this request. Saved work and manual logging remain available.',
       budget_exhausted: 'The shared AI allowance is unavailable. You can still add food manually.',
       ai_disabled: 'AI interpretation is unavailable. Manual entry still works.',
       food_pending: 'An interpretation is still pending. Check its saved status.',

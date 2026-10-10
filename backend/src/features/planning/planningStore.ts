@@ -1,3 +1,4 @@
+import { reserveAI } from '../../ai/allowance.js';
 import { scheduledDates } from '../weekly-planning/weeklySchedule.js';
 import { weeklyScheduleVersion } from '../../shared/weeklyScheduleContract.js';
 import {
@@ -134,17 +135,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       c.release();
     }
   }
-  async function rate(c: PoolClient, a: Account, generation = false) {
-    const { rows } = await c.query(
-      `INSERT INTO fitquest.onboarding_request_limits(user_id,hour,requests,day,generations)
-      VALUES($1,date_trunc('hour',now()),1,current_date,$2) ON CONFLICT(user_id) DO UPDATE SET hour=EXCLUDED.hour,day=EXCLUDED.day,
-      requests=CASE WHEN onboarding_request_limits.hour=EXCLUDED.hour THEN onboarding_request_limits.requests+1 ELSE 1 END,
-      generations=CASE WHEN onboarding_request_limits.day=EXCLUDED.day THEN onboarding_request_limits.generations+$2 ELSE $2 END RETURNING requests,generations`,
-      [a.userId, generation ? 1 : 0],
-    );
-    if (rows[0].requests > 600 || rows[0].generations > 60)
-      throw new OnboardingError(429, 'rate_limit');
-  }
+
   async function summary(c: PoolClient, a: Account) {
     const s = (
       await c.query(
@@ -370,7 +361,6 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
     if (p.age < 18) failure = 'adults_only';
     else if (!provider) failure = 'ai_disabled';
     else {
-      await rate(c, a, true);
       try {
         prepared = prepareDocument(provider, input);
       } catch (e) {
@@ -381,16 +371,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
           "INSERT INTO fitquest.onboarding_attempts(user_id,id,purpose,state,model,prompt_version,schema_version) VALUES($1,$2,$3,'not_dispatched',$4,$5,$5)",
           [a.userId, attempt, provider.purpose ?? 'app', provider.model, documentWireName],
         );
-        if (
-          !(
-            await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed', [
-              attempt,
-              prepared.reserveMicro,
-              provider.capMicro,
-            ])
-          ).rows[0]?.allowed
-        )
-          failure = 'budget_exhausted';
+        failure = await reserveAI(c, attempt, prepared.reserveMicro, provider.capMicro);
       }
     }
     await c.query(
@@ -523,17 +504,10 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
     else if (!provider) failure = 'ai_disabled';
     else {
       try {
-        await rate(c, a, true);
-      } catch (e) {
-        if (e instanceof OnboardingError) failure = e.code;
-        else throw e;
-      }
-      try {
-        if (!failure)
-          prepared =
-            stage === 'outline'
-              ? prepareCompleteOutline(provider, input)
-              : prepareComplete(provider, input);
+        prepared =
+          stage === 'outline'
+            ? prepareCompleteOutline(provider, input)
+            : prepareComplete(provider, input);
       } catch (e) {
         failure = e instanceof OnboardingError ? e.code : 'planning_context_limit';
       }
@@ -549,16 +523,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
             completePlanVersion,
           ],
         );
-        if (
-          !(
-            await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed', [
-              attempt,
-              prepared.reserveMicro,
-              provider.capMicro,
-            ])
-          ).rows[0]?.allowed
-        )
-          failure = 'budget_exhausted';
+        failure = await reserveAI(c, attempt, prepared.reserveMicro, provider.capMicro);
       }
     }
     await c.query(
@@ -787,7 +752,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       tx(a, async (c) => {
         if (!foodId(r.operationId) || typeof r.changes !== 'string' || r.changes.length > 2000)
           throw new OnboardingError(400, 'invalid_request');
-        await rate(c, a);
+
         await recover(c, a);
         const existing = (
           await c.query(
@@ -972,13 +937,12 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       tx(a, async (c) => {
         if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000)
           throw new OnboardingError(400, 'invalid_request');
-        await rate(c, a);
+
         await recover(c, a);
         return view(c, a, offset);
       }),
     accept: (a: Account, r: PlanVersion) =>
       tx(a, async (c) => {
-        await rate(c, a);
         await recover(c, a);
         const p = (
           await c.query(
@@ -1072,7 +1036,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       tx(a, async (c) => {
         if (!r.feedback.trim() || r.feedback.length > 2000)
           throw new OnboardingError(422, 'invalid_feedback');
-        await rate(c, a);
+
         await recover(c, a);
         const plan = (
           await c.query(
@@ -1186,7 +1150,6 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
         if (p.age < 18) failure = 'adults_only';
         else if (!provider) failure = 'ai_disabled';
         else {
-          await rate(c, a, true);
           try {
             prepared = plan.outline_first
               ? prepareOverview(provider, outbound)
@@ -1205,16 +1168,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
                 plan.outline_first ? 'outline-review-v2' : 'catalog-review-v3',
               ],
             );
-            if (
-              !(
-                await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed', [
-                  attempt,
-                  prepared.reserveMicro,
-                  provider.capMicro,
-                ])
-              ).rows[0]?.allowed
-            )
-              failure = 'budget_exhausted';
+            failure = await reserveAI(c, attempt, prepared.reserveMicro, provider.capMicro);
           }
         }
         await c.query(
@@ -1250,7 +1204,6 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       checkedSummary(document);
       checkTimeZone(timeZone);
       return tx(a, async (c) => {
-        await rate(c, a);
         const old = await summary(c, a);
         if (old.revision !== expected) throw new OnboardingError(409, 'summary_changed');
         document = document.map((f, i) => {
@@ -1289,7 +1242,6 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
     },
     async ensurePlan(a: Account, expected: number) {
       return tx(a, async (c) => {
-        await rate(c, a);
         const s = await summary(c, a);
         if (s.revision !== expected) throw new OnboardingError(409, 'summary_changed');
         await c.query(
@@ -1316,7 +1268,6 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       provider?: OnboardingProvider,
     ): Promise<PlanningWork | undefined> {
       return tx(a, async (c) => {
-        await rate(c, a);
         await recover(c, a);
         const s = await summary(c, a),
           p = await profile(c, a);
@@ -1529,7 +1480,6 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
         if (p.age < 18) failure = 'adults_only';
         else if (!provider) failure = 'ai_disabled';
         else {
-          await rate(c, a, true);
           // Reuse existing redaction for identifiers/names without duplicating transcript.
           const redacted = intakeAnswers(input.summary)
             ? input
@@ -1582,16 +1532,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
                     : 'catalog-plan-v1',
               ],
             );
-            if (
-              !(
-                await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed', [
-                  attempt,
-                  prepared.reserveMicro,
-                  provider.capMicro,
-                ])
-              ).rows[0]?.allowed
-            )
-              failure = 'budget_exhausted';
+            failure = await reserveAI(c, attempt, prepared.reserveMicro, provider.capMicro);
           }
         }
         await c.query(

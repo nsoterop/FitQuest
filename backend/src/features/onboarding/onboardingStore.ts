@@ -1,3 +1,4 @@
+import { reserveAI } from '../../ai/allowance.js';
 import { checkedIntake } from './fixedIntake.js';
 import { safeDiagnostic, type ProviderDiagnostic } from '../../ai/providerDiagnostics.js';
 import {
@@ -125,20 +126,7 @@ export function postgresOnboardingStore(pool: Pool) {
     if (!row) throw new OnboardingError(409, 'profile_required');
     return row;
   }
-  async function rate(c: PoolClient, account: Account, generation = false) {
-    const r = (
-      await c.query(
-        `INSERT INTO fitquest.onboarding_request_limits(user_id,hour,requests,day,generations)
-      VALUES($1,date_trunc('hour',now()),1,current_date,$2)
-      ON CONFLICT(user_id) DO UPDATE SET hour=EXCLUDED.hour,day=EXCLUDED.day,
-      requests=CASE WHEN onboarding_request_limits.hour=EXCLUDED.hour THEN onboarding_request_limits.requests+1 ELSE 1 END,
-      generations=CASE WHEN onboarding_request_limits.day=EXCLUDED.day THEN onboarding_request_limits.generations+$2 ELSE $2 END
-      RETURNING requests,generations`,
-        [account.userId, generation ? 1 : 0],
-      )
-    ).rows[0];
-    if (r.requests > 600 || r.generations > 60) throw new OnboardingError(429, 'rate_limit');
-  }
+
   async function lock(c: PoolClient, account: Account, id: string) {
     const row = (
       await c.query(
@@ -253,7 +241,6 @@ export function postgresOnboardingStore(pool: Pool) {
   ): Promise<Conversation | { completedId: string }> {
     checkTimeZone(timeZone);
     return transaction(account, async (c) => {
-      await rate(c, account);
       const p = await profile(c, account);
       // Serializes create/resume for this verified account without a global lock.
       await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [account.userId]);
@@ -420,7 +407,6 @@ export function postgresOnboardingStore(pool: Pool) {
     create,
     async read(account: Account, id: string) {
       return transaction(account, async (c) => {
-        await rate(c, account);
         await lock(c, account, id);
         await recover(c, account, id);
         return snapshot(c, account, id);
@@ -428,7 +414,6 @@ export function postgresOnboardingStore(pool: Pool) {
     },
     async remove(account: Account, id: string) {
       return transaction(account, async (c) => {
-        await rate(c, account);
         await c.query('DELETE FROM fitquest.onboarding_conversations WHERE user_id=$1 AND id=$2', [
           account.userId,
           id,
@@ -486,7 +471,6 @@ export function postgresOnboardingStore(pool: Pool) {
       provider?: OnboardingProvider,
     ): Promise<Claim> {
       return transaction(account, async (c) => {
-        await rate(c, account);
         const conv = await lock(c, account, id);
         await recover(c, account, id);
         const last = (
@@ -722,7 +706,6 @@ export function postgresOnboardingStore(pool: Pool) {
               [account.userId, id, turnId, `${check.reason}\n\n${check.question}`],
             );
           } else if (provider && p.age >= 18) {
-            await rate(c, account, true);
             // Every raw report stays in context. Never truncate goals/restrictions to make a prompt fit.
             const sources: Record<string, string> = {};
             for (const t of turns) sources[`m${t.sequence}`] = t.message;
@@ -763,14 +746,13 @@ export function postgresOnboardingStore(pool: Pool) {
                   provider.purpose ?? 'app',
                 ],
               );
-              const reserved = (
-                await c.query('SELECT fitquest.reserve_onboarding($1,$2,$3) AS allowed', [
-                  attempt,
-                  prepared.reserveMicro,
-                  provider.capMicro,
-                ])
-              ).rows[0]?.allowed;
-              if (reserved) {
+              const allowanceFailure = await reserveAI(
+                c,
+                attempt,
+                prepared.reserveMicro,
+                provider.capMicro,
+              );
+              if (!allowanceFailure) {
                 await c.query(
                   "UPDATE fitquest.onboarding_turns SET state='pending',error_code=NULL,attempt_id=$4,deadline=now()+interval '35 seconds' WHERE user_id=$1 AND conversation_id=$2 AND id=$3",
                   [account.userId, id, turnId, attempt],
@@ -783,7 +765,7 @@ export function postgresOnboardingStore(pool: Pool) {
                   body: prepared.body,
                   sources,
                 };
-              } else failure = 'budget_exhausted';
+              } else failure = allowanceFailure;
             }
           } else if (provider) failure = 'adults_only';
           if (

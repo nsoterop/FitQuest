@@ -78,5 +78,9 @@
   {
     "file": "20261010030300_automatic_weekly_planning.sql",
     "sha256": "26d7be1786a98fe255c7761a3ab666a2ac9dadd72a323e157c0c208b52ba93d4"
+  },
+  {
+    "file": "20261010140607_security_account_limits.sql",
+    "sha256": "d01c89de04ce70aac3f1b8f6ed4e4dfd9830a2675bd477738da2aa29df1dd4fc"
   }
 ]

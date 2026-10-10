@@ -92,6 +92,25 @@ export async function verifyFoodDatabase(
     };
   }
   await t.test(
+    'account AI denial is durable and idempotent while manual food logging remains available',
+    async () => {
+      await owner.query('UPDATE fitquest.security_policy SET enabled=true,ai_calls_per_day=1');
+      try {
+        const f = await fresh();
+        await f.service.command(f.a, f.interpret(), yes);
+        const cmd = f.interpret();
+        const denied = await f.service.command(f.a, cmd, yes);
+        assert.equal(denied.error, 'account_ai_rate_limit');
+        await f.service.command(f.a, cmd, yes);
+        assert.equal(f.calls(), 1);
+        await f.service.command(f.a, f.manual(), yes);
+        assert.equal(f.calls(), 1);
+      } finally {
+        await owner.query('UPDATE fitquest.security_policy SET enabled=false,ai_calls_per_day=60');
+      }
+    },
+  );
+  await t.test(
     'food persistence uses owned entries, atomic receipts, decimals, explicit completion, corrections and moved dates without AI',
     async () => {
       const f = await fresh(),

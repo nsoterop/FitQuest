@@ -2,7 +2,7 @@
 
 FitQuest is an iOS-focused training and nutrition app for adults. It turns five written intake answers into a weekly plan, keeps prescribed work separate from actual workout results, and brings food, weight and training history together for the next week.
 
-This repository contains the current application plus a **private, non-deploying cleanup branch**, `codex/publication-safety`. The deployed application was last verified at `2e779e5` on October 9, 2026; documentation and cleanup commits do not constitute a deployment or App Store release. Feature work is paused during repository preparation.
+Repository organization is on `main` at `ccbd00d`. Bounded security work continues separately on **private, non-deploying** `codex/security-hardening`; see [security status](docs/reference/security.md). The deployed application was last verified at `2e779e5` on October 9, 2026; documentation and cleanup commits do not constitute a deployment or App Store release. Feature work is paused during repository preparation.
 
 ## What it does
 

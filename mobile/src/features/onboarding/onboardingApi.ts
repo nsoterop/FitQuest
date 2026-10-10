@@ -89,6 +89,12 @@ export function onboardingErrorText(code: string): string {
       'This plan no longer needs clarification. Return to training and reload.',
     ai_disabled: 'AI replies are unavailable. Your answer is saved.',
     adults_only: 'AI onboarding is for adults 18+. Your account and profile are still available.',
+    account_ai_rate_limit:
+      'Your daily AI request limit is reached. It resets at midnight UTC. Saved work and manual logging remain available.',
+    account_ai_daily_limit:
+      'Your daily AI allowance cannot cover this request. Try after midnight UTC or after pending requests finish. Saved work remains available.',
+    account_ai_lifetime_limit:
+      'Your account AI spending allowance cannot cover this request. Saved work and manual logging remain available.',
     budget_exhausted: 'AI replies have reached the spending limit. Your answer is saved.',
     context_limit: 'This answer was not saved. Try a shorter answer.',
     revision_conflict: 'The conversation changed. Load the latest replies to continue.',

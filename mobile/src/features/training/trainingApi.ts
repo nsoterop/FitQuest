@@ -288,6 +288,12 @@ export const trainingError = (code: string) =>
       saved_day_changed:
         'The response changed an existing session and was not saved. Your saved sessions are unchanged; you can explicitly retry the week.',
       catalog_coverage: 'The catalog could not support a valid weekly prescription.',
+      account_ai_rate_limit:
+        'Your daily AI request limit is reached. It resets at midnight UTC. Saved work and manual logging remain available.',
+      account_ai_daily_limit:
+        'Your daily AI allowance cannot cover this request. Try after midnight UTC or after pending requests finish. Saved work remains available.',
+      account_ai_lifetime_limit:
+        'Your account AI spending allowance cannot cover this request. Saved work and manual logging remain available.',
       budget_exhausted:
         'The shared AI spending allowance is exhausted. Your summary and saved plans remain available.',
       ai_disabled: 'AI generation is unavailable. Your saved summary and plans remain available.',

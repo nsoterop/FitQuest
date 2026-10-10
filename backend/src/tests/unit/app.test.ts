@@ -310,3 +310,76 @@ test('success waits for the storage promise to commit', async (t) => {
   commit();
   assert.deepEqual((await pending).json(), { message: 'User Data Saved' });
 });
+
+test('every private route uses the shared pre-auth burst guard and ignores spoofed forwarding headers', async (t) => {
+  const app = buildApp(false);
+  t.after(() => app.close());
+  const routes = [
+    ['GET', '/profile'],
+    ['POST', '/profile-intake'],
+    ['GET', '/training'],
+    ['POST', '/training/generate'],
+    ['GET', '/food'],
+    ['POST', '/food/commands'],
+    ['GET', '/food-library'],
+    ['POST', '/food-library/commands'],
+    ['GET', '/body-weight'],
+    ['POST', '/body-weight/commands'],
+    ['GET', '/workout-journal'],
+    ['POST', '/workout-journal/commands'],
+    ['POST', '/onboarding'],
+    ['GET', '/onboarding/11111111-1111-4111-8111-111111111111'],
+  ] as const;
+  for (let i = 0; i < 120; i++) {
+    const [method, url] = routes[i % routes.length]!;
+    assert.equal(
+      (await app.inject({ method, url, headers: { 'x-forwarded-for': `203.0.113.${i}` } }))
+        .statusCode,
+      401,
+    );
+  }
+  for (const [method, url] of routes) {
+    const reply = await app.inject({
+      method,
+      url,
+      headers: { 'x-forwarded-for': '198.51.100.88', 'x-real-ip': '192.0.2.99' },
+    });
+    assert.equal(reply.statusCode, 429, url);
+    assert.equal(reply.headers['cache-control'], 'no-store');
+    assert(Number(reply.headers['retry-after']) >= 1);
+  }
+  assert.equal((await app.inject({ url: '/health' })).statusCode, 200);
+});
+
+test('durable account throttle runs before private body parsing and fails closed without leaking diagnostics', async (t) => {
+  const deps = dependencies();
+  let count = 0;
+  const app = buildApp(false, {
+    ...deps,
+    accountRequestGuard: async () => {
+      count++;
+      return 37;
+    },
+  });
+  t.after(() => app.close());
+  const reply = await app.inject({
+    method: 'POST',
+    url: '/profile-intake',
+    headers,
+    payload: { malicious: 'private payload' },
+  });
+  assert.equal(count, 1);
+  assert.equal(reply.statusCode, 429);
+  assert.equal(reply.headers['retry-after'], '37');
+  assert(!reply.body.includes('private payload'));
+  const failed = buildApp(false, {
+    ...deps,
+    accountRequestGuard: async () => {
+      throw Error('postgres credential secret');
+    },
+  });
+  t.after(() => failed.close());
+  const denied = await failed.inject({ url: '/profile', headers });
+  assert.equal(denied.statusCode, 503);
+  assert(!denied.body.includes('credential'));
+});

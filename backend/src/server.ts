@@ -1,3 +1,4 @@
+import { accountRequestGuard } from './features/account/requestLimits.js';
 import { weeklyScheduler } from './features/weekly-planning/weeklyScheduler.js';
 import { weightStore } from './features/weight/weightStore.js';
 import { journalStore } from './features/journal/journalStore.js';
@@ -45,6 +46,7 @@ const app = buildApp(
   { redact: ['req.headers.authorization', 'req.headers.cookie', 'err'] },
   {
     store: postgresProfileStore(pool),
+    accountRequestGuard: accountRequestGuard(pool),
     verifyAccount: supabaseVerifier(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
     weight: weightStore(pool),
     journal: journalStore(pool),

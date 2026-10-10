@@ -1,3 +1,4 @@
+import type { AccountRequestGuard } from './features/account/requestLimits.js';
 import type { FoodService } from './features/nutrition/food.js';
 import type { FoodCommand } from './shared/foodContract.js';
 import type { PlanningService } from './features/planning/planning.js';
@@ -18,6 +19,7 @@ export function buildApp(
   logger: FastifyServerOptions['logger'] = false,
   options: {
     store?: ProfileStore;
+    accountRequestGuard?: AccountRequestGuard;
     verifyAccount?: VerifyAccount;
     onboarding?: OnboardingService;
     planning?: PlanningService;
@@ -29,12 +31,34 @@ export function buildApp(
 ) {
   const app = Fastify({
     logger,
+    trustProxy: false, // Forwarded headers are untrusted until actual proxy boundaries are verified.
     ajv: { customOptions: { coerceTypes: false, removeAdditional: false } },
   });
   const accounts = new WeakMap<object, Account>();
 
-  const requireAccount: import('fastify').onRequestAsyncHookHandler = async (request, reply) => {
+  // Bound malformed/unauthenticated traffic too; bounded memory, no stored IP history.
+  const onboardingRates = new Map<string, { until: number; count: number }>();
+  const preAuthGuard: import('fastify').onRequestAsyncHookHandler = async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
+    const now = Date.now();
+    for (const [key, value] of onboardingRates) if (value.until <= now) onboardingRates.delete(key);
+    let rate = onboardingRates.get(request.ip);
+    if (!rate && onboardingRates.size < 1000) {
+      rate = { until: now + 60000, count: 0 };
+      onboardingRates.set(request.ip, rate);
+    }
+    if (!rate || ++rate.count > 120)
+      return reply
+        .header(
+          'Retry-After',
+          String(Math.max(1, Math.ceil(((rate?.until ?? now + 60000) - now) / 1000))),
+        )
+        .code(429)
+        .send({ code: 'rate_limit', message: 'Please try again later.' });
+  };
+  const requireAccount: import('fastify').onRequestAsyncHookHandler = async (request, reply) => {
+    await preAuthGuard.call(app, request, reply);
+    if (reply.sent) return;
     const match = /^Bearer ([^\s]+)$/i.exec(request.headers.authorization ?? '');
     let account: Account | null = null;
     try {
@@ -45,6 +69,22 @@ export function buildApp(
     }
     if (!account) {
       return reply.code(401).send({ message: 'Sign in to access your profile.' });
+    }
+    if (options.accountRequestGuard) {
+      try {
+        const retry = await options.accountRequestGuard(account);
+        if (retry > 0)
+          return reply
+            .header('Retry-After', String(retry))
+            .code(429)
+            .send({ code: 'rate_limit', message: 'Please try again later.' });
+      } catch (error) {
+        if (error instanceof OnboardingError && error.code === 'session_ended')
+          return reply.code(401).send({ code: 'session_ended', message: 'Sign in again.' });
+        return reply
+          .code(503)
+          .send({ code: 'unavailable', message: 'Unable to verify request allowance.' });
+      }
     }
     accounts.set(request, account);
   };
@@ -133,24 +173,9 @@ export function buildApp(
     },
   );
 
-  // Bound malformed/unauthenticated traffic too; bounded memory, no stored IP history.
-  const onboardingRates = new Map<string, { until: number; count: number }>();
-  const onboardingAccount: import('fastify').onRequestAsyncHookHandler = async (request, reply) => {
-    reply.header('Cache-Control', 'no-store');
-    const now = Date.now();
-    for (const [key, value] of onboardingRates) if (value.until <= now) onboardingRates.delete(key);
-    let rate = onboardingRates.get(request.ip);
-    if (!rate && onboardingRates.size < 1000) {
-      rate = { until: now + 60000, count: 0 };
-      onboardingRates.set(request.ip, rate);
-    }
-    if (!rate || ++rate.count > 120)
-      return reply.code(429).send({ code: 'rate_limit', message: 'Please try again later.' });
-    await requireAccount.call(app, request, reply);
-  };
   const privateRoute = {
     logLevel: 'silent' as const,
-    onRequest: onboardingAccount,
+    onRequest: requireAccount,
     bodyLimit: 8192,
     errorHandler(
       error: import('fastify').FastifyError,

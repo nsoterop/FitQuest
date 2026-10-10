@@ -1,3 +1,4 @@
+import { verifySecurityDatabase } from './securityDatabaseFixture.js';
 import { verifySchedulerDatabase } from './schedulerDatabaseFixture.js';
 import { verifyProgressDatabase } from './progressDatabaseFixture.js';
 import { verifyWeightDatabase } from './weightDatabaseFixture.js';
@@ -466,6 +467,68 @@ export async function verifyOnboardingDatabase(
     proposal,
     usage: { input: 100, output: 20, cached: 0, cacheWrite: 0 },
   });
+  await t.test(
+    'security migration preserves historical settled/reserved/uncertain accounting and managed accounts',
+    async () => {
+      const userId = randomUUID(); // Permanent ledger identity need not have a surviving Auth account.
+      await owner.query('BEGIN');
+      await owner.query("SELECT set_config('fitquest.user_id',$1,true)", [userId]);
+      for (const state of ['settled', 'reserved', 'uncertain']) {
+        const id = randomUUID();
+        await owner.query(
+          "INSERT INTO fitquest.onboarding_attempts(user_id,id,state,model,prompt_version,schema_version,created_at) VALUES($1,$2,'not_dispatched','synthetic','historical','food-v1',now()-interval '2 days')",
+          [userId, id],
+        );
+        assert.equal(
+          (await owner.query('SELECT fitquest.reserve_onboarding($1,10,7000000) AS allowed', [id]))
+            .rows[0].allowed,
+          true,
+        );
+        if (state !== 'reserved')
+          await owner.query('SELECT fitquest.settle_onboarding($1,$2)', [
+            id,
+            state === 'settled' ? 0 : null,
+          ]);
+      }
+      await owner.query('COMMIT');
+      const snapshot = async () => ({
+        accounts: (await owner.query('SELECT * FROM auth.users ORDER BY id')).rows,
+        sessions: (await owner.query('SELECT * FROM auth.sessions ORDER BY id')).rows,
+        profiles: (await owner.query('SELECT * FROM fitquest.profiles ORDER BY user_id')).rows,
+        budget: (await owner.query('SELECT * FROM fitquest.ai_budget ORDER BY id')).rows,
+        attempts: (
+          await owner.query(
+            "SELECT to_jsonb(a)-'reserved_at'-'allowance_denial' AS data FROM fitquest.onboarding_attempts a ORDER BY user_id,id",
+          )
+        ).rows,
+      });
+      const before = await snapshot();
+      await owner.query('BEGIN');
+      await owner.query(
+        await readFile(
+          new URL(
+            '../../../../database/migrations/20261010140607_security_account_limits.sql',
+            import.meta.url,
+          ),
+          'utf8',
+        ),
+      );
+      await owner.query('COMMIT');
+      assert.deepEqual(await snapshot(), before);
+      assert.equal(
+        (await owner.query('SELECT enabled FROM fitquest.security_policy')).rows[0].enabled,
+        false,
+      );
+      assert.equal(
+        (
+          await owner.query(
+            'SELECT 1 FROM fitquest.onboarding_attempts WHERE reserved_micro>0 AND reserved_at IS DISTINCT FROM created_at',
+          )
+        ).rowCount,
+        0,
+      );
+    },
+  );
   const provider: OnboardingProvider = {
     mode: 'test',
     model: 'synthetic-contract',
@@ -2091,20 +2154,12 @@ export async function verifyOnboardingDatabase(
   await verifyProgressDatabase(t, owner, pool, profiles);
   await verifySchedulerDatabase(t, owner, pool, profiles);
   await verifyFoodDatabase(t, owner, pool, profiles);
+  await verifySecurityDatabase(t, owner, pool);
   await t.test(
     'request and storage caps, database constraints, immutable revision and no public RPC grants',
     async () => {
       await owner.query('UPDATE fitquest.onboarding_request_limits SET requests=0,generations=0');
       const a = await fresh();
-      await owner.query(
-        'UPDATE fitquest.onboarding_request_limits SET requests=600 WHERE user_id=$1',
-        [alice.userId],
-      );
-      assert.equal((await request('GET', `/onboarding/${a.id}`)).statusCode, 429);
-      await owner.query(
-        'UPDATE fitquest.onboarding_request_limits SET requests=0 WHERE user_id=$1',
-        [alice.userId],
-      );
       await owner.query('UPDATE fitquest.onboarding_conversations SET revision=240 WHERE id=$1', [
         a.id,
       ]);

@@ -108,6 +108,31 @@ export async function verifySchedulerDatabase(
     now = new Date('2026-10-12T01:00:00Z');
   };
   await t.test(
+    'account allowance denial never triggers an automatic scheduled retry after policy changes',
+    async () => {
+      await owner.query('UPDATE fitquest.security_policy SET enabled=true,ai_daily_micro=1');
+      try {
+        const a = await fresh(),
+          m = mock();
+        await store.schedule(a, permission);
+        due();
+        await m.service.scheduled(a);
+        assert.equal(m.bodies.length, 0);
+        assert.equal(
+          (await bg.read(a)).plans.find((p) => p.weekStart)!.jobs[0]!.error,
+          'account_ai_daily_limit',
+        );
+        await owner.query('UPDATE fitquest.security_policy SET ai_daily_micro=4000000');
+        await m.service.scheduled(a);
+        assert.equal(m.bodies.length, 0);
+      } finally {
+        await owner.query(
+          'UPDATE fitquest.security_policy SET enabled=false,ai_daily_micro=4000000',
+        );
+      }
+    },
+  );
+  await t.test(
     'explicit enrollment, closed-app dispatch without a session, concurrent dedupe and free date-correct acceptance',
     async () => {
       const a = await fresh(),

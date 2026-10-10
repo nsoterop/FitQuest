@@ -1,6 +1,6 @@
 # Architecture and operational limits
 
-This describes source behavior on the cleanup branch as of October 10, 2026. It is not a deployment runbook or authority to change hosted services.
+This describes source behavior on the security-hardening branch as of October 10, 2026. It is not a deployment runbook or authority to change hosted services.
 
 ## Boundaries
 
@@ -43,4 +43,4 @@ This reuses the existing service and avoids another job resource, but depends on
 
 ## Evidence and release state
 
-The October 9 production record identifies application `2e779e5`. Cleanup is published separately on private `codex/publication-safety`; the historical `main` branch is not the current API release source. No cleanup commit implies a deployment. [Release history](../archive/README.md), [publication-safety audit](../archive/audits/publication-safety-2026-10-09.md), and [code-quality checks](../archive/audits/code-quality-2026-10-10.md) preserve their original dates and scope.
+The October 9 production record identifies application `2e779e5`. Repository organization was published to `main` at `ccbd00d`; security changes are prepared on `codex/security-hardening`. Neither is the deployed API release source. [Security status](security.md) describes the new instruction boundary, result envelope and inactive account policy. Source publication does not imply deployment. [Release history](../archive/README.md), [publication-safety audit](../archive/audits/publication-safety-2026-10-09.md), and [code-quality checks](../archive/audits/code-quality-2026-10-10.md) preserve their original dates and scope.
