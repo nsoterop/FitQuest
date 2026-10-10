@@ -1,5 +1,9 @@
 # FitQuest API
 
+## Body weight — batch 1
+
+Private no-store routes `GET /body-weight`, `GET /body-weight/:id`, `GET /body-weight/operations/:id` and `POST /body-weight/commands` implement dated measurements, owned revisions and idempotent save/delete receipts without AI or ledger writes. History is ordered by measurement date; lb/kg decimals retain their explicit units. Private forced-RLS records, receipts and encrypted account-scoped device drafts survive training resets. Explicit deletion clears the measurement immediately while retaining minimal replay metadata. Neither table references resettable plans. Never include weight records or receipts in the nine-table testing reset. [Tests, retention and native evidence](../docs/body-weight-native/README.md) document the implementation; root release evidence records live verification.
+
 ## Workout journal — slice 1
 
 Private no-store routes `GET /workout-journal`, `GET /workout-journal/:id`, `GET /workout-journal/operations/:id` and `POST /workout-journal/commands` save actual work without AI dispatch or ledger writes. Versioned server-resolved accepted snapshots, stable row/group IDs, owned revisions and permanent operation receipts protect history and replay. New document-week-v4 adds only a three-value logging layout hint to exercise rows; v1–v3 remain readable without conversion. Existing coaching/nutrition text, single request, Sol 6.1 low and spending caps are unchanged.

@@ -11,7 +11,7 @@ import { commandSchema, idSchema, type OnboardingService } from './onboarding.js
 import { OnboardingError, type Command } from './onboardingDomain.js';
 
 export function buildApp(logger: FastifyServerOptions['logger'] = false,
-  options: { store?: ProfileStore; verifyAccount?: VerifyAccount; onboarding?: OnboardingService; planning?:PlanningService; journal?:import('./journalStore.js').JournalStore;library?:import('./foodLibraryStore.js').FoodLibraryStore;food?:FoodService } = {}) {
+  options: { store?: ProfileStore; verifyAccount?: VerifyAccount; onboarding?: OnboardingService; planning?:PlanningService; weight?:import('./weightStore.js').WeightStore;journal?:import('./journalStore.js').JournalStore;library?:import('./foodLibraryStore.js').FoodLibraryStore;food?:FoodService } = {}) {
   const app = Fastify({ logger, ajv: { customOptions: { coerceTypes: false, removeAdditional: false } } });
   const accounts = new WeakMap<object, Account>();
 
@@ -154,6 +154,11 @@ export function buildApp(logger: FastifyServerOptions['logger'] = false,
       try{const next=await options.verifyAccount!(request.headers.authorization!.slice(7));return next?.userId===account.userId&&next.sessionId===account.sessionId}catch{return false}
     });
   });
+  const weight=()=>{if(!options.weight)throw new OnboardingError(503,'unavailable');return options.weight};
+  app.get<{Querystring:{offset?:string}}>('/body-weight',privateRoute,async r=>weight().list(accounts.get(r)!,r.query.offset===undefined?0:Number(r.query.offset)));
+  app.get<{Params:{id:string}}>('/body-weight/operations/:id',privateRoute,async r=>weight().readOperation(accounts.get(r)!,r.params.id));
+  app.get<{Params:{id:string}}>('/body-weight/:id',privateRoute,async r=>weight().read(accounts.get(r)!,r.params.id));
+  app.post<{Body:import('./weightContract.js').WeightCommand}>('/body-weight/commands',{...privateRoute,bodyLimit:4000},async r=>weight().command(accounts.get(r)!,r.body));
   const journal=()=>{if(!options.journal)throw new OnboardingError(503,'unavailable');return options.journal};
   app.get<{Querystring:{offset?:string}}>('/workout-journal',privateRoute,async r=>journal().list(accounts.get(r)!,r.query.offset===undefined?0:Number(r.query.offset)));
   app.get<{Params:{id:string}}>('/workout-journal/operations/:id',privateRoute,async r=>journal().readOperation(accounts.get(r)!,r.params.id));
