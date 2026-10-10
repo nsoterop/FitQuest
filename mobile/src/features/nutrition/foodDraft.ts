@@ -37,14 +37,12 @@ export function foodDrafts(storage: ReturnType<typeof secureSessionStorage>) {
             typeof v.date === 'string' &&
             typeof v.timeZone === 'string' &&
             Number.isFinite(v.savedAt) &&
-            Date.now() - v.savedAt < 86400000 &&
-            v.savedAt <= Date.now() &&
             raw.length <= 45000
           )
             return v as FoodDraft;
         } catch {}
-        await storage.removeItem(key(id));
-        return null;
+        // Preserve recoverable input and pending operation identity, including clock changes.
+        throw new Error('Could not restore the saved food draft');
       }),
     write: (id: string, d: FoodDraft) =>
       run(async () => {

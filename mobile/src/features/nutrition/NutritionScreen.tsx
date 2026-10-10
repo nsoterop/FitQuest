@@ -171,8 +171,8 @@ export function FoodTrends({ state }: { state: FoodState }) {
         {state.dates[0]} – {state.dates[6]}
       </Text>
       <Text style={ui.copy}>
-        Averages include only days you marked complete with every value known for that nutrient.
-        Missing and future days are excluded.
+        Averages use logged past days with every value known for that nutrient. Today is partial;
+        empty and future days are excluded. Logged intake may not represent everything you ate.
       </Text>
       {nutrients.map((n) => {
         const average = foodAverage(state, n);
@@ -184,21 +184,24 @@ export function FoodTrends({ state }: { state: FoodState }) {
               .map((e) => e.document),
             n,
           ),
-          complete: !!state.days.find((d) => d.date === date)?.complete,
+          ended: date < state.today,
         }));
-        const max = Math.max(1, ...days.map((d) => d.total.value));
+        const max = Math.max(
+          1,
+          ...days.filter((d) => d.date <= state.today).map((d) => d.total.value),
+        );
         return (
           <View key={n} style={{ gap: 12 }}>
             <View style={ui.row}>
               <Text style={ui.section}>{labels[n]}</Text>
               <Text style={ui.label}>
                 {average.value === null
-                  ? 'No complete data'
+                  ? 'No known logged past-day data'
                   : `${number(average.value)} ${unit(n)} / day`}
               </Text>
             </View>
             <Text style={ui.copy}>
-              {average.days} qualifying completed {average.days === 1 ? 'day' : 'days'}
+              {average.days} qualifying logged past {average.days === 1 ? 'day' : 'days'}
               {average.estimated ? ' · includes estimates' : ''}
             </Text>
             <View style={{ flexDirection: 'row', gap: 5, alignItems: 'flex-end' }}>
@@ -206,7 +209,7 @@ export function FoodTrends({ state }: { state: FoodState }) {
                 <View
                   key={d.date}
                   accessible
-                  accessibilityLabel={`${d.date}: ${d.date > state.today ? 'Future' : !d.total.hasEntries ? 'Not logged' : `${number(d.total.value)} ${unit(n)}${d.total.unknown ? ' known subtotal, incomplete' : ''}, ${d.complete ? 'complete' : 'in progress'}`}`}
+                  accessibilityLabel={`${labels[n]}, ${d.date}: ${d.date > state.today ? 'Future, excluded' : !d.total.hasEntries ? 'Not logged, excluded' : `${number(d.total.value)} ${unit(n)}${d.total.unknown ? ' known subtotal, unknown values, excluded from average' : ''}${d.total.estimated ? ', includes estimates' : ''}, ${d.ended ? 'past logged intake' : 'today partial, excluded from average'}`}`}
                   style={{ flex: 1, gap: 6, alignItems: 'center' }}
                 >
                   <Text style={[ui.label, { fontSize: 11 }]}>
@@ -215,9 +218,13 @@ export function FoodTrends({ state }: { state: FoodState }) {
                   <View style={{ height: 90, justifyContent: 'flex-end', width: '75%' }}>
                     <View
                       style={{
-                        height: d.total.hasEntries ? Math.max(2, (90 * d.total.value) / max) : 1,
-                        backgroundColor: d.complete ? colorsBy[n] : colors.line,
-                        borderWidth: d.total.hasEntries && !d.complete ? 1 : 0,
+                        height:
+                          d.date <= state.today && d.total.hasEntries
+                            ? Math.max(2, (90 * d.total.value) / max)
+                            : 1,
+                        backgroundColor: d.ended ? colorsBy[n] : colors.line,
+                        borderWidth:
+                          d.date <= state.today && d.total.hasEntries && !d.ended ? 1 : 0,
                         borderColor: colorsBy[n],
                       }}
                     />
@@ -238,7 +245,7 @@ export function FoodTrends({ state }: { state: FoodState }) {
                   ? 'Future'
                   : !d.total.hasEntries
                     ? 'Not logged'
-                    : `${number(d.total.value)} ${unit(n)}${d.total.unknown ? ' known subtotal · incomplete' : ''}${d.total.estimated ? ' · estimated' : ''} · ${d.complete ? 'Complete' : 'In progress'}`}
+                    : `${number(d.total.value)} ${unit(n)}${d.total.unknown ? ' known subtotal · unknown values' : ''}${d.total.estimated ? ' · estimated' : ''} · ${d.ended ? 'Past logged intake' : 'Today · partial'}`}
               </Text>
             ))}
           </View>
@@ -255,9 +262,21 @@ type Props = {
   onTab: (tab: MainTab) => void;
 };
 export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount, onTab }: Props) {
+  return (
+    <AccountNutritionScreen
+      key={userId}
+      userId={userId}
+      accessToken={accessToken}
+      onSessionEnded={onSessionEnded}
+      onAccount={onAccount}
+      onTab={onTab}
+    />
+  );
+}
+function AccountNutritionScreen({ userId, accessToken, onSessionEnded, onAccount, onTab }: Props) {
   const [library, setLibrary] = useState(false),
     [librarySource, setLibrarySource] = useState<FoodEntry | null>(null);
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [zone, setZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [date, setDate] = useState(foodToday(zone)),
     [dateText, setDateText] = useState(foodToday(zone)),
     [editingDate, setEditingDate] = useState(false),
@@ -274,7 +293,21 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
     [deleteConfirm, setDeleteConfirm] = useState(false),
     [blocked, setBlocked] = useState(false),
     [draftError, setDraftError] = useState(false),
-    [now, setNow] = useState(Date.now());
+    [restoreFailed, setRestoreFailed] = useState(false),
+    [now, setNow] = useState(Date.now()),
+    [reload, setReload] = useState(0);
+  const followToday = useRef(true),
+    refreshDue = useRef(false),
+    dateRef = useRef(date),
+    zoneRef = useRef(zone);
+  dateRef.current = date;
+  zoneRef.current = zone;
+  function selectDate(d: string) {
+    followToday.current = d === foodToday(zoneRef.current);
+    dateRef.current = d;
+    setDate(d);
+    setDateText(d);
+  }
   const [targetRefresh, setTargetRefresh] = useState(0);
   const [target, setTarget] = useState<AcceptedNutrition | null>(null),
     [_targetStatus, setTargetStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -321,46 +354,80 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
       throw Error('draft');
     }
   }
-  useEffect(() => {
-    live.current = true;
-    void privateFoodDrafts
+  function restoreDraft() {
+    return privateFoodDrafts
       .read(userId)
       .then((d) => {
         if (!live.current) return;
         if (d) {
+          draftRef.current = d;
           setDraft(d);
           if (d.pending) setBlocked(true);
-          setDate(d.date);
-          setDateText(d.date);
         }
+        setRestoreFailed(false);
         setReady(true);
       })
       .catch(() => {
         if (live.current) {
-          setDraftError(true);
+          setRestoreFailed(true);
           setReady(true);
         }
       });
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+  }
+  useEffect(() => {
+    live.current = true;
+    void restoreDraft();
+    const refresh = (foreground = false) => {
+      const nextZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      zoneRef.current = nextZone;
+      setZone(nextZone);
+      setNow(Date.now());
+      if (foreground) {
+        setTargetRefresh((n) => n + 1);
+        if (pending.current) refreshDue.current = true;
+        else setReload((n) => n + 1);
+      }
+    };
+    const timer = setInterval(() => refresh(), 1000);
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') setNow(Date.now());
+      if (s === 'active') refresh(true);
     });
     return () => {
       live.current = false;
       pending.current?.abort();
+      pending.current = null;
       clearInterval(timer);
       sub.remove();
     };
   }, [userId]);
   useEffect(() => {
-    if (ready) void persist(draft).catch(() => {});
-  }, [draft, ready]);
+    const today = foodToday(zone, new Date(now));
+    if (
+      followToday.current &&
+      !busy &&
+      !library &&
+      !editingDate &&
+      ['diary', 'trends'].includes(view) &&
+      date !== today
+    )
+      selectDate(today);
+  }, [now, zone, busy, view, library, editingDate, date]);
+  useEffect(() => {
+    if (ready && !draftError && !restoreFailed) void persist(draft).catch(() => {});
+  }, [draft, ready, draftError, restoreFailed]);
   useEffect(() => {
     if (ready) {
       setState(null);
-      void load();
+      if (pending.current) refreshDue.current = true;
+      else void load();
     }
-  }, [date, ready]);
+  }, [date, zone, ready, reload]);
+  useEffect(() => {
+    if (ready && ['diary', 'trends'].includes(view)) {
+      if (pending.current) refreshDue.current = true;
+      else void load();
+    }
+  }, [view]);
   async function run(
     fn: (
       request: <T extends FoodState | FoodOperation>(path: string, body?: unknown) => Promise<T>,
@@ -381,7 +448,7 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
         return v;
       });
     } catch (e) {
-      if (live.current) {
+      if (live.current && pending.current === c) {
         if (e instanceof FoodError && e.code === 'session_ended') ended.current?.();
         else
           setError(
@@ -395,13 +462,26 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
       if (pending.current === c) {
         pending.current = null;
         if (live.current) setBusy(false);
+        if (live.current && refreshDue.current) {
+          refreshDue.current = false;
+          setReload((n) => n + 1);
+        }
       }
     }
   }
   const query = (d = date) => `?date=${d}&timeZone=${encodeURIComponent(zone)}`;
+  async function readDiary(
+    r: <T extends FoodState | FoodOperation>(path: string, body?: unknown) => Promise<T>,
+  ) {
+    const d = dateRef.current,
+      z = zoneRef.current;
+    const result = await r<FoodState>(`?date=${d}&timeZone=${encodeURIComponent(z)}`);
+    if (d === dateRef.current && z === zoneRef.current) setState(result);
+    else refreshDue.current = true;
+  }
   async function load() {
     await run(async (r) => {
-      setState(await r<FoodState>(query()));
+      await readDiary(r);
       if (!draftRef.current.pending) setBlocked(false);
     });
   }
@@ -443,7 +523,7 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
       saved.pending?.kind === 'delete'
         ? 'Entry deleted. Undo is available for 30 seconds.'
         : saved.pending?.kind === 'undo'
-          ? 'Entry restored. Review the day before marking it complete.'
+          ? 'Entry restored. Logged totals updated.'
           : saved.pending?.kind === 'complete'
             ? 'Day updated.'
             : 'Saved to your food diary.',
@@ -451,7 +531,7 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
     setView('diary');
     setDetail(null);
     setDeleteConfirm(false);
-    setState(await r<FoodState>(query()));
+    await readDiary(r);
   }
   async function submit(command: FoodCommand) {
     if (busy || blocked) return;
@@ -473,7 +553,8 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
         await receipt(await r<FoodOperation>('/commands', command), r);
       } catch (e) {
         if (e instanceof FoodError && !['unavailable'].includes(e.code)) {
-          if (e.code === 'food_changed') setState(await r<FoodState>(query()));
+          if (e.code === 'food_changed')
+            setState(await r<FoodState>(query(next.document?.date ?? next.date)));
           change({ ...next, pending: null });
           setBlocked(false);
         }
@@ -485,7 +566,7 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
     await run(async (r) => {
       const command = draftRef.current.pending;
       if (!command) {
-        setState(await r<FoodState>(query()));
+        await readDiary(r);
         setBlocked(false);
         return;
       }
@@ -501,7 +582,6 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
   }
   const entry = state?.entries.find((e) => e.id === detail && !e.deletedAt);
   const entries = state?.entries.filter((e) => !e.deletedAt && e.document.date === date) ?? [];
-  const day = state?.days.find((d) => d.date === date);
   const hasKnown = (n: (typeof nutrients)[number]) =>
     entries.some((e) => e.document.items.some((i) => i.nutrients[n].value !== null));
   const foodDraftPresent =
@@ -605,6 +685,11 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
     >
       {!ready ? (
         <Text style={ui.copy}>Restoring your food draft…</Text>
+      ) : restoreFailed ? (
+        <>
+          <Notice error>Could not restore your saved food draft. It has not been removed.</Notice>
+          <Action label="Retry restoring food draft" onPress={() => void restoreDraft()} />
+        </>
       ) : (
         <>
           {!!error && <Notice error>{error}</Notice>}
@@ -675,8 +760,7 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                   disabled={busy}
                   onPress={() => {
                     const d = shiftFoodDate(date, -1);
-                    setDate(d);
-                    setDateText(d);
+                    selectDate(d);
                   }}
                 />
                 <Pressable
@@ -699,11 +783,13 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                   disabled={busy || date >= foodToday(zone)}
                   onPress={() => {
                     const d = shiftFoodDate(date, 1);
-                    setDate(d);
-                    setDateText(d);
+                    selectDate(d);
                   }}
                 />
               </View>
+              <Text style={ui.copy}>
+                Diary date · {date} · {zone}
+              </Text>
               {editingDate && (
                 <>
                   {field('Diary date (YYYY-MM-DD)', dateText, setDateText)}
@@ -713,7 +799,7 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                     disabled={busy}
                     onPress={() => {
                       if (foodDate(dateText) && dateText <= foodToday(zone)) {
-                        setDate(dateText);
+                        selectDate(dateText);
                         setEditingDate(false);
                       } else setError('Choose a valid consumed date, today or earlier.');
                     }}
@@ -728,11 +814,17 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                 />
               )}
               {foodDraftPresent && (
-                <Action
-                  label="Resume food draft"
-                  secondary
-                  onPress={() => setView(doc ? 'review' : 'compose')}
-                />
+                <>
+                  <Text style={ui.copy}>
+                    Saved food draft · {draft.document?.date ?? draft.date} ·{' '}
+                    {draft.document?.timeZone ?? draft.timeZone}
+                  </Text>
+                  <Action
+                    label="Resume food draft"
+                    secondary
+                    onPress={() => setView(doc ? 'review' : 'compose')}
+                  />
+                </>
               )}
               {!state ? (
                 <Notice>
@@ -744,26 +836,11 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                 <FoodTrends state={state} />
               ) : (
                 <>
-                  <View style={ui.row}>
-                    <Text style={ui.label}>
-                      {day?.complete ? 'Day complete' : 'Day in progress'}
-                    </Text>
-                    <Action
-                      label={day?.complete ? 'Reopen this day' : 'Mark day complete'}
-                      secondary
-                      disabled={busy || blocked || !entries.length || foodDraftPresent}
-                      onPress={() =>
-                        void submit({
-                          operationId: operationId(),
-                          kind: 'complete',
-                          date,
-                          timeZone: zone,
-                          expectedRevision: day?.revision ?? 0,
-                          complete: !day?.complete,
-                        })
-                      }
-                    />
-                  </View>
+                  <Text style={ui.label}>
+                    {date < foodToday(zone)
+                      ? 'Past day · logged intake · editable'
+                      : 'Today · partial logged intake'}
+                  </Text>
                   <Text style={ui.eyebrow}>
                     {foodTotal(
                       entries.map((e) => e.document),
@@ -785,7 +862,7 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
                   </Text>
                   <Text style={ui.copy}>
                     {entries.length
-                      ? `${entries.length} entries · ${day?.complete ? 'Day marked complete' : 'Your day so far'}`
+                      ? `${entries.length} entries · ${date < foodToday(zone) ? 'Logged intake for this date' : 'Your day so far'}`
                       : 'No food logged for this date.'}
                   </Text>
                   <View style={ui.row}>
@@ -935,6 +1012,9 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
           {view === 'compose' && (
             <>
               <Text style={ui.title}>What did you eat?</Text>
+              <Text style={ui.copy}>
+                Consumed date · {draft.date} · {draft.timeZone}
+              </Text>
               <Text style={ui.copy}>
                 Your message and relevant food conversation are sent to OpenAI. Each send uses the
                 shared AI allowance. Estimates need your review; nothing is logged until you

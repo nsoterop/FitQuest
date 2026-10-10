@@ -4845,7 +4845,7 @@ const foodDay = '2026-10-04';
 function emptyFood() {
   return { dates: foodWeek(foodDay), today: foodDay, entries: [], days: [] };
 }
-async function mountFood() {
+async function mountFood(extra = {}) {
   let screen;
   await act(async () => {
     screen = TestRenderer.create(
@@ -4853,6 +4853,7 @@ async function mountFood() {
         userId: 'alice',
         accessToken: async () => 'alice-token',
         onTab: () => {},
+        ...extra,
       }),
     );
     await flush();
@@ -4860,7 +4861,7 @@ async function mountFood() {
   });
   return screen;
 }
-test('nutrition manual entry preserves unknowns, saves once without interpretation, shows confirmed totals and completed-day trends', async (t) => {
+test('nutrition manual entry preserves unknowns, saves once and past-day trends update without completion writes', async (t) => {
   globalThis.__fitquestSecure.clear();
   const state = emptyFood(),
     ops = new Map();
@@ -4868,12 +4869,14 @@ test('nutrition manual entry preserves unknowns, saves once without interpretati
     posts = 0;
   globalThis.fetch = async (url, options) => {
     url = String(url);
-    if (options.method === 'GET')
+    if (options.method === 'GET') {
+      if (!url.includes('/operations/')) state.today = new Date().toISOString().slice(0, 10);
       return {
         status: 200,
         json: async () =>
           structuredClone(url.includes('/operations/') ? ops.get(url.split('/').at(-1)) : state),
       };
+    }
     posts++;
     const cmd = JSON.parse(options.body);
     if (cmd.kind === 'interpret') interpretations++;
@@ -4898,7 +4901,6 @@ test('nutrition manual entry preserves unknowns, saves once without interpretati
       ];
       state.days = [{ date: foodDay, revision: 1, complete: false }];
     }
-    if (cmd.kind === 'complete') state.days = [{ date: foodDay, revision: 2, complete: true }];
     ops.set(op.id, op);
     return { status: 200, json: async () => op };
   };
@@ -4928,13 +4930,24 @@ test('nutrition manual entry preserves unknowns, saves once without interpretati
   assert.equal(state.entries[0].document.items[0].nutrients.carbs.value, null);
   assert.match(text(screen), /420.3|420\.3/);
   assert.match(text(screen), /known subtotal/);
+  assert.doesNotMatch(text(screen), /Mark day complete|Reopen this day/);
   await act(async () => {
-    press(screen, 'Mark day complete');
+    t.mock.timers.setTime(new Date('2026-10-05T12:00:00Z').getTime());
+    for (const listener of globalThis.__fitquestAppStateListeners) listener('active');
+    await flush();
+    await flush();
+    await flush();
+  });
+  assert.match(text(screen), /2026-10-05/);
+  await act(async () => {
+    press(screen, 'Previous day');
+    await flush();
     await flush();
   });
   await act(async () => press(screen, 'Weekly trends'));
-  assert.match(text(screen), /1 qualifying completed|qualifying completed/);
-  assert.match(text(screen), /No complete data/);
+  assert.match(text(screen), /qualifying logged past/);
+  assert.match(text(screen), /No known logged past-day data/);
+  assert.equal(posts, 1);
 });
 test('food lost save response checks existing operation and never reinterprets; a draft survives navigation and reopen', async (t) => {
   globalThis.__fitquestSecure.clear();
@@ -4982,6 +4995,124 @@ test('food lost save response checks existing operation and never reinterprets; 
   assert.equal(posts, 1);
   assert.match(text(screen), /How much pasta/);
   assert.equal((await privateFoodDrafts.read('alice')).pending, null);
+});
+test('diary opens today while preserving an old draft and keeps its consumed date across midnight', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const intervals = [];
+  const originalInterval = globalThis.setInterval;
+  t.mock.method(globalThis, 'setInterval', (fn, ms, ...args) => {
+    if (ms === 1000) intervals.push(fn);
+    return originalInterval(fn, ms, ...args);
+  });
+  const originalOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+  t.mock.method(Intl.DateTimeFormat.prototype, 'resolvedOptions', function () {
+    return { ...originalOptions.call(this), timeZone: 'America/New_York' };
+  });
+  const queries = [],
+    commands = [];
+  globalThis.fetch = async (url, options) => {
+    if (options.method !== 'GET') {
+      commands.push(JSON.parse(options.body));
+      throw Error('unexpected mutation');
+    }
+    const u = new URL(String(url));
+    const date = u.searchParams.get('date') ?? foodDay;
+    if (u.pathname === '/api/food') queries.push(date);
+    return {
+      status: 200,
+      json: async () => ({
+        dates: foodWeek(date),
+        today: new Date().toISOString().slice(0, 10),
+        days: [],
+        entries: [],
+      }),
+    };
+  };
+  await privateFoodDrafts.write('alice', {
+    message: 'Synthetic unfinished meal',
+    document: null,
+    candidate: null,
+    pending: null,
+    editingId: null,
+    editingRevision: null,
+    date: '2026-10-02',
+    timeZone: 'America/Los_Angeles',
+    savedAt: Date.now() - 3 * 86400000,
+  });
+  const screen = await mountFood();
+  t.after(async () => act(async () => screen.unmount()));
+  assert.match(text(screen), /2026-10-04/);
+  assert.match(text(screen), /Saved food draft/);
+  assert.equal((await privateFoodDrafts.read('alice')).date, '2026-10-02');
+  await act(async () => press(screen, 'Resume food draft'));
+  assert.equal(input(screen, 'What I ate').props.value, 'Synthetic unfinished meal');
+  await act(async () => {
+    t.mock.timers.setTime(new Date('2026-10-05T04:00:01Z').getTime());
+    for (const fn of intervals) fn();
+    await flush();
+  });
+  assert.match(text(screen), /2026-10-02/);
+  assert.equal((await privateFoodDrafts.read('alice')).date, '2026-10-02');
+  await act(async () => {
+    press(screen, 'Food diary');
+    await flush();
+    await flush();
+    await flush();
+  });
+  assert.match(text(screen), /2026-10-05/);
+  assert.equal(commands.length, 0);
+});
+test('historical diary browsing survives foreground and timezone change while new entries use the selected date', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  let zone = 'America/New_York';
+  const originalOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+  t.mock.method(Intl.DateTimeFormat.prototype, 'resolvedOptions', function () {
+    return { ...originalOptions.call(this), timeZone: zone };
+  });
+  globalThis.fetch = async (url) => {
+    const date = new URL(String(url)).searchParams.get('date') ?? foodDay;
+    return {
+      status: 200,
+      json: async () => ({ dates: foodWeek(date), today: foodDay, entries: [], days: [] }),
+    };
+  };
+  const screen = await mountFood();
+  t.after(async () => act(async () => screen.unmount()));
+  await act(async () => {
+    press(screen, 'Previous day');
+    await flush();
+    await flush();
+  });
+  await act(async () => {
+    zone = 'America/Los_Angeles';
+    t.mock.timers.setTime(new Date('2026-10-05T12:00:00Z').getTime());
+    for (const listener of globalThis.__fitquestAppStateListeners) listener('active');
+    await flush();
+    await flush();
+  });
+  assert.match(text(screen), /2026-10-03/);
+  assert.match(text(screen), /America\/Los_Angeles/);
+  await act(async () => press(screen, 'Add manually'));
+  assert.equal(input(screen, 'Consumed date (YYYY-MM-DD)').props.value, '2026-10-03');
+});
+test('unreadable food draft is preserved through restore failure and retry', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  await privateFoodDrafts.write('alice', {
+    date: foodDay,
+    timeZone: 'America/New_York',
+    savedAt: Date.now(),
+  });
+  const before = new Map(globalThis.__fitquestSecure);
+  globalThis.fetch = async () => ({ status: 200, json: async () => emptyFood() });
+  const screen = await mountFood();
+  t.after(async () => act(async () => screen.unmount()));
+  assert.match(text(screen), /It has not been removed/);
+  await act(async () => {
+    press(screen, 'Retry restoring food draft');
+    await flush();
+  });
+  assert.deepEqual(globalThis.__fitquestSecure, before);
+  assert.doesNotMatch(text(screen), /Add manually/);
 });
 test('food drafts are cleared with account cleanup and never read under a different account', async () => {
   globalThis.__fitquestSecure.clear();

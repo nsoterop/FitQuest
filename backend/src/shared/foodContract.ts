@@ -37,7 +37,8 @@ export type FoodEntry = {
   deletedAt: string | null;
   undoUntil: string | null;
 };
-export type FoodDay = { date: string; revision: number; complete: boolean };
+// complete is a retained legacy flag. ended is derived at read time, never written at midnight.
+export type FoodDay = { date: string; revision: number; complete: boolean; ended?: boolean };
 export type FoodState = { entries: FoodEntry[]; days: FoodDay[]; dates: string[]; today: string };
 export type FoodCommand = { operationId: string } & (
   | {
@@ -241,7 +242,7 @@ export function foodItemTotal(d: FoodDocument, index: number, n: Nutrient) {
 }
 export function foodAverage(state: FoodState, n: Nutrient) {
   const totals = state.dates
-    .filter((d) => d <= state.today && state.days.some((x) => x.date === d && x.complete))
+    .filter((d) => d < state.today)
     .map((d) =>
       foodTotal(
         state.entries.filter((e) => !e.deletedAt && e.document.date === d).map((e) => e.document),

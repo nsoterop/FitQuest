@@ -20,7 +20,7 @@ export async function verifyFoodDatabase(
   profiles: ProfileStore,
 ) {
   const yes = async () => true;
-  async function fresh() {
+  async function fresh(clock?: () => Date) {
     const a = { userId: randomUUID(), sessionId: randomUUID() };
     await owner.query('INSERT INTO auth.users VALUES($1)', [a.userId]);
     await owner.query('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)', [
@@ -53,7 +53,7 @@ export async function verifyFoodDatabase(
             : { proposal: candidate, usage: { input: 1, output: 1, cached: 0, cacheWrite: 0 } };
       },
     };
-    const store = foodStore(pool),
+    const store = foodStore(pool, clock),
       service = foodService(store, provider);
     const interpret = (): FoodCommand => ({
       operationId: randomUUID(),
@@ -91,6 +91,86 @@ export async function verifyFoodDatabase(
       read: () => store.read(a, '2026-10-08', 'America/New_York'),
     };
   }
+  await t.test(
+    'past-day closure is derived across midnight and timezone changes without rewriting receipts; corrections remain free',
+    async () => {
+      let instant = new Date('2026-10-09T03:59:59Z');
+      const f = await fresh(() => instant),
+        cmd = f.manual();
+      const saved = await f.service.command(f.a, cmd, yes);
+      const before = await owner.query(
+        'SELECT date::text,revision,complete FROM fitquest.food_days WHERE user_id=$1',
+        [f.a.userId],
+      );
+      assert.equal((await f.read()).days[0]!.ended, false);
+      assert.equal(foodAverage(await f.read(), 'protein').days, 0);
+      instant = new Date('2026-10-09T04:00:00Z');
+      assert.equal((await f.read()).days[0]!.ended, true);
+      assert.equal(foodAverage(await f.read(), 'protein').days, 1);
+      assert.equal(
+        (await f.store.read(f.a, '2026-10-08', 'America/Los_Angeles')).days[0]!.ended,
+        false,
+      );
+      assert.deepEqual(
+        (
+          await owner.query(
+            'SELECT date::text,revision,complete FROM fitquest.food_days WHERE user_id=$1',
+            [f.a.userId],
+          )
+        ).rows,
+        before.rows,
+      );
+      const e = (await f.read()).entries[0]!;
+      await f.service.command(
+        f.a,
+        {
+          operationId: randomUUID(),
+          kind: 'save',
+          candidateOperation: null,
+          confirmConsumed: true,
+          entryId: e.id,
+          expectedRevision: e.revision,
+          document: { ...e.document, date: '2026-10-04' },
+        },
+        yes,
+      );
+      assert.equal(foodAverage(await f.read(), 'protein').days, 0);
+      const oldWeek = await f.store.read(f.a, '2026-10-04', 'America/New_York');
+      assert.equal(foodAverage(oldWeek, 'protein').days, 1);
+      const moved = oldWeek.entries[0]!;
+      await f.service.command(
+        f.a,
+        {
+          operationId: randomUUID(),
+          kind: 'delete',
+          entryId: moved.id,
+          expectedRevision: moved.revision,
+        },
+        yes,
+      );
+      const deleted = (await f.store.read(f.a, '2026-10-04', 'America/New_York')).entries[0]!;
+      assert.equal(
+        foodAverage(await f.store.read(f.a, '2026-10-04', 'America/New_York'), 'protein').days,
+        0,
+      );
+      await f.service.command(
+        f.a,
+        {
+          operationId: randomUUID(),
+          kind: 'undo',
+          entryId: deleted.id,
+          expectedRevision: deleted.revision,
+        },
+        yes,
+      );
+      assert.equal(
+        foodAverage(await f.store.read(f.a, '2026-10-04', 'America/New_York'), 'protein').days,
+        1,
+      );
+      assert.equal((await f.store.readOperation(f.a, cmd.operationId)).entryId, saved.entryId);
+      assert.equal(f.calls(), 0);
+    },
+  );
   await t.test(
     'account AI denial is durable and idempotent while manual food logging remains available',
     async () => {
@@ -171,7 +251,8 @@ export async function verifyFoodDatabase(
       await f.service.command(f.a, edit, yes);
       const moved = await f.read();
       assert.equal(moved.entries[0]!.document.date, '2026-10-07');
-      assert(moved.days.every((d) => !d.complete));
+      assert.equal(moved.days.find((d) => d.date === '2026-10-08')?.complete, true);
+      assert.equal(foodAverage(moved, 'protein').days, 1);
       assert.equal(
         foodTotal(
           moved.entries.map((e) => e.document),

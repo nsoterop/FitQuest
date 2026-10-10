@@ -83,6 +83,7 @@ function validState(v: unknown): v is FoodState {
     v.days.every(
       (d: unknown) =>
         isRecord(d) &&
+        (d.ended === undefined || typeof d.ended === 'boolean') &&
         foodDate(d.date) &&
         Number.isInteger(d.revision) &&
         typeof d.complete === 'boolean',

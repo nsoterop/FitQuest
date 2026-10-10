@@ -15,7 +15,7 @@ import { openAIProvider } from '../../ai/onboardingProvider.js';
 import { buildApp } from '../../app.js';
 import { foodFixture } from '../fixtures/foodFixture.js';
 
-test('food arithmetic preserves decimals, independent calories, null vs zero and explicit complete-day denominators', () => {
+test('food arithmetic preserves decimals, independent calories, null vs zero and logged past-day denominators', () => {
   const d = foodFixture();
   d.servings = 1.5;
   assert(validFoodDocument(d));
@@ -42,10 +42,50 @@ test('food arithmetic preserves decimals, independent calories, null vs zero and
   assert.equal(foodAverage(state, 'protein').days, 1);
   assert.equal(foodAverage(state, 'fat').value, 0);
   state.days[0]!.complete = false;
-  assert.equal(foodAverage(state, 'protein').days, 0);
+  assert.equal(foodAverage(state, 'protein').days, 1);
   state.days[0]!.complete = true;
   state.entries[0]!.deletedAt = 'x';
   assert.equal(foodAverage(state, 'fat').days, 0);
+});
+test('logged averages exclude partial today, future, empty and deleted days independently for each nutrient', () => {
+  const entry = (date: string, protein: number | null) => {
+    const document = foodFixture();
+    document.date = date;
+    document.items[0]!.nutrients.protein = {
+      value: protein,
+      source: protein === null ? 'unknown' : 'supplied',
+    };
+    return {
+      id: randomUUID(),
+      revision: 1,
+      document,
+      createdAt: 'x',
+      updatedAt: 'x',
+      deletedAt: null as string | null,
+      undoUntil: null,
+    };
+  };
+  const state: FoodState = {
+    dates: foodWeek('2026-10-08'),
+    today: '2026-10-09',
+    days: [],
+    entries: [
+      entry('2026-10-06', 0),
+      entry('2026-10-07', 20),
+      entry('2026-10-08', null),
+      entry('2026-10-09', 100),
+      entry('2026-10-10', 200),
+    ],
+  };
+  assert.deepEqual(foodAverage(state, 'protein'), { value: 10, days: 2, estimated: false });
+  assert.equal(foodAverage(state, 'calories').days, 3);
+  state.entries[1]!.deletedAt = 'x';
+  assert.equal(foodAverage(state, 'protein').value, 0);
+  state.entries[1]!.deletedAt = null;
+  state.entries[1]!.document.date = '2026-10-05';
+  assert.equal(foodAverage(state, 'protein').value, 10);
+  state.today = '2026-10-10';
+  assert.equal(foodAverage(state, 'protein').days, 3);
 });
 test('food date, captured timezone and calendar validation handles midnight, DST, leap day and full week', () => {
   assert.equal(foodToday('America/New_York', new Date('2026-03-08T06:59:00Z')), '2026-03-08');

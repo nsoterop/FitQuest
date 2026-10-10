@@ -119,7 +119,7 @@ const op = (r: FoodOperationRow): FoodOperation => ({
   candidate: r.candidate,
   entryId: r.entry_id,
 });
-export function foodStore(pool: Pool) {
+export function foodStore(pool: Pool, clock = () => new Date()) {
   async function tx<T>(a: Account, fn: (c: PoolClient) => Promise<T>, session = true) {
     const c = await pool.connect();
     try {
@@ -172,10 +172,10 @@ export function foodStore(pool: Pool) {
     if (!row) fail('food_operation_missing', 404);
     return row;
   }
-  async function reopen(c: PoolClient, a: Account, dates: string[]) {
+  async function reviseDays(c: PoolClient, a: Account, dates: string[]) {
     for (const date of new Set(dates))
       await c.query(
-        'INSERT INTO fitquest.food_days(user_id,date,revision,complete) VALUES($1,$2,1,false) ON CONFLICT(user_id,date) DO UPDATE SET revision=food_days.revision+1,complete=false',
+        'INSERT INTO fitquest.food_days(user_id,date,revision,complete) VALUES($1,$2,1,false) ON CONFLICT(user_id,date) DO UPDATE SET revision=food_days.revision+1',
         [a.userId, date],
       );
   }
@@ -197,7 +197,8 @@ export function foodStore(pool: Pool) {
             [a.userId, dates[0], dates[6]],
           )
         ).rows;
-        return { entries, days, dates, today: foodToday(zone) };
+        const today = foodToday(zone, clock());
+        return { entries, days: days.map((d) => ({ ...d, ended: d.date < today })), dates, today };
       });
     },
     async readOperation(a: Account, id: string) {
@@ -234,7 +235,7 @@ export function foodStore(pool: Pool) {
             : cmd.kind === 'interpret' || cmd.kind === 'complete'
               ? cmd.timeZone
               : null;
-        if (date && zone && date > foodToday(zone)) fail('future_food', 422);
+        if (date && zone && date > foodToday(zone, clock())) fail('future_food', 422);
         if (cmd.kind === 'interpret') {
           const age = (
             await c.query('SELECT age FROM fitquest.profiles WHERE user_id=$1', [a.userId])
@@ -287,7 +288,7 @@ export function foodStore(pool: Pool) {
               message: cmd.message,
               date: cmd.date,
               timeZone: cmd.timeZone,
-              today: foodToday(cmd.timeZone),
+              today: foodToday(cmd.timeZone, clock()),
               context,
             });
             const attempt = randomUUID();
@@ -393,7 +394,7 @@ export function foodStore(pool: Pool) {
               `INSERT INTO fitquest.food_entries(user_id,id,revision,consumed_date,document) VALUES($1,$2,1,$3,$4) ON CONFLICT(user_id,id) DO UPDATE SET revision=food_entries.revision+1,consumed_date=$3,document=$4,updated_at=now()`,
               [a.userId, entryId, cmd.document.date, cmd.document],
             );
-            await reopen(c, a, [cmd.document.date, ...(existing ? [existing.date] : [])]);
+            await reviseDays(c, a, [cmd.document.date, ...(existing ? [existing.date] : [])]);
           } else {
             if (!existing) fail('food_changed');
             entryId = existing.id;
@@ -415,7 +416,7 @@ export function foodStore(pool: Pool) {
                 [a.userId, entryId],
               );
             }
-            await reopen(c, a, [existing.date]);
+            await reviseDays(c, a, [existing.date]);
           }
         }
         await c.query(
