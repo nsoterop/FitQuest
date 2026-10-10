@@ -1,7 +1,82 @@
 // Synthetic mock data only; never a live evaluation or production template.
-import { trainingFixture,fixturePrescription } from './planningFixture.js';
+import { trainingFixture, fixturePrescription } from './planningFixture.js';
 import type { PlanningInput } from './planningDomain.js';
-export const overviewDates=Array.from({length:7},(_,i)=>`2026-10-${String(i+5).padStart(2,'0')}`);
-export const overviewFixture=(dates=overviewDates,distributed=true)=>({clarification:null,arrangementNote:null,days:dates.map((date,i)=>({date,sessions:i===0?[{focus:'Easy walking',timing:'morning',estimatedMinutes:20},...(distributed?[{focus:'Strength practice',timing:'evening',estimatedMinutes:20}]:[])]:i===3?[{focus:'Strength practice',timing:'flexible',estimatedMinutes:20}]:[]}))});
-export const outlineInput=(dates=overviewDates):PlanningInput=>({kind:'outline',outlineFirst:true,summary:trainingFixture,profile:{age:29,heightInches:68,weightLb:155},dates,preferences:[]});
-export function overviewWorkouts(input:PlanningInput){return {clarification:null,coverage:[],arrangementNote:null,units:'imperial',goalDecisions:[{sourceIndex:0,goalIndex:0,goal:'Comfortable walking',status:'addressed',reason:'Easy walking supports the reported walking goal.',evidence:[{date:input.dates[0],sessionIndex:0,activityIndex:0}]},{sourceIndex:0,goalIndex:1,goal:'General strength',status:'addressed',reason:'Conservative bodyweight strength supports the stated goal.',evidence:[{date:input.dates[3],sessionIndex:0,activityIndex:0}]}],days:input.outline!.days.map(d=>({date:d.date,sessions:d.sessions.map(s=>({focus:s.focus,timing:s.timing,estimatedMinutes:s.estimatedMinutes,intervals:[],activities:[{...fixturePrescription(s.focus==='Easy walking'?'FQ-ACT-00148':'FQ-ACT-00003',s.focus==='Easy walking'?'seconds':'repetitions'),...(s.focus==='Easy walking'?{amount:Math.min(1200,(s.estimatedMinutes??20)*60)}:{sets:3,restSeconds:60}),distanceTarget:null,repRange:null,rir:null}]}))}))};}
+export const overviewDates = Array.from(
+  { length: 7 },
+  (_, i) => `2026-10-${String(i + 5).padStart(2, '0')}`,
+);
+export const overviewFixture = (dates = overviewDates, distributed = true) => ({
+  clarification: null,
+  arrangementNote: null,
+  days: dates.map((date, i) => ({
+    date,
+    sessions:
+      i === 0
+        ? [
+            { focus: 'Easy walking', timing: 'morning', estimatedMinutes: 20 },
+            ...(distributed
+              ? [{ focus: 'Strength practice', timing: 'evening', estimatedMinutes: 20 }]
+              : []),
+          ]
+        : i === 3
+          ? [{ focus: 'Strength practice', timing: 'flexible', estimatedMinutes: 20 }]
+          : [],
+  })),
+});
+export const outlineInput = (dates = overviewDates): PlanningInput => ({
+  kind: 'outline',
+  outlineFirst: true,
+  summary: trainingFixture,
+  profile: { age: 29, heightInches: 68, weightLb: 155 },
+  dates,
+  preferences: [],
+});
+export function overviewWorkouts(input: PlanningInput) {
+  return {
+    clarification: null,
+    coverage: [],
+    arrangementNote: null,
+    units: 'imperial',
+    goalDecisions: [
+      {
+        sourceIndex: 0,
+        goalIndex: 0,
+        goal: 'Comfortable walking',
+        status: 'addressed',
+        reason: 'Easy walking supports the reported walking goal.',
+        evidence: [{ date: input.dates[0], sessionIndex: 0, activityIndex: 0 }],
+      },
+      {
+        sourceIndex: 0,
+        goalIndex: 1,
+        goal: 'General strength',
+        status: 'addressed',
+        reason: 'Conservative bodyweight strength supports the stated goal.',
+        evidence: [{ date: input.dates[3], sessionIndex: 0, activityIndex: 0 }],
+      },
+    ],
+    days: input.outline!.days.map((d) => ({
+      date: d.date,
+      sessions: d.sessions.map((s) => ({
+        focus: s.focus,
+        timing: s.timing,
+        estimatedMinutes: s.estimatedMinutes,
+        intervals: [],
+        activities: [
+          {
+            ...fixturePrescription(
+              s.focus === 'Easy walking' ? 'FQ-ACT-00148' : 'FQ-ACT-00003',
+              s.focus === 'Easy walking' ? 'seconds' : 'repetitions',
+            ),
+            ...(s.focus === 'Easy walking'
+              ? { amount: Math.min(1200, (s.estimatedMinutes ?? 20) * 60) }
+              : { sets: 3, restSeconds: 60 }),
+            distanceTarget: null,
+            repRange: null,
+            rir: null,
+          },
+        ],
+      })),
+    })),
+  };
+}

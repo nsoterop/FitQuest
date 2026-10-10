@@ -1,6 +1,26 @@
-export const historyConsentVersion='openai-progress-v1' as const;
-export const historyConsentScope='weekly-workout-weight-history' as const;
-export type HistoryConsent={version:typeof historyConsentVersion;scope:typeof historyConsentScope;granted:boolean;revision:number;updatedAt:string};
-export function validHistoryConsent(v:unknown):v is HistoryConsent{const c=v as HistoryConsent;return !!c&&Object.keys(c).length===5&&c.version===historyConsentVersion&&c.scope===historyConsentScope&&typeof c.granted==='boolean'&&Number.isSafeInteger(c.revision)&&c.revision>0&&typeof c.updatedAt==='string'&&Number.isFinite(Date.parse(c.updatedAt))}
-export const hasHistoryConsent=(v:unknown)=>validHistoryConsent(v)&&v.granted;
-export const historyDisclosure="Allow OpenAI to use your saved workout results and session notes (including health or pain feedback), body-weight measurements/history, original goals/intake, body profile and next-week changes to create upcoming workouts and nutrition estimates? Missing results remain unknown. No account name, email or record IDs are sent. You can decline or withdraw before future requests; your logs and accepted plans remain available. Data already sent is unaffected. The same OpenAI retention terms shown for profile sharing apply.";
+export const historyConsentVersion = 'openai-progress-v1' as const;
+export const historyConsentScope = 'weekly-workout-weight-history' as const;
+export type HistoryConsent = {
+  version: typeof historyConsentVersion;
+  scope: typeof historyConsentScope;
+  granted: boolean;
+  revision: number;
+  updatedAt: string;
+};
+export function validHistoryConsent(v: unknown): v is HistoryConsent {
+  const c = v as HistoryConsent;
+  return (
+    !!c &&
+    Object.keys(c).length === 5 &&
+    c.version === historyConsentVersion &&
+    c.scope === historyConsentScope &&
+    typeof c.granted === 'boolean' &&
+    Number.isSafeInteger(c.revision) &&
+    c.revision > 0 &&
+    typeof c.updatedAt === 'string' &&
+    Number.isFinite(Date.parse(c.updatedAt))
+  );
+}
+export const hasHistoryConsent = (v: unknown) => validHistoryConsent(v) && v.granted;
+export const historyDisclosure =
+  'Allow OpenAI to use your saved workout results and session notes (including health or pain feedback), body-weight measurements/history, original goals/intake, body profile and next-week changes to create upcoming workouts and nutrition estimates? Missing results remain unknown. No account name, email or record IDs are sent. You can decline or withdraw before future requests; your logs and accepted plans remain available. Data already sent is unaffected. The same OpenAI retention terms shown for profile sharing apply.';

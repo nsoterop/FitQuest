@@ -17,11 +17,14 @@ export type IntakePayload = {
   gender: string;
 };
 
-export function validateIntake(fields: IntakeFields): { payload: IntakePayload } | { error: string } {
+export function validateIntake(
+  fields: IntakeFields,
+): { payload: IntakePayload } | { error: string } {
   const firstName = fields.firstName.trim();
   const lastName = fields.lastName.trim();
   const gender = fields.gender.trim();
-  if (!firstName || firstName.length > 100) return { error: 'Enter a first name (1–100 characters).' };
+  if (!firstName || firstName.length > 100)
+    return { error: 'Enter a first name (1–100 characters).' };
   if (!lastName || lastName.length > 100) return { error: 'Enter a last name (1–100 characters).' };
   if (!/^\d+$/.test(fields.heightFeet.trim()) || !/^\d+$/.test(fields.heightInches.trim())) {
     return { error: 'Enter height in whole feet and inches, including 0 inches if needed.' };
@@ -29,22 +32,43 @@ export function validateIntake(fields: IntakeFields): { payload: IntakePayload }
   const feet = Number(fields.heightFeet);
   const inches = Number(fields.heightInches);
   const height = feet * 12 + inches;
-  if (inches > 11 || height < 1 || height > 120) return { error: 'Enter a height up to 10 feet; inches must be 0–11.' };
+  if (inches > 11 || height < 1 || height > 120)
+    return { error: 'Enter a height up to 10 feet; inches must be 0–11.' };
   if (!/^\d+$/.test(fields.age.trim()) || Number(fields.age) < 1 || Number(fields.age) > 130) {
     return { error: 'Enter age as a whole number from 1 to 130.' };
   }
   const weight = Number(fields.weight);
-  if (!/^\d+(\.\d+)?$/.test(fields.weight.trim()) || !Number.isFinite(weight) || weight <= 0 || weight > 1500) {
+  if (
+    !/^\d+(\.\d+)?$/.test(fields.weight.trim()) ||
+    !Number.isFinite(weight) ||
+    weight <= 0 ||
+    weight > 1500
+  ) {
     return { error: 'Enter weight in pounds, greater than 0 and up to 1,500.' };
   }
-  if (!gender || gender.length > 100) return { error: 'Enter gender (1–100 characters); “Prefer not to say” is accepted.' };
-  return { payload: { firstName, lastName, height: { value: height, unit: 'in' },
-    age: Number(fields.age), weight: { value: weight, unit: 'lb' }, gender } };
+  if (!gender || gender.length > 100)
+    return { error: 'Enter gender (1–100 characters); “Prefer not to say” is accepted.' };
+  return {
+    payload: {
+      firstName,
+      lastName,
+      height: { value: height, unit: 'in' },
+      age: Number(fields.age),
+      weight: { value: weight, unit: 'lb' },
+      gender,
+    },
+  };
 }
 
-type IntakeFetcher = (url: string, options: {
-  method: 'POST'; headers: { 'Content-Type': string; Authorization: string }; body: string; signal: AbortSignal;
-}) => Promise<Pick<Response, 'status' | 'json'>>;
+type IntakeFetcher = (
+  url: string,
+  options: {
+    method: 'POST';
+    headers: { 'Content-Type': string; Authorization: string };
+    body: string;
+    signal: AbortSignal;
+  },
+) => Promise<Pick<Response, 'status' | 'json'>>;
 
 export async function submitIntake(
   apiUrl: string | undefined,
@@ -67,53 +91,107 @@ export async function submitIntake(
   try {
     if (signal.aborted) throw new Error();
     if (!token) return { error: 'Sign in to save your profile.' };
-    const response = await fetcher(url.toString(), { method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload), signal });
+    const response = await fetcher(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+      signal,
+    });
     if (signal.aborted) throw new Error();
-    if (response.status === 401) return { error: 'Your session ended. Please sign in again.', sessionEnded: true };
-    if (response.status === 400) return { error: 'The backend rejected these fields. Check your entries and try again.' };
-    if (response.status === 404) return { error: 'Profile submission is not available on the backend yet. Please try again after it is updated.' };
-    if (response.status !== 200) return { error: 'The backend could not accept your data. Please try again.' };
+    if (response.status === 401)
+      return { error: 'Your session ended. Please sign in again.', sessionEnded: true };
+    if (response.status === 400)
+      return { error: 'The backend rejected these fields. Check your entries and try again.' };
+    if (response.status === 404)
+      return {
+        error:
+          'Profile submission is not available on the backend yet. Please try again after it is updated.',
+      };
+    if (response.status !== 200)
+      return { error: 'The backend could not accept your data. Please try again.' };
     const body: unknown = await response.json();
     if (signal.aborted) throw new Error();
-    if (typeof body !== 'object' || body === null || !('message' in body) || body.message !== 'User Data Saved') {
+    if (
+      typeof body !== 'object' ||
+      body === null ||
+      !('message' in body) ||
+      body.message !== 'User Data Saved'
+    ) {
       return { error: 'The backend returned an unexpected response. Please try again.' };
     }
     return { success: true };
   } catch {
-    return { error: signal.aborted ? 'Submission timed out. Please try again.'
-      : 'Unable to reach the backend. Check your connection and try again.' };
+    return {
+      error: signal.aborted
+        ? 'Submission timed out. Please try again.'
+        : 'Unable to reach the backend. Check your connection and try again.',
+    };
   }
 }
 
 export type SavedProfile = IntakePayload & { ageCapturedAt: string; updatedAt: string };
 export function profileFields(profile: SavedProfile): IntakeFields {
-  return { firstName: profile.firstName, lastName: profile.lastName,
-    heightFeet: String(Math.floor(profile.height.value / 12)), heightInches: String(profile.height.value % 12),
-    age: String(profile.age), weight: String(profile.weight.value), gender: profile.gender };
+  return {
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    heightFeet: String(Math.floor(profile.height.value / 12)),
+    heightInches: String(profile.height.value % 12),
+    age: String(profile.age),
+    weight: String(profile.weight.value),
+    gender: profile.gender,
+  };
 }
-export async function loadProfile(apiUrl: string | undefined, signal: AbortSignal, token: string,
-  fetcher: typeof fetch = fetch): Promise<{ profile: SavedProfile | null } | { error: string; sessionEnded?: true }> {
+export async function loadProfile(
+  apiUrl: string | undefined,
+  signal: AbortSignal,
+  token: string,
+  fetcher: typeof fetch = fetch,
+): Promise<{ profile: SavedProfile | null } | { error: string; sessionEnded?: true }> {
   try {
     if (!apiUrl) throw new Error();
     const url = new URL(apiUrl);
     if (url.protocol !== 'https:' || url.username || url.password) throw new Error();
-    url.pathname = `${url.pathname.replace(/\/$/, '')}/profile`; url.search = ''; url.hash = '';
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/profile`;
+    url.search = '';
+    url.hash = '';
     if (!token || signal.aborted) throw new Error();
-    const response = await fetcher(url.toString(), { headers: { Authorization: `Bearer ${token}` }, signal });
+    const response = await fetcher(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+      signal,
+    });
     if (signal.aborted) throw new Error();
-    if (response.status === 401) return { error: 'Your session ended. Please sign in again.', sessionEnded: true };
+    if (response.status === 401)
+      return { error: 'Your session ended. Please sign in again.', sessionEnded: true };
     if (response.status !== 200 || signal.aborted) throw new Error();
     const body: unknown = await response.json();
-    if (signal.aborted || typeof body !== 'object' || body === null || !('profile' in body)) throw new Error();
+    if (signal.aborted || typeof body !== 'object' || body === null || !('profile' in body))
+      throw new Error();
     if (body.profile === null) return { profile: null };
     const p = body.profile as SavedProfile;
-    if (typeof p !== 'object' || !p || typeof p.firstName !== 'string' || typeof p.lastName !== 'string' ||
-        typeof p.gender !== 'string' || !Number.isInteger(p.age) || !Number.isInteger(p.height?.value) ||
-        p.height?.unit !== 'in' || p.weight?.unit !== 'lb' || typeof p.weight.value !== 'number' ||
-        typeof p.ageCapturedAt !== 'string' || typeof p.updatedAt !== 'string' ||
-        !Number.isFinite(Date.parse(p.ageCapturedAt)) || !Number.isFinite(Date.parse(p.updatedAt)) ||
-        'error' in validateIntake(profileFields(p))) throw new Error();
+    if (
+      typeof p !== 'object' ||
+      !p ||
+      typeof p.firstName !== 'string' ||
+      typeof p.lastName !== 'string' ||
+      typeof p.gender !== 'string' ||
+      !Number.isInteger(p.age) ||
+      !Number.isInteger(p.height?.value) ||
+      p.height?.unit !== 'in' ||
+      p.weight?.unit !== 'lb' ||
+      typeof p.weight.value !== 'number' ||
+      typeof p.ageCapturedAt !== 'string' ||
+      typeof p.updatedAt !== 'string' ||
+      !Number.isFinite(Date.parse(p.ageCapturedAt)) ||
+      !Number.isFinite(Date.parse(p.updatedAt)) ||
+      'error' in validateIntake(profileFields(p))
+    )
+      throw new Error();
     return { profile: p };
-  } catch { return { error: signal.aborted ? 'Profile loading timed out. Please retry.' : 'Unable to load your profile. Please retry.' }; }
+  } catch {
+    return {
+      error: signal.aborted
+        ? 'Profile loading timed out. Please retry.'
+        : 'Unable to load your profile. Please retry.',
+    };
+  }
 }

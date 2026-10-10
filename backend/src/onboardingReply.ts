@@ -24,8 +24,11 @@ const closingInvitations = [
 function recapFacts(text: string) {
   let result = text.trim();
   for (;;) {
-    const ending = closingInvitations.find(invitation => result.endsWith(invitation) &&
-      (result === invitation || /[.!?]\s+$|\n\s*$/.test(result.slice(0, -invitation.length))));
+    const ending = closingInvitations.find(
+      (invitation) =>
+        result.endsWith(invitation) &&
+        (result === invitation || /[.!?]\s+$|\n\s*$/.test(result.slice(0, -invitation.length))),
+    );
     if (!ending) return result;
     result = result.slice(0, -ending.length).trimEnd();
   }
@@ -33,19 +36,29 @@ function recapFacts(text: string) {
 export function renderOnboardingReply(proposal: ModelProposal) {
   const parts = [proposal.reply, proposal.nextQuestion?.text ?? ''];
   if (proposal.nextQuestion?.topic !== recapTopic) return parts.filter(Boolean).join('\n\n');
-  const facts=parts.map(recapFacts);
-  const normalize=(text:string)=>text.replace(/\s+/g,' ').trim().toLowerCase();
-  let visible=normalize(facts.join(' '));
-  for(const [category,label] of [['goals','Goals'],['availability','Schedule understood as'],['nutrition','Nutrition context']] as const){
+  const facts = parts.map(recapFacts);
+  const normalize = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase();
+  let visible = normalize(facts.join(' '));
+  for (const [category, label] of [
+    ['goals', 'Goals'],
+    ['availability', 'Schedule understood as'],
+    ['nutrition', 'Nutrition context'],
+  ] as const) {
     // Exact retained facts are the fallback for generic acknowledgments. New goal
     // lists are also shown, so agreement covers the identities planning will use.
-    const retained=proposal.trainingSummary?.filter(f=>f.category===category)??[];
-    const texts=retained.flatMap(f=>[f.text,...(category==='goals'?f.goals??[]:[])]);
-    const missing:string[]=[];
-    for(const text of texts){
-      if(!visible.includes(normalize(text))){missing.push(text);visible+=' '+normalize(text)}
+    const retained = proposal.trainingSummary?.filter((f) => f.category === category) ?? [];
+    const texts = retained.flatMap((f) => [
+      f.text,
+      ...(category === 'goals' ? (f.goals ?? []) : []),
+    ]);
+    const missing: string[] = [];
+    for (const text of texts) {
+      if (!visible.includes(normalize(text))) {
+        missing.push(text);
+        visible += ' ' + normalize(text);
+      }
     }
-    if(missing.length)facts.push(`${label}: ${missing.join(' ')}`);
+    if (missing.length) facts.push(`${label}: ${missing.join(' ')}`);
   }
-  return [...facts,recapQuestion].filter(Boolean).join('\n\n');
+  return [...facts, recapQuestion].filter(Boolean).join('\n\n');
 }

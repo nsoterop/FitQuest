@@ -24,4 +24,5 @@ function detailed(text: string): string {
   return prefix + ending;
 }
 export const detailedAnswers = [detailed(goals), detailed(history)] as const;
-export const correctedAvailability = 'Correction: one or two short sessions is more realistic than five days. Tennis stays first, and the pull-up is still a longer-term goal. The knee uncertainty has not resolved.';
+export const correctedAvailability =
+  'Correction: one or two short sessions is more realistic than five days. Tennis stays first, and the pull-up is still a longer-term goal. The knee uncertainty has not resolved.';

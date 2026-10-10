@@ -1,20 +1,37 @@
 import { providerSchema } from './providerSchema.js';
-import { safeDiagnostic,type ProviderDiagnostic } from './providerDiagnostics.js';
+import { safeDiagnostic, type ProviderDiagnostic } from './providerDiagnostics.js';
 import { hasGoalSet } from './trainingSummary.js';
 import { weeklyLimits } from './weeklyPlanning.js';
 import { planningReadinessInstructions } from './planningReadiness.js';
 import { Ajv } from 'ajv';
-import { limits, proposalSchema, modelProposalSchema, type ModelInput, type ModelProposal, OnboardingError } from './onboardingDomain.js';
+import {
+  limits,
+  proposalSchema,
+  modelProposalSchema,
+  type ModelInput,
+  type ModelProposal,
+  OnboardingError,
+} from './onboardingDomain.js';
 
 export type Usage = { input: number; output: number; cached: number; cacheWrite: number };
-export type ProviderResult = { rawText?:string; diagnostic?:ProviderDiagnostic; proposal?: unknown; usage?: Usage; failure?: 'refused' | 'incomplete' | 'provider_error' };
+export type ProviderResult = {
+  rawText?: string;
+  diagnostic?: ProviderDiagnostic;
+  proposal?: unknown;
+  usage?: Usage;
+  failure?: 'refused' | 'incomplete' | 'provider_error';
+};
 export interface OnboardingProvider {
-  mode: 'test' | 'openai'; model: string; capMicro: number; purpose?: 'app' | 'evaluation';
+  mode: 'test' | 'openai';
+  model: string;
+  capMicro: number;
+  purpose?: 'app' | 'evaluation';
   prepare(input: ModelInput): { body: string; reserveMicro: number };
   call(body: string, signal: AbortSignal): Promise<ProviderResult>;
   cost(usage: Usage): number;
 }
-export const promptVersion = 'onboarding-v14', schemaVersion = 'understanding-v4';
+export const promptVersion = 'onboarding-v14',
+  schemaVersion = 'understanding-v4';
 const instructions = `You help an athlete describe goals and practical constraints, not produce training plans or medical clearance.
 Keep replies concise and conversational. Ask ONE concise question about ONE topic group per turn. Fresh onboarding opens with goals alone. Then, when materially missing, ask current training/activity baseline together with weekly availability (realistic days/frequency and session time); on a separate turn ask equipment/facilities together with relevant limitations. These are distinct groups: never combine availability with equipment, or goals with the rest of intake. Further follow-ups address only one useful unanswered detail within a group. Put every ask in nextQuestion.text; reply, planningCheck.reason and nextQuestion.decision contain no questions, requests for extra information or trailing lists of asks. planningCheck.question must match that same single grouped question when status is question.
 Adapt to volunteered answers across ALL groups: capture them now and skip groups already answered or declined. In trainingSummary, experience preserves both current activities/frequency and training experience; do not replace a volunteered activity baseline with just "beginner". Do not force three turns, repeat known details, or restart intake during clarification recovery. Accept irregular schedules and optional unknowns. A necessary safety clarification may take precedence, within its own group.
@@ -37,26 +54,49 @@ Input text appears once in sources. valueFromSource means the item's entire valu
 // Preserve original reports privately, but omit identifying details from the outbound copy.
 // Redacted spans are not usable evidence; the ordinary source validator still checks originals.
 export function minimizeModelInput(input: ModelInput, names: string[]): ModelInput {
-  const patterns = names.filter(x => x.trim()).map(name => new RegExp(`(?<![\\p{L}\\p{N}])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'giu'));
+  const patterns = names
+    .filter((x) => x.trim())
+    .map(
+      (name) =>
+        new RegExp(
+          `(?<![\\p{L}\\p{N}])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`,
+          'giu',
+        ),
+    );
   const redact = (text: string) => {
     let value = text
       .replace(/\bBearer\s+\S+/gi, '[private detail removed]')
       .replace(/\bsk-[A-Za-z0-9_-]+/g, '[private detail removed]')
       .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[private detail removed]')
       .replace(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[private detail removed]')
-      .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '[private detail removed]');
+      .replace(
+        /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+        '[private detail removed]',
+      );
     for (const pattern of patterns) value = value.replace(pattern, '[private detail removed]');
     return value;
   };
   // Traverse string values, never JSON syntax or property names.
-  return JSON.parse(JSON.stringify(input), (_key, value: unknown) => typeof value === 'string' ? redact(value) : value) as ModelInput;
+  return JSON.parse(JSON.stringify(input), (_key, value: unknown) =>
+    typeof value === 'string' ? redact(value) : value,
+  ) as ModelInput;
 }
-const validator = new Ajv({ strict: true, allErrors: false }).compile<ModelProposal>(proposalSchema);
-const currentValidator = new Ajv({ strict: true, allErrors: false }).compile<ModelProposal>(modelProposalSchema);
-export function validateProposal(value: unknown,current=false): ModelProposal {
-  if (!(current?currentValidator(value):validator(value))) throw new OnboardingError(422, 'invalid_model_output');
-  const proposal=value as ModelProposal;
-  if(current&&proposal.planningCheck?.status==='ready'&&(!proposal.trainingSummary||!hasGoalSet(proposal.trainingSummary)))throw new OnboardingError(422,'invalid_model_output');
+const validator = new Ajv({ strict: true, allErrors: false }).compile<ModelProposal>(
+  proposalSchema,
+);
+const currentValidator = new Ajv({ strict: true, allErrors: false }).compile<ModelProposal>(
+  modelProposalSchema,
+);
+export function validateProposal(value: unknown, current = false): ModelProposal {
+  if (!(current ? currentValidator(value) : validator(value)))
+    throw new OnboardingError(422, 'invalid_model_output');
+  const proposal = value as ModelProposal;
+  if (
+    current &&
+    proposal.planningCheck?.status === 'ready' &&
+    (!proposal.trainingSummary || !hasGoalSet(proposal.trainingSummary))
+  )
+    throw new OnboardingError(422, 'invalid_model_output');
   return proposal;
 }
 // Lossless wire projection only: durable context, original transcript and validation sources
@@ -64,89 +104,266 @@ export function validateProposal(value: unknown,current=false): ModelProposal {
 export function compactModelInput(input: ModelInput) {
   return {
     ...input,
-    context: { ...input.context, items: input.context.items.map(item => {
-      const { value, quote, ...metadata } = item;
-      const source = input.sources[item.source];
-      const start = source?.indexOf(quote) ?? -1;
-      return { ...metadata, ...(value === source ? { valueFromSource: true } : { value }),
-        ...(quote && start >= 0 ? { quoteSpan: { start, length: quote.length } } : { quote }) };
-    }) },
-    recent: input.recent.filter((entry,index)=>entry.role==='user'||index===input.recent.findLastIndex(x=>x.role==='assistant')).map(entry => entry.role === 'user' && entry.source && input.sources[entry.source] === entry.text
-      ? { role: entry.role, source: entry.source } : entry),
+    context: {
+      ...input.context,
+      items: input.context.items.map((item) => {
+        const { value, quote, ...metadata } = item;
+        const source = input.sources[item.source];
+        const start = source?.indexOf(quote) ?? -1;
+        return {
+          ...metadata,
+          ...(value === source ? { valueFromSource: true } : { value }),
+          ...(quote && start >= 0 ? { quoteSpan: { start, length: quote.length } } : { quote }),
+        };
+      }),
+    },
+    recent: input.recent
+      .filter(
+        (entry, index) =>
+          entry.role === 'user' ||
+          index === input.recent.findLastIndex((x) => x.role === 'assistant'),
+      )
+      .map((entry) =>
+        entry.role === 'user' && entry.source && input.sources[entry.source] === entry.text
+          ? { role: entry.role, source: entry.source }
+          : entry,
+      ),
   };
 }
 export function serializeInput(input: ModelInput, model: string): string {
-  const body = JSON.stringify({ model, store: false, stream: false, truncation: 'disabled', service_tier: 'default', reasoning: { effort: 'low' }, max_output_tokens: limits.output,
-    instructions, input: JSON.stringify(compactModelInput(input)), text: { format: { type: 'json_schema', name: 'athlete_understanding', strict: true, schema: providerSchema(modelProposalSchema) } } });
+  const body = JSON.stringify({
+    model,
+    store: false,
+    stream: false,
+    truncation: 'disabled',
+    service_tier: 'default',
+    reasoning: { effort: 'low' },
+    max_output_tokens: limits.output,
+    instructions,
+    input: JSON.stringify(compactModelInput(input)),
+    text: {
+      format: {
+        type: 'json_schema',
+        name: 'athlete_understanding',
+        strict: true,
+        schema: providerSchema(modelProposalSchema),
+      },
+    },
+  });
   if (Buffer.byteLength(body) > limits.inputBytes) throw new OnboardingError(422, 'context_limit');
   return body;
 }
 // Only this concrete adapter is prepared. No SDK retry, tools, hosted conversation, fallback or logging.
-export function openAIProvider(config: { key: string; model: string; capMicro: number; inputRate: number; cachedRate: number; cacheWriteRate: number; outputRate: number }, fetcher: typeof fetch = fetch): OnboardingProvider {
+export function openAIProvider(
+  config: {
+    key: string;
+    model: string;
+    capMicro: number;
+    inputRate: number;
+    cachedRate: number;
+    cacheWriteRate: number;
+    outputRate: number;
+  },
+  fetcher: typeof fetch = fetch,
+): OnboardingProvider {
   const maximumInputRate = Math.max(config.inputRate, config.cachedRate, config.cacheWriteRate);
   // Approved GPT-6 long-context pricing applies to the whole request above 272K input
   // tokens. Byte-based reservations also take that premium conservatively.
-  const cost = (usage: Usage) => Math.ceil(usage.input * maximumInputRate * (usage.input > 272000 ? 2 : 1) + usage.output * config.outputRate * (usage.input > 272000 ? 1.5 : 1));
+  const cost = (usage: Usage) =>
+    Math.ceil(
+      usage.input * maximumInputRate * (usage.input > 272000 ? 2 : 1) +
+        usage.output * config.outputRate * (usage.input > 272000 ? 1.5 : 1),
+    );
   return {
-    mode: 'openai', model: config.model, capMicro: config.capMicro,
+    mode: 'openai',
+    model: config.model,
+    capMicro: config.capMicro,
     prepare(input) {
       const body = serializeInput(input, config.model);
       // UTF-8 bytes upper-bound token count, including instructions and output schema.
-      return { body, reserveMicro: cost({ input: Buffer.byteLength(body), output: limits.output, cached: 0, cacheWrite: 0 }) };
-    }, cost,
+      return {
+        body,
+        reserveMicro: cost({
+          input: Buffer.byteLength(body),
+          output: limits.output,
+          cached: 0,
+          cacheWrite: 0,
+        }),
+      };
+    },
+    cost,
     async call(body, signal) {
-      let diagnostic:ProviderDiagnostic={};
+      let diagnostic: ProviderDiagnostic = {};
       try {
-        const request=JSON.parse(body);
-        const weekly=['training_week','complete_week','complete_week_units_v2','document_week_v1','document_week_v2','document_week_v3','document_week_v4'].includes(request.text?.format?.name);
-        const outputLimit=weekly?weeklyLimits.outputTokens:limits.output;
-        if(request.max_output_tokens!==outputLimit||Buffer.byteLength(body)>(weekly?weeklyLimits.inputBytes:48000))return {failure:'provider_error'};
-        const response = await fetcher('https://api.openai.com/v1/responses', { method: 'POST', signal,
-          headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json' }, body });
-        diagnostic=safeDiagnostic({httpStatus:response.status,requestId:response.headers.get('x-request-id')??undefined});
+        const request = JSON.parse(body);
+        const weekly = [
+          'training_week',
+          'complete_week',
+          'complete_week_units_v2',
+          'document_week_v1',
+          'document_week_v2',
+          'document_week_v3',
+          'document_week_v4',
+        ].includes(request.text?.format?.name);
+        const outputLimit = weekly ? weeklyLimits.outputTokens : limits.output;
+        if (
+          request.max_output_tokens !== outputLimit ||
+          Buffer.byteLength(body) > (weekly ? weeklyLimits.inputBytes : 48000)
+        )
+          return { failure: 'provider_error' };
+        const response = await fetcher('https://api.openai.com/v1/responses', {
+          method: 'POST',
+          signal,
+          headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json' },
+          body,
+        });
+        diagnostic = safeDiagnostic({
+          httpStatus: response.status,
+          requestId: response.headers.get('x-request-id') ?? undefined,
+        });
         // Read errors within a small bound; discard all text except allowlisted metadata.
-        if (!response.body) return { failure:'provider_error',diagnostic };
-        if(!response.ok){
+        if (!response.body) return { failure: 'provider_error', diagnostic };
+        if (!response.ok) {
           try {
-            const reader=response.body.getReader();const chunks:Uint8Array[]=[];let bytes=0;
-            while(true){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>8192){await reader.cancel();break}chunks.push(part.value)}
-            const error=JSON.parse(Buffer.concat(chunks).toString('utf8'))?.error;
-            return {failure:'provider_error',diagnostic:safeDiagnostic({...diagnostic,code:error?.code??error?.type})};
-          }catch{return {failure:'provider_error',diagnostic}}
+            const reader = response.body.getReader();
+            const chunks: Uint8Array[] = [];
+            let bytes = 0;
+            while (true) {
+              const part = await reader.read();
+              if (part.done) break;
+              bytes += part.value.byteLength;
+              if (bytes > 8192) {
+                await reader.cancel();
+                break;
+              }
+              chunks.push(part.value);
+            }
+            const error = JSON.parse(Buffer.concat(chunks).toString('utf8'))?.error;
+            return {
+              failure: 'provider_error',
+              diagnostic: safeDiagnostic({ ...diagnostic, code: error?.code ?? error?.type }),
+            };
+          } catch {
+            return { failure: 'provider_error', diagnostic };
+          }
         }
-        const reader = response.body.getReader(); let bytes = 0; const chunks: Uint8Array[] = [];
+        const reader = response.body.getReader();
+        let bytes = 0;
+        const chunks: Uint8Array[] = [];
         while (true) {
-          const part = await reader.read(); if (part.done) break;
-          bytes += part.value.byteLength; if (bytes > (weekly?weeklyLimits.responseBytes:64000)) { await reader.cancel(); return { failure: 'provider_error',diagnostic:{...diagnostic,transport:'response_limit'} }; }
+          const part = await reader.read();
+          if (part.done) break;
+          bytes += part.value.byteLength;
+          if (bytes > (weekly ? weeklyLimits.responseBytes : 64000)) {
+            await reader.cancel();
+            return {
+              failure: 'provider_error',
+              diagnostic: { ...diagnostic, transport: 'response_limit' },
+            };
+          }
           chunks.push(part.value);
         }
         const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         const u = data.usage;
-        const numbers = [u?.input_tokens, u?.output_tokens, u?.input_tokens_details?.cached_tokens ?? 0, u?.input_tokens_details?.cache_write_tokens ?? 0];
-        const usage = numbers.every(n => Number.isSafeInteger(n) && n >= 0) && numbers[0] <= Buffer.byteLength(body) && numbers[1] <= outputLimit
-          ? { input: numbers[0], output: numbers[1], cached: numbers[2], cacheWrite: numbers[3] } : undefined;
-        const rawText=(Array.isArray(data.output)?data.output:[]).filter((x:any)=>x.type==='message').flatMap((x:any)=>x.content??[]).flatMap((x:any)=>x.type==='output_text'&&typeof x.text==='string'?[x.text]:x.type==='refusal'&&typeof x.refusal==='string'?[x.refusal]:[]).join('\n');
-        const plain=!request.text?.format;
-        if (data.status !== 'completed') return { failure: 'incomplete', usage,diagnostic,...(plain?{rawText}:{}) };
-        const content = (Array.isArray(data.output) ? data.output : []).filter((x: { type?: string }) => x.type === 'message').flatMap((x: { content?: unknown[] }) => x.content ?? []);
-        if (content.some((x: { type?: string }) => x.type === 'refusal')) return { failure: 'refused', usage,diagnostic,...(plain?{rawText}:{} ) };
+        const numbers = [
+          u?.input_tokens,
+          u?.output_tokens,
+          u?.input_tokens_details?.cached_tokens ?? 0,
+          u?.input_tokens_details?.cache_write_tokens ?? 0,
+        ];
+        const usage =
+          numbers.every((n) => Number.isSafeInteger(n) && n >= 0) &&
+          numbers[0] <= Buffer.byteLength(body) &&
+          numbers[1] <= outputLimit
+            ? { input: numbers[0], output: numbers[1], cached: numbers[2], cacheWrite: numbers[3] }
+            : undefined;
+        const rawText = (Array.isArray(data.output) ? data.output : [])
+          .filter((x: any) => x.type === 'message')
+          .flatMap((x: any) => x.content ?? [])
+          .flatMap((x: any) =>
+            x.type === 'output_text' && typeof x.text === 'string'
+              ? [x.text]
+              : x.type === 'refusal' && typeof x.refusal === 'string'
+                ? [x.refusal]
+                : [],
+          )
+          .join('\n');
+        const plain = !request.text?.format;
+        if (data.status !== 'completed')
+          return { failure: 'incomplete', usage, diagnostic, ...(plain ? { rawText } : {}) };
+        const content = (Array.isArray(data.output) ? data.output : [])
+          .filter((x: { type?: string }) => x.type === 'message')
+          .flatMap((x: { content?: unknown[] }) => x.content ?? []);
+        if (content.some((x: { type?: string }) => x.type === 'refusal'))
+          return { failure: 'refused', usage, diagnostic, ...(plain ? { rawText } : {}) };
         const texts = content.filter((x: { type?: string }) => x.type === 'output_text');
-        if (texts.length !== 1 || typeof texts[0].text !== 'string') return { failure: 'incomplete', usage,diagnostic,...(plain?{rawText}:{}) };
-        if(plain)return {rawText:texts[0].text,usage,diagnostic};
-        try { return { proposal: JSON.parse(texts[0].text), usage,diagnostic }; }
-        catch { return { failure: 'incomplete', usage,diagnostic }; }
-      } catch { return { failure:'provider_error',diagnostic:{...diagnostic,transport:signal.aborted?'aborted':diagnostic.httpStatus?'invalid_response':'network'} }; }
+        if (texts.length !== 1 || typeof texts[0].text !== 'string')
+          return { failure: 'incomplete', usage, diagnostic, ...(plain ? { rawText } : {}) };
+        if (plain) return { rawText: texts[0].text, usage, diagnostic };
+        try {
+          return { proposal: JSON.parse(texts[0].text), usage, diagnostic };
+        } catch {
+          return { failure: 'incomplete', usage, diagnostic };
+        }
+      } catch {
+        return {
+          failure: 'provider_error',
+          diagnostic: {
+            ...diagnostic,
+            transport: signal.aborted
+              ? 'aborted'
+              : diagnostic.httpStatus
+                ? 'invalid_response'
+                : 'network',
+          },
+        };
+      }
     },
   };
 }
 export function configuredProvider(env: NodeJS.ProcessEnv): OnboardingProvider | undefined {
   // No defaults authorize generation or spend. Owner approval must be configured explicitly later.
-  if (env.ONBOARDING_AI_ENABLED !== 'true' || env.ONBOARDING_AI_APPROVED !== 'true' || env.ONBOARDING_POLICY_APPROVED !== 'true') return;
-  const values = [env.ONBOARDING_TOTAL_USD, env.OPENAI_INPUT_USD_PER_M, env.OPENAI_CACHED_USD_PER_M, env.OPENAI_CACHE_WRITE_USD_PER_M, env.OPENAI_OUTPUT_USD_PER_M];
-  if (values.some(x => !x || !Number.isFinite(Number(x)) || Number(x) <= 0) || !env.OPENAI_API_KEY?.trim() || !['gpt-6-luna','gpt-6.1-sol'].includes(env.OPENAI_MODEL ?? '')) return;
-  const [cap, inputRate, cachedRate, cacheWriteRate, outputRate] = values.map(Number) as [number, number, number, number, number];
+  if (
+    env.ONBOARDING_AI_ENABLED !== 'true' ||
+    env.ONBOARDING_AI_APPROVED !== 'true' ||
+    env.ONBOARDING_POLICY_APPROVED !== 'true'
+  )
+    return;
+  const values = [
+    env.ONBOARDING_TOTAL_USD,
+    env.OPENAI_INPUT_USD_PER_M,
+    env.OPENAI_CACHED_USD_PER_M,
+    env.OPENAI_CACHE_WRITE_USD_PER_M,
+    env.OPENAI_OUTPUT_USD_PER_M,
+  ];
+  if (
+    values.some((x) => !x || !Number.isFinite(Number(x)) || Number(x) <= 0) ||
+    !env.OPENAI_API_KEY?.trim() ||
+    !['gpt-6-luna', 'gpt-6.1-sol'].includes(env.OPENAI_MODEL ?? '')
+  )
+    return;
+  const [cap, inputRate, cachedRate, cacheWriteRate, outputRate] = values.map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
   // Verified standard rates (2026-10-09). Reject underpriced or replenishing configuration.
-  const minimum = env.OPENAI_MODEL === 'gpt-6.1-sol' ? [2,0.10,2.50,10] : [0.10,0.01,0.125,0.50];
-  if (cap > 7 || cap < 0.000001 || [inputRate,cachedRate,cacheWriteRate,outputRate].some((rate,i)=>rate<minimum[i]!)) return;
-  return openAIProvider({ key: env.OPENAI_API_KEY, model: env.OPENAI_MODEL!, capMicro: Math.floor(cap * 1e6), inputRate, cachedRate, cacheWriteRate, outputRate });
+  const minimum = env.OPENAI_MODEL === 'gpt-6.1-sol' ? [2, 0.1, 2.5, 10] : [0.1, 0.01, 0.125, 0.5];
+  if (
+    cap > 7 ||
+    cap < 0.000001 ||
+    [inputRate, cachedRate, cacheWriteRate, outputRate].some((rate, i) => rate < minimum[i]!)
+  )
+    return;
+  return openAIProvider({
+    key: env.OPENAI_API_KEY,
+    model: env.OPENAI_MODEL!,
+    capMicro: Math.floor(cap * 1e6),
+    inputRate,
+    cachedRate,
+    cacheWriteRate,
+    outputRate,
+  });
 }

@@ -33,14 +33,7 @@
             "source": "m1"
           }
         ],
-        "knownProfileFields": [
-          "first name",
-          "last name",
-          "height",
-          "age",
-          "weight",
-          "gender"
-        ]
+        "knownProfileFields": ["first name", "last name", "height", "age", "weight", "gender"]
       },
       "raw": {
         "trainingSummary": [
@@ -127,14 +120,7 @@
             "source": "m1"
           }
         ],
-        "knownProfileFields": [
-          "first name",
-          "last name",
-          "height",
-          "age",
-          "weight",
-          "gender"
-        ]
+        "knownProfileFields": ["first name", "last name", "height", "age", "weight", "gender"]
       },
       "raw": {
         "trainingSummary": [
@@ -272,14 +258,7 @@
             "source": "m2"
           }
         ],
-        "knownProfileFields": [
-          "first name",
-          "last name",
-          "height",
-          "age",
-          "weight",
-          "gender"
-        ]
+        "knownProfileFields": ["first name", "last name", "height", "age", "weight", "gender"]
       },
       "raw": {
         "trainingSummary": [
@@ -361,14 +340,7 @@
             "source": "m1"
           }
         ],
-        "knownProfileFields": [
-          "first name",
-          "last name",
-          "height",
-          "age",
-          "weight",
-          "gender"
-        ]
+        "knownProfileFields": ["first name", "last name", "height", "age", "weight", "gender"]
       },
       "raw": {
         "trainingSummary": [

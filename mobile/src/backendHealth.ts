@@ -19,13 +19,15 @@ export async function checkBackendHealth(
     const response = await fetcher(url.toString(), { signal });
     if (response.status !== 200) return false;
     const body: unknown = await response.json();
-    return !signal.aborted
-      && typeof body === 'object'
-      && body !== null
-      && 'service' in body
-      && body.service === 'fitquest-api'
-      && 'status' in body
-      && body.status === 'ok';
+    return (
+      !signal.aborted &&
+      typeof body === 'object' &&
+      body !== null &&
+      'service' in body &&
+      body.service === 'fitquest-api' &&
+      'status' in body &&
+      body.status === 'ok'
+    );
   } catch {
     return false;
   }
