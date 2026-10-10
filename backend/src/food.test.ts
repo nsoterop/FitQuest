@@ -7,9 +7,8 @@ import {
   foodWeek,
   foodToday,
   validFoodDocument,
-  type FoodDocument,
   type FoodState,
-} from './foodContract.js';
+} from './shared/foodContract.js';
 import { checkFoodCommand } from './foodStore.js';
 import { checkFood, prepareFood } from './foodProvider.js';
 import { openAIProvider } from './onboardingProvider.js';
@@ -70,7 +69,8 @@ test('food date, captured timezone and calendar validation handles midnight, DST
   ])
     assert(!validFoodDocument({ ...foodFixture(), ...change }));
 });
-test('bounded food candidates retain hypothetical intent, question and unknown portions; request uses current provider once', async () => {
+test('bounded food candidates retain hypothetical intent, question and unknown portions; request uses current provider once', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-09T12:00:00Z') });
   let calls = 0;
   const provider = openAIProvider(
     {

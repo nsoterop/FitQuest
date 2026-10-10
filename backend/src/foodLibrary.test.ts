@@ -6,9 +6,9 @@ import {
   libraryFood,
   validLibraryDocument,
   validLibraryCommand,
-} from './foodContract.js';
+} from './shared/foodContract.js';
 import { foodFixture } from './foodFixture.js';
-import { foodTotal, validFoodDocument } from './foodContract.js';
+import { foodTotal, validFoodDocument } from './shared/foodContract.js';
 import { buildApp } from './app.js';
 test('recipe yield and ingredient scaling retain fractions, zero, unknown and provenance without premature rounding', () => {
   const document = libraryFromEntry(foodFixture());

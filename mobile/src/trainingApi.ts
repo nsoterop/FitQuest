@@ -1,6 +1,12 @@
-import { validWeeklySchedule, type WeeklySchedule } from '../../backend/src/weeklyScheduleContract';
-import { validHistoryConsent, type HistoryConsent } from '../../backend/src/progressConsent';
-import { validPlanningConsent, type PlanningConsent } from '../../backend/src/planningConsent';
+import {
+  validWeeklySchedule,
+  type WeeklySchedule,
+} from '../../backend/src/shared/weeklyScheduleContract';
+import { validHistoryConsent, type HistoryConsent } from '../../backend/src/shared/progressConsent';
+import {
+  validPlanningConsent,
+  type PlanningConsent,
+} from '../../backend/src/shared/planningConsent';
 import {
   validDailyNutrition,
   documentPlanVersion,
@@ -14,14 +20,14 @@ import {
   type DocumentVersion,
   type SavedDocumentPlan,
   type DocumentOverview,
-} from '../../backend/src/documentPlanContract';
+} from '../../backend/src/shared/documentPlanContract';
 import {
   validCompletePlan,
   validOverview,
   planOverview,
   type WeeklyPlan,
   type PlanOverview,
-} from '../../backend/src/completePlanContract';
+} from '../../backend/src/shared/completePlanContract';
 import { validNutrition, type Nutrition } from './nutrition';
 import { validSessionMeaning } from './trainingPresentation';
 export type Clarification = { question: string; reason: string };

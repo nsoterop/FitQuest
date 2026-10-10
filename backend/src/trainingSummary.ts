@@ -1,4 +1,4 @@
-import { documentPlanVersion } from './documentPlanContract.js';
+import { documentPlanVersion } from './shared/documentPlanContract.js';
 import { intakeAnswers, intakeSummary } from './fixedIntake.js';
 import { nutritionInputSchema, type NutritionInput } from './nutrition.js';
 import { createHash, randomUUID } from 'node:crypto';

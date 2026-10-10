@@ -44,3 +44,6 @@ coverage/
 .npmrc
 .aws/
 .ssh/
+
+# Isolated compiled tests; never included in production output.
+dist-test/

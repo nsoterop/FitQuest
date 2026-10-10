@@ -1,5 +1,5 @@
 import type { secureSessionStorage } from './secureSessionStorage';
-import type { LibraryCommand, LibraryDocument } from '../../backend/src/foodContract';
+import type { LibraryCommand, LibraryDocument } from '../../backend/src/shared/foodContract';
 export type LibraryDraft = {
   document: LibraryDocument | null;
   editingId: string | null;

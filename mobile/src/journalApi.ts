@@ -4,7 +4,7 @@ import {
   type JournalCommand,
   type JournalReceipt,
   type JournalList,
-} from '../../backend/src/journalContract';
+} from '../../backend/src/shared/journalContract';
 export const journalMessage = (code: string) =>
   (
     ({

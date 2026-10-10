@@ -12,7 +12,7 @@ import {
   validDocumentOverview,
   validSavedDocument,
   validDailyNutrition,
-} from './documentPlanContract.js';
+} from './shared/documentPlanContract.js';
 import {
   journalDocumentFixture as documentFixture,
   rowDocumentFixture,

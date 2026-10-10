@@ -276,26 +276,24 @@ test('late-week admission covers maximum saved prescriptions and rejects the fir
     profile: { age: 30, heightInches: 68, weightLb: 155 },
     dates,
   };
-  const previous = dates
-    .slice(0, 6)
-    .map((date) => ({
-      date,
-      sessions: [
-        {
-          activities: Array.from({ length: 15 }, (_, i) => ({
-            ...fixturePrescription('FQ-ACT-00008', 'repetitions'),
-            phase: i === 0 ? ('main' as const) : ('cooldown' as const),
-            sets: 20,
-            amount: 100,
-            effort: 'challenging',
-            restSeconds: 600,
-            load: 'kg',
-            loadKg: 0.0000012345678901234567,
-            side: 'each',
-          })),
-        },
-      ],
-    }));
+  const previous = dates.slice(0, 6).map((date) => ({
+    date,
+    sessions: [
+      {
+        activities: Array.from({ length: 15 }, (_, i) => ({
+          ...fixturePrescription('FQ-ACT-00008', 'repetitions'),
+          phase: i === 0 ? ('main' as const) : ('cooldown' as const),
+          sets: 20,
+          amount: 100,
+          effort: 'challenging',
+          restSeconds: 600,
+          load: 'kg',
+          loadKg: 0.0000012345678901234567,
+          side: 'each',
+        })),
+      },
+    ],
+  }));
   let accepted = 0,
     rejected = 0,
     lastSize = 0;

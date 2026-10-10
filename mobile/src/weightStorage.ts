@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { secureSessionStorage } from './secureSessionStorage';
-import type { WeightCommand, WeightMeasurement } from '../../backend/src/weightContract';
+import type { WeightCommand, WeightMeasurement } from '../../backend/src/shared/weightContract';
 export type WeightDraft = {
   value: string;
   unit: WeightMeasurement['unit'];

@@ -11,7 +11,7 @@ import { planningStore } from './planningStore.js';
 import { planningService } from './planning.js';
 import { intakeAnswers } from './fixedIntake.js';
 import { initialOutlinePrompt } from './plainOutline.js';
-import { fixturePrescription } from './planningFixture.js';
+
 import type { OnboardingProvider } from './onboardingProvider.js';
 export async function verifyFixedIntakeDatabase(
   t: TestContext,

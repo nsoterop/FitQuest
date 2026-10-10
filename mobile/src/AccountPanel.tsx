@@ -1,15 +1,6 @@
 import { JournalHistory } from './JournalScreen';
 import { useEffect, useRef, useState } from 'react';
-import {
-  AppState,
-  Keyboard,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { AppState, Keyboard, Linking, Pressable, Text, TextInput, View } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { ProfileIntakeForm } from './ProfileIntakeForm';

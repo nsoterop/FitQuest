@@ -1,8 +1,10 @@
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
 import {
   validLibraryDocument,
   type LibraryState,
   type LibraryReceipt,
-} from '../../backend/src/foodContract';
+} from '../../backend/src/shared/foodContract';
 import {
   validFoodDocument,
   validFoodCandidate,
@@ -10,7 +12,7 @@ import {
   foodDate,
   type FoodOperation,
   type FoodState,
-} from '../../backend/src/foodContract';
+} from '../../backend/src/shared/foodContract';
 export class FoodError extends Error {
   code: string;
   constructor(code: string) {
@@ -53,33 +55,39 @@ export const foodMessage = (code: string) =>
       rate_limit: 'Please try again later. Manual entry remains available.',
     }) as Record<string, string>
   )[code] ?? 'The result could not be confirmed. Check saved status before trying again.';
-function validOperation(v: any): v is FoodOperation {
+function validOperation(v: unknown): v is FoodOperation {
   return (
-    v &&
+    isRecord(v) &&
     foodId(v.id) &&
+    typeof v.status === 'string' &&
     ['pending', 'completed', 'failed'].includes(v.status) &&
     (v.error === null || typeof v.error === 'string') &&
     (v.candidate === null || validFoodCandidate(v.candidate)) &&
     (v.entryId === null || foodId(v.entryId))
   );
 }
-function validState(v: any): v is FoodState {
+function validState(v: unknown): v is FoodState {
   return (
-    v &&
+    isRecord(v) &&
     foodDate(v.today) &&
     Array.isArray(v.dates) &&
     v.dates.length === 7 &&
     v.dates.every(foodDate) &&
     Array.isArray(v.days) &&
     v.days.every(
-      (d: any) =>
-        foodDate(d.date) && Number.isInteger(d.revision) && typeof d.complete === 'boolean',
+      (d: unknown) =>
+        isRecord(d) &&
+        foodDate(d.date) &&
+        Number.isInteger(d.revision) &&
+        typeof d.complete === 'boolean',
     ) &&
     Array.isArray(v.entries) &&
     v.entries.every(
-      (e: any) =>
+      (e: unknown) =>
+        isRecord(e) &&
         foodId(e.id) &&
         Number.isInteger(e.revision) &&
+        typeof e.revision === 'number' &&
         e.revision > 0 &&
         validFoodDocument(e.document) &&
         typeof e.createdAt === 'string' &&
@@ -108,9 +116,9 @@ export async function foodRequest<T extends FoodState | FoodOperation>(
     });
     if (signal.aborted) throw Error();
     if (response.status === 401) throw new FoodError('session_ended');
-    const v = await response.json();
+    const v: unknown = await response.json();
     if (response.status !== 200)
-      throw new FoodError(typeof v?.code === 'string' ? v.code : 'unavailable');
+      throw new FoodError(isRecord(v) && typeof v.code === 'string' ? v.code : 'unavailable');
     if (signal.aborted || !(path.startsWith('?') ? validState(v) : validOperation(v)))
       throw Error();
     return v as T;
@@ -139,22 +147,27 @@ export async function libraryRequest<T extends LibraryState | LibraryReceipt>(
     });
     if (signal.aborted) throw Error();
     if (response.status === 401) throw new FoodError('session_ended');
-    const v = await response.json();
+    const v: unknown = await response.json();
     if (response.status !== 200)
-      throw new FoodError(typeof v?.code === 'string' ? v.code : 'unavailable');
+      throw new FoodError(isRecord(v) && typeof v.code === 'string' ? v.code : 'unavailable');
     if (
       signal.aborted ||
       !(path === ''
-        ? v &&
+        ? isRecord(v) &&
           Array.isArray(v.items) &&
           v.items.every(
-            (i: any) =>
+            (i: unknown) =>
+              isRecord(i) &&
               foodId(i.id) &&
               Number.isInteger(i.revision) &&
+              typeof i.revision === 'number' &&
               i.revision > 0 &&
               validLibraryDocument(i.document),
           )
-        : v && foodId(v.id) && foodId(v.libraryId) && (v.entryId === null || foodId(v.entryId)))
+        : isRecord(v) &&
+          foodId(v.id) &&
+          foodId(v.libraryId) &&
+          (v.entryId === null || foodId(v.entryId)))
     )
       throw Error();
     return v as T;

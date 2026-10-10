@@ -4,7 +4,7 @@ import {
   planningDisclosure,
   planningPolicyUrl,
   type PlanningConsent,
-} from '../../backend/src/planningConsent';
+} from '../../backend/src/shared/planningConsent';
 import { Action, ui } from './Design';
 export function PlanningPermission({
   consent,

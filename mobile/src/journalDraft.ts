@@ -4,7 +4,7 @@ import type {
   JournalCommand,
   JournalDocument,
   JournalSource,
-} from '../../backend/src/journalContract';
+} from '../../backend/src/shared/journalContract';
 export type JournalDraft = {
   key: string;
   journal: Journal | null;

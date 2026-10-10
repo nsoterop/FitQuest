@@ -17,7 +17,7 @@ import {
   type JournalResult,
   type JournalSource,
   type SetGroup,
-} from '../../backend/src/journalContract';
+} from '../../backend/src/shared/journalContract';
 import { privateJournalDrafts } from './journalStorage';
 import type { JournalDraft } from './journalDraft';
 import { journalRequest, JournalError } from './journalApi';
@@ -502,7 +502,7 @@ function JournalEditor({
               <WorkoutMarkdown source={draft.journal.snapshot.workoutMarkdown} />
             </>
           )}
-          {doc.results.map((r, i) => {
+          {doc.results.map((r) => {
             const original = draft.journal?.snapshot.exercises.find((e) => e.id === r.id);
             return (
               <View

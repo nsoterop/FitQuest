@@ -1,5 +1,5 @@
 import type { Account } from './auth.js';
-import type { FoodCommand } from './foodContract.js';
+import type { FoodCommand } from './shared/foodContract.js';
 import { checkFood } from './foodProvider.js';
 import type { FoodStore } from './foodStore.js';
 import type { OnboardingProvider, ProviderResult } from './onboardingProvider.js';

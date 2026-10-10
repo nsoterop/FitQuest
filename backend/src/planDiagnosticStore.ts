@@ -1,10 +1,10 @@
-import { isDocumentVersion } from './documentPlanContract.js';
+import { isDocumentVersion } from './shared/documentPlanContract.js';
 import type { Pool } from 'pg';
 import type { Account } from './auth.js';
 import type { PlanningWork } from './planningStore.js';
 import { safeValidationDiagnostic } from './planDiagnostics.js';
 import { catalog } from './activityCatalog.js';
-import { completePlanVersion } from './completePlanContract.js';
+import { completePlanVersion } from './shared/completePlanContract.js';
 
 // Operational records are independent of charge settlement and generation jobs.
 // Bound to the latest 50 failures/account; expired records are pruned on writes.

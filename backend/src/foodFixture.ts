@@ -1,4 +1,4 @@
-import type { FoodDocument } from './foodContract.js';
+import type { FoodDocument } from './shared/foodContract.js';
 export function foodFixture(): FoodDocument {
   return {
     name: 'Synthetic breakfast',

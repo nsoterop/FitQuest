@@ -1,5 +1,9 @@
 import type { secureSessionStorage } from './secureSessionStorage';
-import type { FoodCommand, FoodDocument, FoodOperation } from '../../backend/src/foodContract';
+import type {
+  FoodCommand,
+  FoodDocument,
+  FoodOperation,
+} from '../../backend/src/shared/foodContract';
 export type FoodDraft = {
   fields?: Record<string, string>;
   message: string;

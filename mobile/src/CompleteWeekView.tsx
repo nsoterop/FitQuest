@@ -1,8 +1,12 @@
-import { isDocumentVersion } from '../../backend/src/documentPlanContract';
+import { isDocumentVersion } from '../../backend/src/shared/documentPlanContract';
 import { WorkoutContent } from './WorkoutContent';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { recoveryCount, type Exercise, type Range } from '../../backend/src/completePlanContract';
+import {
+  recoveryCount,
+  type Exercise,
+  type Range,
+} from '../../backend/src/shared/completePlanContract';
 import type { TrainingPlan } from './trainingApi';
 const calendarDate = (date: string) =>
   new Intl.DateTimeFormat('en-US', {

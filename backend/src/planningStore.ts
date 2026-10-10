@@ -1,19 +1,19 @@
 import { scheduledDates } from './weeklySchedule.js';
-import { weeklyScheduleVersion } from './weeklyScheduleContract.js';
+import { weeklyScheduleVersion } from './shared/weeklyScheduleContract.js';
 import { captureProgress, nextWeekDates, type ProgressSnapshot } from './progressContext.js';
 import {
   historyConsentVersion,
   historyConsentScope,
   hasHistoryConsent,
   type HistoryConsent,
-} from './progressConsent.js';
+} from './shared/progressConsent.js';
 import {
   planningConsentVersion,
   planningConsentScope,
   hasPlanningConsent,
   type PlanningConsent,
-} from './planningConsent.js';
-import { foodDate, foodId, foodToday } from './foodContract.js';
+} from './shared/planningConsent.js';
+import { foodDate, foodId, foodToday } from './shared/foodContract.js';
 import { prepareDocument, documentPlanVersion } from './documentPlanning.js';
 import {
   documentOverview,
@@ -22,7 +22,7 @@ import {
   validDailyNutrition,
   type AcceptedNutrition,
   type SavedDocumentPlan,
-} from './documentPlanContract.js';
+} from './shared/documentPlanContract.js';
 import {
   prepareComplete,
   prepareCompleteOutline,
@@ -30,7 +30,7 @@ import {
   completePlanVersion,
 } from './completePlanning.js';
 import { recordPlanDiagnostic } from './planDiagnosticStore.js';
-import { planOverview, type PlanResponse } from './completePlanContract.js';
+import { planOverview, type PlanResponse } from './shared/completePlanContract.js';
 import { intakeAnswers } from './fixedIntake.js';
 import { preparePlainOutline, parsePlainOutline } from './plainOutline.js';
 import { prepareOverview, overviewDays } from './outlinePlanning.js';
@@ -66,6 +66,19 @@ import {
   type Detail,
 } from './planningDomain.js';
 
+type ClaimPlanRow = {
+  id: string;
+  dates: string[];
+  time_zone: string;
+  summary_revision: number;
+  week_start: string | null;
+  scheduled: boolean;
+  catalog_version: string;
+  review_revision: number;
+  document_plan: SavedDocumentPlan | null;
+  complete_plan: import('./shared/completePlanContract.js').WeeklyPlan | null;
+  progress_snapshot: ProgressSnapshot | null;
+};
 export type GenerationRequest = {
   summaryRevision: number;
   planId: string;
@@ -223,7 +236,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
         p.completeReady = !!p.documentPlan;
         p.documentOverview = p.documentPlan ? documentOverview(p.documentPlan) : null;
         if (p.reviewState !== 'accepted') p.documentPlan = null;
-        p.jobs = p.jobs.map(({ rawResponse, ...job }: any) => job);
+        p.jobs = p.jobs.map(({ rawResponse, ...job }: Record<string, unknown>) => job);
       }
       if (p.schemaVersion === completePlanVersion) {
         p.completeReady = !!p.completePlan;
@@ -231,7 +244,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
         p.activityNames =
           p.completePlan && p.reviewState === 'accepted' ? completeActivities(p.completePlan) : {};
         if (p.reviewState !== 'accepted') p.completePlan = null;
-        p.jobs = p.jobs.map(({ rawResponse, ...job }: any) => job);
+        p.jobs = p.jobs.map(({ rawResponse, ...job }: Record<string, unknown>) => job);
       }
     }
     // Acceptance is durable server evidence, independent of the current draft or calendar.
@@ -267,7 +280,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
   async function claimDocument(
     c: PoolClient,
     a: Account,
-    plan: any,
+    plan: ClaimPlanRow,
     r: GenerationRequest | ReviewRequest,
     provider?: OnboardingProvider,
   ): Promise<PlanningWork | undefined> {
@@ -328,7 +341,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
                 weightLb: Number(p.weight_lb),
                 gender: p.gender,
               },
-              plan.progress_snapshot.changes,
+              plan.progress_snapshot!.changes,
               new Date(),
               { summary: s.revision, profile: p.version },
             )
@@ -346,7 +359,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       },
       dates: plan.dates,
       ...(progressSnapshot ? progressSnapshot.input : {}),
-      ...(review ? { documentReview: { plan: plan.document_plan, feedback: r.feedback } } : {}),
+      ...(review ? { documentReview: { plan: plan.document_plan!, feedback: r.feedback } } : {}),
     };
     const attempt = randomUUID();
     let prepared: ReturnType<typeof prepareDocument> | undefined, failure: string | undefined;
@@ -417,7 +430,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
   async function claimComplete(
     c: PoolClient,
     a: Account,
-    plan: any,
+    plan: ClaimPlanRow,
     r: GenerationRequest | ReviewRequest,
     provider?: OnboardingProvider,
     checkpoint?: { work: PlanningWork; text: string },
@@ -497,7 +510,7 @@ export function planningStore(pool: Pool, background = false, clock = () => new 
       summary: s.document,
       profile: { age: p.age, heightInches: p.height_inches, weightLb: Number(p.weight_lb) },
       dates: plan.dates,
-      ...(review ? { completeReview: { plan: plan.complete_plan, feedback: r.feedback } } : {}),
+      ...(review ? { completeReview: { plan: plan.complete_plan!, feedback: r.feedback } } : {}),
     };
     if (outlineText) input.completeOutlineText = outlineText;
     const attempt = randomUUID();

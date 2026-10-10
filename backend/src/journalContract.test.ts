@@ -6,8 +6,8 @@ import {
   validJournalCommand,
   resultLogged,
   type JournalDocument,
-} from './journalContract.js';
-import { validSavedDocument, documentOverview } from './documentPlanContract.js';
+} from './shared/journalContract.js';
+import { validSavedDocument, documentOverview } from './shared/documentPlanContract.js';
 import { journalDocumentFixture, nutritionDocumentFixture } from './documentPlanFixture.js';
 const doc = (): JournalDocument => ({
   version: 1,

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import type { Account } from './auth.js';
 import { OnboardingError } from './onboardingError.js';
-import { foodId } from './foodContract.js';
+import { foodId } from './shared/foodContract.js';
 import {
   validWeightCommand,
   weightToday,
@@ -10,7 +10,16 @@ import {
   type WeightEntry,
   type WeightList,
   type WeightReceipt,
-} from './weightContract.js';
+} from './shared/weightContract.js';
+type WeightRow = {
+  id: string;
+  revision: number;
+  measurement: WeightEntry['measurement'];
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+};
+type WeightReceiptRow = { id: string; entry_id: string; revision: number };
 const fail = (code: string, status = 409): never => {
   throw new OnboardingError(status, code);
 };
@@ -23,7 +32,7 @@ const canonical = (v: unknown): string =>
         .join(',') +
       '}'
     : JSON.stringify(v);
-const entry = (r: any): WeightEntry => ({
+const entry = (r: WeightRow): WeightEntry => ({
   id: r.id,
   revision: r.revision,
   measurement: r.measurement,
@@ -31,7 +40,7 @@ const entry = (r: any): WeightEntry => ({
   updatedAt: r.updated_at.toISOString(),
   deletedAt: r.deleted_at?.toISOString() ?? null,
 });
-const receipt = (r: any): WeightReceipt => ({
+const receipt = (r: WeightReceiptRow): WeightReceipt => ({
   id: r.id,
   entryId: r.entry_id,
   revision: r.revision,

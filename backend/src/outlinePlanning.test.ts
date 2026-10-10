@@ -7,16 +7,11 @@ import {
   overviewDays,
 } from './outlinePlanning.js';
 import { checkWeek, prepareWeek } from './weeklyPlanning.js';
-import { trainingFixture, fixturePrescription } from './planningFixture.js';
+import { trainingFixture } from './planningFixture.js';
 import type { OnboardingProvider } from './onboardingProvider.js';
 import type { PlanningInput } from './planningDomain.js';
 
-import {
-  overviewDates,
-  overviewFixture,
-  outlineInput,
-  overviewWorkouts,
-} from './outlinePlanningFixture.js';
+import { overviewFixture, outlineInput, overviewWorkouts } from './outlinePlanningFixture.js';
 const provider: OnboardingProvider = {
   mode: 'test',
   model: 'mock',

@@ -28,7 +28,7 @@ test('every runtime asset COPY is admitted by the Docker context allowlist', () 
   assert.match(read('Dockerfile'), /^WORKDIR \/app$/m);
   assert.match(
     read('src/activityCatalog.ts'),
-    /new URL\('\.\.\/catalog\/fitquest-v1\.json',import\.meta\.url\)/,
+    /new URL\('\.\.\/catalog\/fitquest-v1\.json',\s*import\.meta\.url\)/,
   );
   const catalog = JSON.parse(read('catalog/fitquest-v1.json'));
   assert.equal(catalog.version, 'fitquest-2026-10-03-v1');

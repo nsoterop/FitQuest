@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { eligibleActivities, selectionColumns, trackingModes } from './activityCatalog.js';
 import { fixtureDetail, fixtureOutline, trainingFixture } from './planningFixture.js';
-import { planDates } from './trainingSummary.js';
+
 import { checkWeek, prepareWeek, weeklyLimits, type Week } from './weeklyPlanning.js';
 import { openAIProvider } from './onboardingProvider.js';
 import type { PlanningInput } from './planningDomain.js';

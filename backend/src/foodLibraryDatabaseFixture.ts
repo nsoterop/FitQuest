@@ -6,8 +6,8 @@ import type { ProfileStore } from './profileStore.js';
 import { foodLibraryStore } from './foodLibraryStore.js';
 import { foodStore } from './foodStore.js';
 import { foodFixture } from './foodFixture.js';
-import { foodTotal } from './foodContract.js';
-import { libraryFromEntry, type LibraryCommand } from './foodContract.js';
+import { foodTotal } from './shared/foodContract.js';
+import { libraryFromEntry, type LibraryCommand } from './shared/foodContract.js';
 export async function verifyFoodLibraryDatabase(
   t: TestContext,
   owner: Pool,

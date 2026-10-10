@@ -20,7 +20,7 @@ import {
   prepareCompleteOutline,
   completeOutline,
 } from './completePlanning.js';
-import { planOverview, recoveryCount, distanceMeters } from './completePlanContract.js';
+import { planOverview, recoveryCount, distanceMeters } from './shared/completePlanContract.js';
 import { intakeSummary } from './fixedIntake.js';
 import { planDates } from './trainingSummary.js';
 import type { PlanningInput } from './planningDomain.js';
@@ -77,7 +77,7 @@ const workflowInput = {
 };
 const outlineText = completeOutlineFixture(completeFixture(dates));
 const workoutInput = { ...workflowInput, completeOutlineText: outlineText };
-const catalogBytes = JSON.stringify({
+const _catalogBytes = JSON.stringify({
   encoding:
     'Rows align with columns. Numeric cells index strings; string and array cells are literal.',
   ...selectionCatalog,

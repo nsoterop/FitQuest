@@ -277,10 +277,19 @@ export function openAIProvider(
           numbers[1] <= outputLimit
             ? { input: numbers[0], output: numbers[1], cached: numbers[2], cacheWrite: numbers[3] }
             : undefined;
-        const rawText = (Array.isArray(data.output) ? data.output : [])
-          .filter((x: any) => x.type === 'message')
-          .flatMap((x: any) => x.content ?? [])
-          .flatMap((x: any) =>
+        const content: Record<string, unknown>[] = (
+          (Array.isArray(data.output) ? data.output : []) as unknown[]
+        )
+          .filter(
+            (x): x is { type: 'message'; content?: unknown } =>
+              !!x && typeof x === 'object' && 'type' in x && x.type === 'message',
+          )
+          .flatMap((x): unknown[] => (Array.isArray(x.content) ? x.content : []))
+          .filter(
+            (x): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x),
+          );
+        const rawText = content
+          .flatMap((x) =>
             x.type === 'output_text' && typeof x.text === 'string'
               ? [x.text]
               : x.type === 'refusal' && typeof x.refusal === 'string'
@@ -291,12 +300,9 @@ export function openAIProvider(
         const plain = !request.text?.format;
         if (data.status !== 'completed')
           return { failure: 'incomplete', usage, diagnostic, ...(plain ? { rawText } : {}) };
-        const content = (Array.isArray(data.output) ? data.output : [])
-          .filter((x: { type?: string }) => x.type === 'message')
-          .flatMap((x: { content?: unknown[] }) => x.content ?? []);
-        if (content.some((x: { type?: string }) => x.type === 'refusal'))
+        if (content.some((x) => x.type === 'refusal'))
           return { failure: 'refused', usage, diagnostic, ...(plain ? { rawText } : {}) };
-        const texts = content.filter((x: { type?: string }) => x.type === 'output_text');
+        const texts = content.filter((x) => x.type === 'output_text');
         if (texts.length !== 1 || typeof texts[0].text !== 'string')
           return { failure: 'incomplete', usage, diagnostic, ...(plain ? { rawText } : {}) };
         if (plain) return { rawText: texts[0].text, usage, diagnostic };

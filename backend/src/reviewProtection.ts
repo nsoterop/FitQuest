@@ -204,8 +204,8 @@ export function reviewProtections(
   dates: string[],
   level: ProtectionLevel = 'activities',
 ): Protections {
-  let days = new Set<string>(),
-    sessions: Slot[] = [],
+  const days = new Set<string>();
+  let sessions: Slot[] = [],
     activities: Row[] = [];
   const unknownTargets = new Set<string>(),
     pendingRemainders = new Set<string>();

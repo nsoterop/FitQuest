@@ -184,8 +184,12 @@ export function checkOutline(value: unknown, dates: string[]): Outline {
   return value;
 }
 const plainDetailSchema = structuredClone(compatibleDetail);
-delete (plainDetailSchema.properties.sessions as any).maxItems;
-delete (plainDetailSchema.properties.sessions.items as any).properties.estimatedMinutes.maximum;
+delete (plainDetailSchema.properties.sessions as { maxItems?: number }).maxItems;
+delete (
+  plainDetailSchema.properties.sessions.items as {
+    properties: { estimatedMinutes: { maximum?: number } };
+  }
+).properties.estimatedMinutes.maximum;
 const validPlainDetail = ajv.compile<Detail>(plainDetailSchema);
 export function checkDetail(raw: unknown, day: Outline['days'][number], plain = false): Detail {
   if (!(plain ? validPlainDetail(raw) : validDetail(raw))) invalidPlan('detail_schema');
@@ -266,11 +270,14 @@ export type PlanningInput = {
     | 'document-week-v3'
     | 'document-week-v4';
   documentReview?: {
-    plan: import('./documentPlanContract.js').SavedDocumentPlan;
+    plan: import('./shared/documentPlanContract.js').SavedDocumentPlan;
     feedback: string;
   };
   completeOutlineText?: string;
-  completeReview?: { plan: import('./completePlanContract.js').WeeklyPlan; feedback: string };
+  completeReview?: {
+    plan: import('./shared/completePlanContract.js').WeeklyPlan;
+    feedback: string;
+  };
   kind: 'outline' | 'day' | 'week';
   summary: TrainingSummary;
   profile: { age: number; heightInches: number; weightLb: number; gender?: string | null };

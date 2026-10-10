@@ -8,7 +8,7 @@ import {
   nutrients,
   type FoodItem,
   type FoodEntry,
-} from '../../backend/src/foodContract';
+} from '../../backend/src/shared/foodContract';
 import {
   libraryFood,
   validLibraryDocument,
@@ -18,7 +18,7 @@ import {
   type LibraryReceipt,
   type LibraryState,
   type LibraryDocument,
-} from '../../backend/src/foodContract';
+} from '../../backend/src/shared/foodContract';
 import { libraryRequest, FoodError } from './foodApi';
 import { privateLibraryDrafts } from './onboardingDraftStorage';
 import { emptyLibraryDraft, type LibraryDraft } from './foodLibraryDraft';

@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import type { DailyNutrition } from '../../backend/src/documentPlanContract';
+import type { DailyNutrition } from '../../backend/src/shared/documentPlanContract';
 import { ui } from './Design';
 export function NutritionTargets({
   nutrition,

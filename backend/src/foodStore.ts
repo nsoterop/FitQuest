@@ -16,10 +16,17 @@ import {
   type FoodOperation,
   type FoodState,
   type FoodCandidate,
-} from './foodContract.js';
+} from './shared/foodContract.js';
 import { prepareFood } from './foodProvider.js';
 import { safeDiagnostic, type ProviderDiagnostic } from './providerDiagnostics.js';
 import type { OnboardingProvider } from './onboardingProvider.js';
+type FoodOperationRow = {
+  id: string;
+  status: FoodOperation['status'];
+  error_code: string | null;
+  candidate: FoodOperation['candidate'];
+  entry_id: string | null;
+};
 const fail = (code: string, status = 409): never => {
   throw new OnboardingError(status, code);
 };
@@ -104,7 +111,7 @@ function canonical(v: unknown): string {
     );
   return JSON.stringify(v);
 }
-const op = (r: any): FoodOperation => ({
+const op = (r: FoodOperationRow): FoodOperation => ({
   id: r.id,
   status: r.status,
   error: r.error_code,

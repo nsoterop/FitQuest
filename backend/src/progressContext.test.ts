@@ -5,7 +5,7 @@ import {
   hasHistoryConsent,
   historyConsentVersion,
   historyConsentScope,
-} from './progressConsent.js';
+} from './shared/progressConsent.js';
 test('upcoming calendar weeks honor every weekday, DST, year boundaries and independent history permission', () => {
   for (let i = 5; i <= 11; i++)
     assert.deepEqual(

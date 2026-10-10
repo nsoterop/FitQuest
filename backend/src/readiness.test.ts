@@ -14,7 +14,6 @@ import { validateProposal } from './onboardingProvider.js';
 import { renderOnboardingReply } from './onboardingReply.js';
 import { trainingFixture, fixtureOutline, fixtureDetail } from './planningFixture.js';
 import { checkOutline, checkDetail } from './planningDomain.js';
-import { planDates } from './trainingSummary.js';
 
 const summary = trainingFixture.map((f) => ({ ...f, origin: 'model_inference' as const }));
 const proposal: ModelProposal = {

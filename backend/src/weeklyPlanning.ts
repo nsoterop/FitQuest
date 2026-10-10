@@ -147,15 +147,26 @@ const validateDraft = new Ajv().compile<Week>(draftWeekSchema);
 const validate = new Ajv().compile<Week>(weekSchema),
   validateLegacy = new Ajv().compile<Week>(legacyWeekSchema);
 const plainWeekSchema = structuredClone(draftWeekSchema);
-delete (plainWeekSchema.properties.days.items.properties.sessions as any).maxItems;
-delete (plainWeekSchema.properties.days.items.properties.sessions.items.properties.focus as any)
-  .maxLength;
+delete (plainWeekSchema.properties.days.items.properties.sessions as { maxItems?: number })
+  .maxItems;
 delete (
-  plainWeekSchema.properties.days.items.properties.sessions.items.properties.estimatedMinutes as any
+  plainWeekSchema.properties.days.items.properties.sessions.items.properties.focus as {
+    maxLength?: number;
+  }
+).maxLength;
+delete (
+  plainWeekSchema.properties.days.items.properties.sessions.items.properties.estimatedMinutes as {
+    maximum?: number;
+  }
 ).maximum;
-(plainWeekSchema.properties.goalDecisions.items.properties.goal as any).maxLength = 4000;
-delete (plainWeekSchema.properties.goalDecisions.items.properties.evidence as any).items.properties
-  .sessionIndex.maximum;
+(
+  plainWeekSchema.properties.goalDecisions.items.properties.goal as { maxLength?: number }
+).maxLength = 4000;
+delete (
+  plainWeekSchema.properties.goalDecisions.items.properties.evidence as {
+    items: { properties: { sessionIndex: { maximum?: number } } };
+  }
+).items.properties.sessionIndex.maximum;
 const validatePlain = new Ajv().compile<Week>(plainWeekSchema);
 // Encode prescription rules already enforced after generation in the approved
 // detail wire schema too. A schema-valid response must not invite cooldown RIR,

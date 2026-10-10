@@ -13,7 +13,7 @@ import {
   journalDocumentFixture,
 } from './documentPlanFixture.js';
 import { trainingTestResetStatements } from './trainingTestReset.js';
-import type { JournalCommand } from './journalContract.js';
+import type { JournalCommand } from './shared/journalContract.js';
 export async function verifyJournalDatabase(
   t: TestContext,
   owner: Pool,

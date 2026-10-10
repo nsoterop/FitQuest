@@ -1,6 +1,6 @@
 import { BodyWeight } from './BodyWeight';
 import { nutritionTargetRequest, TrainingError } from './trainingApi';
-import type { AcceptedNutrition } from '../../backend/src/documentPlanContract';
+import type { AcceptedNutrition } from '../../backend/src/shared/documentPlanContract';
 import { FoodLibraryScreen } from './FoodLibraryScreen';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppState, Pressable, Text, TextInput, View } from 'react-native';
@@ -22,7 +22,7 @@ import {
   type FoodState,
   type FoodEntry,
   type Nutrient,
-} from '../../backend/src/foodContract';
+} from '../../backend/src/shared/foodContract';
 import { foodRequest, FoodError, foodMessage } from './foodApi';
 import { privateFoodDrafts } from './onboardingDraftStorage';
 import type { FoodDraft } from './foodDraft';
@@ -277,7 +277,7 @@ export function NutritionScreen({ userId, accessToken, onSessionEnded, onAccount
     [now, setNow] = useState(Date.now());
   const [targetRefresh, setTargetRefresh] = useState(0);
   const [target, setTarget] = useState<AcceptedNutrition | null>(null),
-    [targetStatus, setTargetStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+    [_targetStatus, setTargetStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   useEffect(() => {
     const controller = new AbortController();
     setTarget(null);

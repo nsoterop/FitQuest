@@ -15,7 +15,7 @@ import {
   syntheticAnswers,
 } from './completePlanFixture.js';
 import { encodeCompleteWire } from './completePlanWire.js';
-import { planOverview } from './completePlanContract.js';
+import { planOverview } from './shared/completePlanContract.js';
 export async function verifyCompleteDatabase(
   t: TestContext,
   owner: Pool,

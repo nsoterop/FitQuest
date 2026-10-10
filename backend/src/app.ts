@@ -1,5 +1,5 @@
 import type { FoodService } from './food.js';
-import type { FoodCommand } from './foodContract.js';
+import type { FoodCommand } from './shared/foodContract.js';
 import type { PlanningService } from './planning.js';
 import { storedSummarySchema as summarySchema } from './trainingSummary.js';
 import type { TrainingSummary } from './trainingSummary.js';
@@ -91,14 +91,12 @@ export function buildApp(
           error.statusCode && error.statusCode >= 400 && error.statusCode < 500
             ? error.statusCode
             : 500;
-        return reply
-          .code(status)
-          .send({
-            message:
-              status < 500
-                ? 'Check all six fields and use inches and pounds.'
-                : 'Unable to submit right now. Please try again.',
-          });
+        return reply.code(status).send({
+          message:
+            status < 500
+              ? 'Check all six fields and use inches and pounds.'
+              : 'Unable to submit right now. Please try again.',
+        });
       },
     },
     async (request, reply) => {
@@ -161,17 +159,15 @@ export function buildApp(
           : error.statusCode && error.statusCode >= 400 && error.statusCode < 500
             ? error.statusCode
             : 503;
-      return reply
-        .code(status)
-        .send({
-          code:
-            error instanceof OnboardingError
-              ? error.code
-              : status < 500
-                ? 'invalid_request'
-                : 'unavailable',
-          message: 'Unable to complete onboarding. Please retry.',
-        });
+      return reply.code(status).send({
+        code:
+          error instanceof OnboardingError
+            ? error.code
+            : status < 500
+              ? 'invalid_request'
+              : 'unavailable',
+        message: 'Unable to complete onboarding. Please retry.',
+      });
     },
   };
   const onboarding = () => {
@@ -504,7 +500,7 @@ export function buildApp(
   app.get<{ Params: { id: string } }>('/body-weight/:id', privateRoute, async (r) =>
     weight().read(accounts.get(r)!, r.params.id),
   );
-  app.post<{ Body: import('./weightContract.js').WeightCommand }>(
+  app.post<{ Body: import('./shared/weightContract.js').WeightCommand }>(
     '/body-weight/commands',
     { ...privateRoute, bodyLimit: 4000 },
     async (r) => weight().command(accounts.get(r)!, r.body),
@@ -522,7 +518,7 @@ export function buildApp(
   app.get<{ Params: { id: string } }>('/workout-journal/:id', privateRoute, async (r) =>
     journal().read(accounts.get(r)!, r.params.id),
   );
-  app.post<{ Body: import('./journalContract.js').JournalCommand }>(
+  app.post<{ Body: import('./shared/journalContract.js').JournalCommand }>(
     '/workout-journal/commands',
     { ...privateRoute, bodyLimit: 128000 },
     async (r) => journal().command(accounts.get(r)!, r.body),
@@ -537,7 +533,7 @@ export function buildApp(
     privateRoute,
     async (request) => library().readOperation(accounts.get(request)!, request.params.id),
   );
-  app.post<{ Body: import('./foodContract.js').LibraryCommand }>(
+  app.post<{ Body: import('./shared/foodContract.js').LibraryCommand }>(
     '/food-library/commands',
     { ...privateRoute, bodyLimit: 28000 },
     async (request) => library().command(accounts.get(request)!, request.body),

@@ -587,7 +587,7 @@ export async function verifyReadinessDatabase(
         usage,
       });
       await generate('outline');
-      let { s, p } = await latest();
+      let { p } = await latest();
       await generate(p.dates[0]);
       const target = p.dates[3];
       respond = async () => ({
@@ -595,7 +595,8 @@ export async function verifyReadinessDatabase(
         usage,
       });
       await generate(target);
-      ({ s, p } = await latest());
+      const { s, p: refreshedPlan } = await latest();
+      p = refreshedPlan;
       const days = structuredClone(p.days),
         before = calls;
       const a = await service.clarify(

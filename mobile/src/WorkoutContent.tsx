@@ -1,5 +1,8 @@
 import { Text, View } from 'react-native';
-import type { DocumentSession, RowDocumentPlan } from '../../backend/src/documentPlanContract';
+import type {
+  DocumentSession,
+  RowDocumentPlan,
+} from '../../backend/src/shared/documentPlanContract';
 import { colors, ui } from './Design';
 import { WorkoutMarkdown } from './WorkoutMarkdown';
 // Native text only. Rows never execute HTML, load remote media or parse dose values.

@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, writeFile, open, chmod, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { prepareComplete, checkComplete } from '../dist/completePlanning.js';
-import { configuredProvider, openAIProvider } from '../dist/onboardingProvider.js';
-import { weeklyLimits } from '../dist/weeklyPlanning.js';
-import { createPool } from '../dist/profileStore.js';
-import { postgresOnboardingStore } from '../dist/onboardingStore.js';
+import { prepareComplete, checkComplete } from '../dist-test/completePlanning.js';
+import { configuredProvider, openAIProvider } from '../dist-test/onboardingProvider.js';
+import { weeklyLimits } from '../dist-test/weeklyPlanning.js';
+import { createPool } from '../dist-test/profileStore.js';
+import { postgresOnboardingStore } from '../dist-test/onboardingStore.js';
 export const batch = 'preference-schedule-v1';
 export const order = ['A1', 'B1', 'B2', 'A2'];
 export const oldSchedule =

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { readFile, writeFile, open, chmod } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { createPool } from '../dist/profileStore.js';
-import { configuredProvider } from '../dist/onboardingProvider.js';
-import { postgresOnboardingStore } from '../dist/onboardingStore.js';
-import { safeDiagnostic } from '../dist/providerDiagnostics.js';
-import { prepareComplete, checkComplete } from '../dist/completePlanning.js';
-import { weeklyLimits } from '../dist/weeklyPlanning.js';
+import { createPool } from '../dist-test/profileStore.js';
+import { configuredProvider } from '../dist-test/onboardingProvider.js';
+import { postgresOnboardingStore } from '../dist-test/onboardingStore.js';
+import { safeDiagnostic } from '../dist-test/providerDiagnostics.js';
+import { prepareComplete, checkComplete } from '../dist-test/completePlanning.js';
+import { weeklyLimits } from '../dist-test/weeklyPlanning.js';
 export const formattingA =
   'Finally, format the complete plan using the provided response\nschema. Formatting must preserve the sessions and prescriptions,';
 export const formattingB =

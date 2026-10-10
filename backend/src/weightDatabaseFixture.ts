@@ -8,7 +8,7 @@ import type { ProfileStore } from './profileStore.js';
 import { weightStore } from './weightStore.js';
 import { trainingTestResetStatements } from './trainingTestReset.js';
 import { buildApp } from './app.js';
-import type { WeightCommand } from './weightContract.js';
+import type { WeightCommand } from './shared/weightContract.js';
 export async function verifyWeightDatabase(
   t: TestContext,
   owner: Pool,

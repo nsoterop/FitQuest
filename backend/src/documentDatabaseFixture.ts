@@ -10,11 +10,10 @@ import { intakeSummary } from './fixedIntake.js';
 import { syntheticAnswers } from './completePlanFixture.js';
 import {
   journalDocumentFixture as documentFixture,
-  rowDocumentFixture,
   documentFixture as legacyDocumentFixture,
 } from './documentPlanFixture.js';
-import { planningConsentVersion, planningConsentScope } from './planningConsent.js';
-import { documentOverview } from './documentPlanContract.js';
+import { planningConsentVersion, planningConsentScope } from './shared/planningConsent.js';
+import { documentOverview } from './shared/documentPlanContract.js';
 export async function verifyDocumentDatabase(
   t: TestContext,
   owner: Pool,
@@ -172,7 +171,7 @@ export async function verifyDocumentDatabase(
       await f.service.generate(f.a, f.r, async () => true);
       assert.equal(f.bodies.length, 1);
       assert(
-        f.bodies[0]!.includes('gender \"Unspecified\"') ||
+        f.bodies[0]!.includes('gender "Unspecified"') ||
           JSON.parse(f.bodies[0]!).input.includes('gender "Unspecified"'),
       );
       assert(!f.bodies[0]!.includes('Documents'));
@@ -277,7 +276,7 @@ export async function verifyDocumentDatabase(
         const n = f.bodies.length;
         await f.service.generate(f.a, f.r, async () => true);
         assert.equal(f.bodies.length, n + 1);
-        let p = await f.read();
+        const p = await f.read();
         assert.equal(p.jobs[0].error, mode === 'invalid' ? 'invalid_document' : mode);
         assert.equal(p.completeReady, false);
         assert.equal(p.documentPlan, null);

@@ -1,5 +1,11 @@
 import { invalidComplete, type DiagnosticPosition } from './planDiagnostics.js';
-import type { Exercise, PlanResponse, Range, Target, WeeklyPlan } from './completePlanContract.js';
+import type {
+  Exercise,
+  PlanResponse,
+  Range,
+  Target,
+  WeeklyPlan,
+} from './shared/completePlanContract.js';
 // Wire-only flattening keeps the deepest active-recovery target below the
 // provider's ten-container limit. One explicit lossless mapping owns both directions.
 const obj = (properties: Record<string, unknown>) => ({

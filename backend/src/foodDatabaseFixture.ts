@@ -3,11 +3,16 @@ import { randomUUID } from 'node:crypto';
 import type { TestContext } from 'node:test';
 import type { Pool } from 'pg';
 import type { ProfileStore } from './profileStore.js';
-import type { OnboardingProvider, ProviderResult } from './onboardingProvider.js';
+import type { OnboardingProvider } from './onboardingProvider.js';
 import { foodFixture } from './foodFixture.js';
 import { foodStore } from './foodStore.js';
 import { foodService } from './food.js';
-import { foodTotal, foodAverage, type FoodCommand, type FoodCandidate } from './foodContract.js';
+import {
+  foodTotal,
+  foodAverage,
+  type FoodCommand,
+  type FoodCandidate,
+} from './shared/foodContract.js';
 export async function verifyFoodDatabase(
   t: TestContext,
   owner: Pool,

@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { validWeightMeasurement, validWeightCommand, weightToday } from './weightContract.js';
+import {
+  validWeightMeasurement,
+  validWeightCommand,
+  weightToday,
+} from './shared/weightContract.js';
 test('dated weight accepts decimals in explicit units, rejects missing/invalid dates and never invents a profile measurement', () => {
   const m = { value: 70.125, unit: 'kg', date: '2024-02-29', timeZone: 'America/New_York' };
   assert(validWeightMeasurement(m));

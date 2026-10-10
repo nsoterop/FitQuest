@@ -202,7 +202,7 @@ export async function evaluateConversation(
     userId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     sessionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
   };
-  const metrics: object[] = [];
+  const metrics: Record<string, unknown>[] = [];
   const observed: OnboardingProvider = {
     ...provider,
     purpose: 'evaluation',
@@ -311,7 +311,7 @@ export async function evaluateConversation(
       calls,
       confirmedRevision: revision,
       skipped,
-      metrics: metrics.map(({ input: _input, proposal: _proposal, ...rest }: any) => rest),
+      metrics: metrics.map(({ input: _input, proposal: _proposal, ...rest }) => rest),
     };
   } finally {
     await app.close();

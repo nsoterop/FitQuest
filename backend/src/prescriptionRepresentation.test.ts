@@ -22,7 +22,7 @@ import {
   encodeCompleteWire,
   decodeCompleteWire,
 } from './completePlanWire.js';
-import { validCompletePlan } from './completePlanContract.js';
+import { validCompletePlan } from './shared/completePlanContract.js';
 import { intakeSummary } from './fixedIntake.js';
 import { openAIProvider } from './onboardingProvider.js';
 const dates = Array.from({ length: 7 }, (_, i) => `2026-10-${String(5 + i).padStart(2, '0')}`);

@@ -6,7 +6,7 @@ import {
   type WeightList,
   type WeightReceipt,
   type WeightCommand,
-} from '../../backend/src/weightContract';
+} from '../../backend/src/shared/weightContract';
 export class WeightError extends Error {
   code: string;
   constructor(code: string) {

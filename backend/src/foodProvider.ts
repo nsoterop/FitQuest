@@ -1,5 +1,5 @@
 import { Ajv } from 'ajv';
-import { validFoodCandidate, foodToday, type FoodCandidate } from './foodContract.js';
+import { validFoodCandidate, foodToday, type FoodCandidate } from './shared/foodContract.js';
 import { OnboardingError } from './onboardingError.js';
 import type { OnboardingProvider } from './onboardingProvider.js';
 const obj = (properties: Record<string, unknown>) => ({

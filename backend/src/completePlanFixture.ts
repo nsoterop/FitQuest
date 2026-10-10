@@ -1,5 +1,5 @@
 // Synthetic data only. Shared by real wire, persistence and rendered-mobile tests.
-import type { WeeklyPlan, Exercise } from './completePlanContract.js';
+import type { WeeklyPlan, Exercise } from './shared/completePlanContract.js';
 export const syntheticAnswers = [
   'Build general strength and walking endurance.',
   'Two easy walks weekly.',

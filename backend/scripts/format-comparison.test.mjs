@@ -7,8 +7,8 @@ import {
   formattingA,
   formattingB,
 } from './format-comparison.mjs';
-import { openAIProvider } from '../dist/onboardingProvider.js';
-import { intakeSummary } from '../dist/fixedIntake.js';
+import { openAIProvider } from '../dist-test/onboardingProvider.js';
+import { intakeSummary } from '../dist-test/fixedIntake.js';
 const provider = openAIProvider({
   key: 'mock',
   model: 'gpt-6-luna',

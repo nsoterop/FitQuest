@@ -12,7 +12,7 @@ import {
 import { checkWeek } from './weeklyPlanning.js';
 import { reviewProtections } from './reviewProtection.js';
 import { checkDurations, explicitTimeLimits, minimumMinutes } from './planningDuration.js';
-import { openAIProvider, serializeInput } from './onboardingProvider.js';
+import { openAIProvider } from './onboardingProvider.js';
 const base = checkWeek(reviewWeek(), reviewInput);
 const input: PlanningInput & { review: NonNullable<PlanningInput['review']> } = {
   ...reviewInput,

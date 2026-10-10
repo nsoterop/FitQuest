@@ -4,7 +4,7 @@ import {
   documentPlanVersion,
   validSavedDocument,
   type NutritionDocumentPlan,
-} from './documentPlanContract.js';
+} from './shared/documentPlanContract.js';
 import { intakeAnswers } from './fixedIntake.js';
 import { OnboardingError } from './onboardingError.js';
 import { CompleteValidationError } from './planDiagnostics.js';

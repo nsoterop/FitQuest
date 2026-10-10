@@ -8,9 +8,9 @@ import { planningService } from './planning.js';
 import { planDates } from './trainingSummary.js';
 import { intakeSummary } from './fixedIntake.js';
 import { journalDocumentFixture } from './documentPlanFixture.js';
-import { planningConsentVersion, planningConsentScope } from './planningConsent.js';
-import { historyConsentVersion, historyConsentScope } from './progressConsent.js';
-import { weeklyScheduleVersion } from './weeklyScheduleContract.js';
+import { planningConsentVersion, planningConsentScope } from './shared/planningConsent.js';
+import { historyConsentVersion, historyConsentScope } from './shared/progressConsent.js';
+import { weeklyScheduleVersion } from './shared/weeklyScheduleContract.js';
 import { scheduledDates } from './weeklySchedule.js';
 import { trainingTestResetStatements } from './trainingTestReset.js';
 import type { OnboardingProvider } from './onboardingProvider.js';
@@ -116,7 +116,7 @@ export async function verifySchedulerDatabase(
       await owner.query('DELETE FROM auth.sessions WHERE id=$1', [a.sessionId]);
       await Promise.all([m.service.scheduled(a), m.service.scheduled(a)]);
       assert.equal(m.bodies.length, 1);
-      let s = await bg.read(a);
+      const s = await bg.read(a);
       const next = s.plans.find((p) => p.weekStart === '2026-10-12')!;
       assert(next.completeReady);
       assert.equal(next.documentPlan, null);
@@ -239,7 +239,7 @@ export async function verifySchedulerDatabase(
       await store.schedule(a, permission);
       now = new Date('2026-10-27T16:00:00Z');
       await m.service.scheduled(a);
-      let s = await bg.read(a);
+      const s = await bg.read(a);
       assert.deepEqual(
         s.plans.filter((p) => p.weekStart).map((p) => p.weekStart),
         ['2026-10-26'],

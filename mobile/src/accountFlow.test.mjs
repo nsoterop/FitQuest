@@ -1148,7 +1148,7 @@ test('completion waits for the server, clears draft/transcript, returns to greet
   };
   let complete;
   let commands = 0;
-  globalThis.fetch = async (url, options) => {
+  globalThis.fetch = async (url, _options) => {
     if (url.endsWith('/training'))
       return { status: 200, json: async () => ({ summary: null, plans: [] }) };
     if (url.endsWith('/profile')) return { status: 200, json: async () => ({ profile: payload }) };
@@ -1990,7 +1990,7 @@ test('a newly saved profile and an unconfirmed recap do not grant training acces
     },
   ];
   let reads = 0;
-  globalThis.fetch = async (url, options) => {
+  globalThis.fetch = async (url, _options) => {
     if (url.endsWith('/profile-intake')) {
       profile = payload;
       return { status: 200, json: async () => ({ message: 'User Data Saved' }) };
@@ -2993,7 +2993,7 @@ test('actual synthetic revised week renders compact overview then exact rep rang
     },
   }));
   const requests = [];
-  globalThis.fetch = async (url, options) => {
+  globalThis.fetch = async (url, _options) => {
     requests.push(url);
     if (url.endsWith('/accept')) p.reviewState = 'accepted';
     return { status: 200, json: async () => structuredClone(saved) };
@@ -3614,14 +3614,12 @@ test('plain outlines render separate cards and failed-response recovery stays ex
       },
     ],
   };
-  saved.summary.document = saved.summary.document
-    .slice(0, 5)
-    .map((f, i) => ({
-      ...f,
-      intakeIndex: i,
-      text: i === 0 ? 'Faithful answer '.repeat(40) : f.text,
-      goals: undefined,
-    }));
+  saved.summary.document = saved.summary.document.slice(0, 5).map((f, i) => ({
+    ...f,
+    intakeIndex: i,
+    text: i === 0 ? 'Faithful answer '.repeat(40) : f.text,
+    goals: undefined,
+  }));
   const server = trainingServer(saved);
   let screen = await mountTraining();
   assert(!renderedTrainingText(screen).includes(raw));
@@ -4057,7 +4055,7 @@ test('complete canonical draft renders only overview through reload; one generat
   const { checkComplete, prepareComplete, completeActivities } =
     await import('../../backend/src/completePlanning.ts');
   const { encodeCompleteWire } = await import('../../backend/src/completePlanWire.ts');
-  const { planOverview } = await import('../../backend/src/completePlanContract.ts');
+  const { planOverview } = await import('../../backend/src/shared/completePlanContract.ts');
   const { intakeSummary } = await import('../../backend/src/fixedIntake.ts');
   const { planDates } = await import('../../backend/src/trainingSummary.ts');
   const dates = planDates('America/New_York', new Date()),
@@ -4226,7 +4224,7 @@ test('explicit wire minutes and event-count aliases render canonical doses after
     await import('../../backend/src/completePlanFixture.ts');
   const { checkComplete, prepareComplete, completeActivities } =
     await import('../../backend/src/completePlanning.ts');
-  const { planOverview } = await import('../../backend/src/completePlanContract.ts');
+  const { planOverview } = await import('../../backend/src/shared/completePlanContract.ts');
   const { intakeSummary } = await import('../../backend/src/fixedIntake.ts');
   const dates = Array.from({ length: 7 }, (_, i) => `2026-10-${String(i + 5).padStart(2, '0')}`),
     saved = trainingState(),
@@ -4247,7 +4245,7 @@ test('explicit wire minutes and event-count aliases render canonical doses after
   let dispatches = 0,
     accepts = 0,
     canonical;
-  globalThis.fetch = async (url, options) => {
+  globalThis.fetch = async (url, _options) => {
     if (url.endsWith('/generate')) {
       dispatches++;
       const context = {
@@ -4315,7 +4313,7 @@ test('explicit wire minutes and event-count aliases render canonical doses after
 test('complete pending and accepted views show the whole saved week across dates and free reopen', async (t) => {
   const { completeFixture } = await import('../../backend/src/completePlanFixture.ts');
   const { completeActivities } = await import('../../backend/src/completePlanning.ts');
-  const { planOverview } = await import('../../backend/src/completePlanContract.ts');
+  const { planOverview } = await import('../../backend/src/shared/completePlanContract.ts');
   const ranges = [
     calendarDates,
     [
@@ -4400,7 +4398,7 @@ test('complete pending and accepted views show the whole saved week across dates
 test('two-stage failures reopen without dispatch and offer only the explicit stage retry with its saved attempt', async () => {
   const { completeFixture, syntheticAnswers } =
     await import('../../backend/src/completePlanFixture.ts');
-  const { planOverview } = await import('../../backend/src/completePlanContract.ts');
+  const { planOverview } = await import('../../backend/src/shared/completePlanContract.ts');
   const { intakeSummary } = await import('../../backend/src/fixedIntake.ts');
   for (const stage of ['outline', 'workouts']) {
     const saved = trainingState(),
@@ -4481,7 +4479,7 @@ test('two-stage failures reopen without dispatch and offer only the explicit sta
 
 test('document weeks render all metadata before acceptance, reveal safe Markdown only after free acceptance, and protect revisions/reload', async () => {
   const { documentFixture } = await import('../../backend/src/documentPlanFixture.ts');
-  const { documentOverview } = await import('../../backend/src/documentPlanContract.ts');
+  const { documentOverview } = await import('../../backend/src/shared/documentPlanContract.ts');
   const { syntheticAnswers } = await import('../../backend/src/completePlanFixture.ts');
   const { intakeSummary } = await import('../../backend/src/fixedIntake.ts');
   const saved = trainingState(),
@@ -4679,7 +4677,7 @@ test('workout Markdown is readable text only; HTML, links, images and code canno
 test('Today follows saved session order, retains date on workout back, resets focus on date change and distinguishes rest/outside', async (t) => {
   t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
   const { documentFixture } = await import('../../backend/src/documentPlanFixture.ts'),
-    { documentOverview } = await import('../../backend/src/documentPlanContract.ts');
+    { documentOverview } = await import('../../backend/src/shared/documentPlanContract.ts');
   const saved = trainingState(),
     p = saved.plans[0];
   p.dates = Array.from({ length: 7 }, (_, i) => `2026-10-${String(i + 5).padStart(2, '0')}`);
@@ -4727,7 +4725,7 @@ test('Today follows saved session order, retains date on workout back, resets fo
 
 test('unknown acceptance and stale changes block mutations until status read, preserve feedback, and never reveal draft prose', async () => {
   const { documentFixture } = await import('../../backend/src/documentPlanFixture.ts'),
-    { documentOverview } = await import('../../backend/src/documentPlanContract.ts');
+    { documentOverview } = await import('../../backend/src/shared/documentPlanContract.ts');
   const saved = trainingState(),
     p = saved.plans[0];
   p.dates = Array.from({ length: 7 }, (_, i) => `2026-10-${String(i + 5).padStart(2, '0')}`);
@@ -4829,9 +4827,9 @@ test('account navigation preserves intake text, saved profile is read-only, and 
   await act(async () => screen.unmount());
 });
 
-const { NutritionScreen, FoodTrends } = await import('./NutritionScreen.tsx');
+const { NutritionScreen, FoodTrends: _FoodTrends } = await import('./NutritionScreen.tsx');
 const { privateFoodDrafts } = await import('./onboardingDraftStorage.ts');
-const { foodWeek } = await import('../../backend/src/foodContract.ts');
+const { foodWeek } = await import('../../backend/src/shared/foodContract.ts');
 const foodDay = '2026-10-04';
 function emptyFood() {
   return { dates: foodWeek(foodDay), today: foodDay, entries: [], days: [] };
@@ -4994,7 +4992,7 @@ test('food drafts are cleared with account cleanup and never read under a differ
 });
 
 const { FoodLibraryScreen } = await import('./FoodLibraryScreen.tsx');
-const { libraryFromEntry } = await import('../../backend/src/foodContract.ts');
+const { libraryFromEntry } = await import('../../backend/src/shared/foodContract.ts');
 const { foodFixture } = await import('../../backend/src/foodFixture.ts');
 const { privateLibraryDrafts } = await import('./onboardingDraftStorage.ts');
 async function mountLibrary(extra = {}) {
@@ -5129,7 +5127,7 @@ test('unknown library result survives reopen and is recovered without duplicate 
 
 async function batchDocumentState(kind = 'draft') {
   const { documentFixture } = await import('../../backend/src/documentPlanFixture.ts'),
-    { documentOverview } = await import('../../backend/src/documentPlanContract.ts');
+    { documentOverview } = await import('../../backend/src/shared/documentPlanContract.ts');
   const saved = trainingState(),
     p = saved.plans[0];
   p.dates = Array.from({ length: 7 }, (_, i) => `2026-10-${String(i + 5).padStart(2, '0')}`);
@@ -5329,7 +5327,7 @@ test('new exercise rows stay private until acceptance, render exact ordered plai
   t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
   resetAuth(alice);
   const { rowDocumentFixture } = await import('../../backend/src/documentPlanFixture.ts'),
-    { documentOverview } = await import('../../backend/src/documentPlanContract.ts');
+    { documentOverview } = await import('../../backend/src/shared/documentPlanContract.ts');
   const { saved } = await batchDocumentState(),
     p = saved.plans[0],
     document = rowDocumentFixture(p.dates);
@@ -5471,7 +5469,7 @@ test('body-profile permission is explicit, revocable and does not auto-generate'
 
 test('combined nutrition preview and acceptance keep workouts hidden and retain targets on reopen without generation', async (t) => {
   const { nutritionDocumentFixture } = await import('../../backend/src/documentPlanFixture.ts'),
-    { documentOverview } = await import('../../backend/src/documentPlanContract.ts');
+    { documentOverview } = await import('../../backend/src/shared/documentPlanContract.ts');
   const { saved } = await batchDocumentState(),
     p = saved.plans[0],
     doc = nutritionDocumentFixture(p.dates);
@@ -6073,8 +6071,8 @@ test('next week stays separate from Today through review/acceptance; history per
   const { saved, document } = await batchDocumentState('accepted');
   saved.onboarded = true;
   const { historyConsentVersion, historyConsentScope } =
-    await import('../../backend/src/progressConsent.ts');
-  const { documentOverview } = await import('../../backend/src/documentPlanContract.ts');
+    await import('../../backend/src/shared/progressConsent.ts');
+  const { documentOverview } = await import('../../backend/src/shared/documentPlanContract.ts');
   const future = structuredClone(saved.plans[0]);
   future.id = 'future-plan';
   future.weekStart = '2026-10-12';
@@ -6194,7 +6192,7 @@ test('Sunday automation requires explicit enrollment, can pause after history wi
   const { saved } = await batchDocumentState('accepted');
   saved.onboarded = true;
   const { historyConsentVersion, historyConsentScope } =
-    await import('../../backend/src/progressConsent.ts');
+    await import('../../backend/src/shared/progressConsent.ts');
   saved.historyConsent = {
     version: historyConsentVersion,
     scope: historyConsentScope,

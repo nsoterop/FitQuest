@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { recordPlanDiagnostic } from '../dist/planDiagnosticStore.js';
+import { recordPlanDiagnostic } from '../dist-test/planDiagnosticStore.js';
 const dir = mkdtempSync(join(tmpdir(), 'fitquest-diagnostic-sql-'));
 const a = '11111111-1111-4111-8111-111111111111',
   b = '22222222-2222-4222-8222-222222222222',

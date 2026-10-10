@@ -36,7 +36,7 @@ import {
   type ProviderResult,
 } from './onboardingProvider.js';
 import { detailedAnswers, correctedAvailability } from './onboardingConversationFixture.js';
-import type { Command, ModelProposal } from './onboardingDomain.js';
+import type { ModelProposal } from './onboardingDomain.js';
 
 export async function verifyOnboardingDatabase(
   t: TestContext,

@@ -1,4 +1,5 @@
-import { weeklyScheduleVersion } from '../../backend/src/weeklyScheduleContract';
+import { WeeklyScheduleControls } from './WeeklyScheduleControls';
+import { weeklyScheduleVersion } from '../../backend/src/shared/weeklyScheduleContract';
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
@@ -11,7 +12,7 @@ import {
   historyConsentVersion,
   historyConsentScope,
   historyDisclosure,
-} from '../../backend/src/progressConsent';
+} from '../../backend/src/shared/progressConsent';
 import type { TrainingState } from './trainingApi';
 const storage = secureSessionStorage({
   getItemAsync: (k) => SecureStore.getItemAsync(k),
@@ -180,30 +181,11 @@ export function NextWeek({
                 disabled={disabled || !ready}
                 onPress={() => void create()}
               />
-              <Text style={ui.section}>Automatic weekly plans</Text>
-              <Text style={ui.copy}>
-                {schedule?.enabled
-                  ? `On · Sunday 9 PM · ${schedule.timeZone}`
-                  : 'Off. Enable to have OpenAI prepare one upcoming week each Sunday at 9 PM in your saved timezone, even when the app is closed. This uses your permitted workout/weight history and existing AI allowance. Review and accept each saved plan; uncertain requests are never automatically retried.'}
-              </Text>
-              {schedule?.error && (
-                <Notice>
-                  Automatic planning needs attention. Your current plan is unchanged. Open the saved
-                  week or use Generate next week to review the issue.
-                </Notice>
-              )}
-              <Action
-                label={
-                  schedule?.enabled ? 'Pause automatic weekly plans' : 'Enable Sunday 9 PM planning'
-                }
-                secondary
+              <WeeklyScheduleControls
+                schedule={schedule}
                 disabled={disabled}
-                onPress={() => setSchedule(!schedule?.enabled)}
+                onToggle={setSchedule}
               />
-              <Text style={ui.copy}>
-                Pausing stops future requests; a request already sent may finish. Accepted weeks
-                apply on their dates. Logs saved later do not buy another plan.
-              </Text>
               <Action
                 label="Withdraw history sharing permission"
                 secondary

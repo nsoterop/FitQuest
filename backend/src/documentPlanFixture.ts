@@ -2,7 +2,7 @@ import type {
   DocumentPlan,
   RowDocumentPlan,
   NutritionDocumentPlan,
-} from './documentPlanContract.js';
+} from './shared/documentPlanContract.js';
 export function documentFixture(dates: string[]): DocumentPlan {
   return {
     days: dates.map((date, i) => ({

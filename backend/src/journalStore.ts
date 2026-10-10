@@ -2,12 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import type { Account } from './auth.js';
 import { OnboardingError } from './onboardingError.js';
-import { foodId } from './foodContract.js';
+import { foodId } from './shared/foodContract.js';
 import {
   validSavedDocument,
   legacyDocumentPlanVersion,
   type ExerciseRow,
-} from './documentPlanContract.js';
+} from './shared/documentPlanContract.js';
 import {
   validJournalCommand,
   journalToday,
@@ -17,7 +17,16 @@ import {
   type JournalReceipt,
   type JournalList,
   type SetGroup,
-} from './journalContract.js';
+} from './shared/journalContract.js';
+type JournalRow = {
+  id: string;
+  revision: number;
+  created_at: Date;
+  updated_at: Date;
+  document: Journal['document'];
+  snapshot: Journal['snapshot'];
+};
+type JournalReceiptRow = { id: string; journal_id: string; revision: number };
 const fail = (code: string, status = 409): never => {
   throw new OnboardingError(status, code);
 };
@@ -28,12 +37,12 @@ const canonical = (v: unknown): string =>
       ? '{' +
         Object.keys(v)
           .sort()
-          .map((k) => JSON.stringify(k) + ':' + canonical((v as any)[k]))
+          .map((k) => JSON.stringify(k) + ':' + canonical((v as Record<string, unknown>)[k]))
           .join(',') +
         '}'
       : JSON.stringify(v);
 const hash = (v: unknown) => createHash('sha256').update(canonical(v)).digest('hex');
-const record = (r: any): Journal => ({
+const record = (r: JournalRow): Journal => ({
   id: r.id,
   revision: r.revision,
   createdAt: r.created_at.toISOString(),
@@ -41,7 +50,7 @@ const record = (r: any): Journal => ({
   snapshot: r.snapshot,
   document: r.document,
 });
-const receipt = (r: any): JournalReceipt => ({
+const receipt = (r: JournalReceiptRow): JournalReceipt => ({
   id: r.id,
   journalId: r.journal_id,
   revision: r.revision,
@@ -170,13 +179,20 @@ export function journalStore(pool: Pool) {
                     [a.userId, ref.planId],
                   )
                 ).rows[0];
-              const accepted = p?.document_history?.find((h: any) => h.revision === ref.revision);
+              const accepted = p?.document_history?.find(
+                (h: {
+                  revision: number;
+                  schemaVersion?: import('./shared/documentPlanContract.js').DocumentVersion;
+                  plan: import('./shared/documentPlanContract.js').RowDocumentPlan;
+                }) => h.revision === ref.revision,
+              );
               const version = accepted?.schemaVersion ?? legacyDocumentPlanVersion;
               if (!accepted || !validSavedDocument(accepted.plan, p.dates, version))
                 fail('journal_source_unavailable');
-              const session = accepted.plan.days.find((d: any) => d.date === ref.date)?.sessions[
-                ref.sessionIndex
-              ];
+              const session = accepted.plan.days.find(
+                (d: import('./shared/documentPlanContract.js').RowDocumentPlan['days'][number]) =>
+                  d.date === ref.date,
+              )?.sessions[ref.sessionIndex];
               if (!session) fail('journal_source_unavailable');
               title = session.title;
               snapshot = {
@@ -233,15 +249,18 @@ export function journalStore(pool: Pool) {
             fail('future_journal', 422);
           // Every original/result identity remains present; removals are recoverable flags.
           if (
-            r.document.results.some((e: any) => !cmd.document.results.some((n) => n.id === e.id)) ||
+            r.document.results.some(
+              (e: { id: string; name: string }) => !cmd.document.results.some((n) => n.id === e.id),
+            ) ||
             r.snapshot.exercises.some(
-              (e: any) => !cmd.document.results.some((n) => n.id === e.id && n.name === e.name),
+              (e: { id: string; name: string }) =>
+                !cmd.document.results.some((n) => n.id === e.id && n.name === e.name),
             )
           )
             fail('journal_identity_changed', 422);
           for (const prior of r.document.results) {
             const next = cmd.document.results.find((n) => n.id === prior.id)!;
-            if (prior.groups.some((g: any) => !next.groups.some((n) => n.id === g.id)))
+            if (prior.groups.some((g: { id: string }) => !next.groups.some((n) => n.id === g.id)))
               fail('journal_identity_changed', 422);
           }
           journalId = r.id;

@@ -12,7 +12,7 @@ import {
   type WeightList,
   type WeightReceipt,
   type WeightCommand,
-} from '../../backend/src/weightContract';
+} from '../../backend/src/shared/weightContract';
 type Props = { userId: string; accessToken: () => Promise<string>; onSessionEnded?: () => void };
 const description = (e: WeightEntry) =>
   e.measurement

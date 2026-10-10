@@ -271,7 +271,7 @@ export async function verifyWeeklyDatabase(
         return { proposal: week, usage: { input: 100, output: 5000, cached: 0, cacheWrite: 0 } };
       };
       await generate();
-      let failed = await latest();
+      const failed = await latest();
       assert.equal(failed.p.days.length, 1);
       assert.equal(failed.p.jobs[0].error, 'saved_day_changed');
       assert.equal(await bytes(), before);

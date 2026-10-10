@@ -94,8 +94,8 @@ test('lookup, tracking, equipment and load preserve public codes with bounded ac
   assert.equal(e.code, 'invalid_plan:load');
 });
 test('active recovery, schema, conversion and structural failures retain exact safe positions', () => {
-  let w = raw(),
-    b = w.result.days[0].sessions[1].blocks[0];
+  let w = raw();
+  const b = w.result.days[0].sessions[1].blocks[0];
   Object.assign(b, {
     recoveryPlacement: 'after_each_round',
     recoveryActivity: { ...b.exercises[0], activityId: 'FQ-ACT-99999' },
@@ -191,8 +191,8 @@ test('sanitization rejects hostile values and drops arbitrary keys, paths and va
 test('diagnostic failure never masks validation, changes settlement or dispatches twice; provider failures stay distinct', async () => {
   const a = { userId: 'synthetic-owner', sessionId: 'synthetic-session' },
     events: string[] = [];
-  let proposal = raw(),
-    providerFailure = false,
+  const proposal = raw();
+  let providerFailure = false,
     diagnostics = 0;
   Object.assign(proposal.result.days[0].sessions[0].blocks[0].exercises[0], {
     activityId: 'FQ-ACT-00148',

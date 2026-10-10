@@ -353,17 +353,19 @@ export function postgresOnboardingStore(pool: Pool) {
         if (blocked?.clarification)
           seed.planningCheck = { status: 'question', ...blocked.clarification };
         // Only retained summary facts seed recovery. Deleted chat is never consulted.
-        seed.items = saved.document.map((fact: any, i: number) => ({
-          id: `i${i + 1}`,
-          topic: fact.category,
-          value: fact.text,
-          origin: fact.origin,
-          review: 'unreviewed',
-          source: `saved${i + 1}`,
-          quote: fact.text,
-          supersedes: null,
-          recordedAt: new Date().toISOString(),
-        }));
+        seed.items = saved.document.map(
+          (fact: import('./trainingSummary.js').SummaryFact, i: number) => ({
+            id: `i${i + 1}`,
+            topic: fact.category,
+            value: fact.text,
+            origin: fact.origin,
+            review: 'unreviewed',
+            source: `saved${i + 1}`,
+            quote: fact.text,
+            supersedes: null,
+            recordedAt: new Date().toISOString(),
+          }),
+        );
         timeZone = saved.time_zone;
       }
       if (!id) {
@@ -516,7 +518,7 @@ export function postgresOnboardingStore(pool: Pool) {
           )
         ).rows[0];
         await assertRecoveryCurrent(c, account, old.context);
-        let context: Context = structuredClone(old.context);
+        const context: Context = structuredClone(old.context);
         const number = conv.revision + 1;
         const now = new Date().toISOString();
         let turnId: string | null = null;
@@ -693,8 +695,6 @@ export function postgresOnboardingStore(pool: Pool) {
             if (!turn || turn.state !== 'failed')
               throw new OnboardingError(409, 'retry_unavailable');
             turnId = turn.id;
-            message = turn.message;
-            sequence = turn.sequence;
           }
           if (old.profile_version !== p.version) throw new OnboardingError(409, 'profile_changed');
           await revision(c, account, id, number, context, p.version);

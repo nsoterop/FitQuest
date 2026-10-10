@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import { checkWeek, type Week } from './weeklyPlanning.js';
 import { fixturePrescription } from './planningFixture.js';
 import type { PlanningInput } from './planningDomain.js';
-import { planDates } from './trainingSummary.js';
 
 // Invented trained runner, unrelated to production athlete context.
 export const qualityInput: PlanningInput = {

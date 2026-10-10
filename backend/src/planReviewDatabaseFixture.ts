@@ -7,13 +7,7 @@ import type { OnboardingProvider, ProviderResult } from './onboardingProvider.js
 import { planningStore } from './planningStore.js';
 import { planningService } from './planning.js';
 import { buildApp } from './app.js';
-import {
-  fixtureScope,
-  reviewSummary,
-  reviewWeek,
-  revisedWeek,
-  reviewFeedback,
-} from './planReviewFixture.js';
+import { fixtureScope, reviewSummary, reviewWeek, revisedWeek } from './planReviewFixture.js';
 import { checkReview } from './planReview.js';
 import { weeklyLimits } from './weeklyPlanning.js';
 

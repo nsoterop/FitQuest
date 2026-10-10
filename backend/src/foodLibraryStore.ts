@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { Pool, PoolClient } from 'pg';
 import type { Account } from './auth.js';
 import { OnboardingError } from './onboardingError.js';
-import { foodId, foodToday, nutrients } from './foodContract.js';
+import { foodId, foodToday, nutrients } from './shared/foodContract.js';
 import {
   validLibraryCommand,
   libraryFromEntry,
@@ -12,7 +12,8 @@ import {
   type LibraryState,
   type LibraryItem,
   type LibraryReceipt,
-} from './foodContract.js';
+} from './shared/foodContract.js';
+type LibraryReceiptRow = { id: string; library_id: string; entry_id: string | null };
 const fail = (code: string, status = 409): never => {
   throw new OnboardingError(status, code);
 };
@@ -23,11 +24,11 @@ const canonical = (v: unknown): string =>
       ? '{' +
         Object.keys(v)
           .sort()
-          .map((k) => JSON.stringify(k) + ':' + canonical((v as any)[k]))
+          .map((k) => JSON.stringify(k) + ':' + canonical((v as Record<string, unknown>)[k]))
           .join(',') +
         '}'
       : JSON.stringify(v);
-const receipt = (r: any): LibraryReceipt => ({
+const receipt = (r: LibraryReceiptRow): LibraryReceipt => ({
   id: r.id,
   libraryId: r.library_id,
   entryId: r.entry_id,

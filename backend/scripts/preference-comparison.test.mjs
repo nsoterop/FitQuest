@@ -15,10 +15,10 @@ import {
   oldSchedule,
   newSchedule,
 } from './preference-comparison.mjs';
-import { openAIProvider } from '../dist/onboardingProvider.js';
-import { intakeSummary } from '../dist/fixedIntake.js';
-import { completeFixture, syntheticAnswers } from '../dist/completePlanFixture.js';
-import { encodeCompleteWire } from '../dist/completePlanWire.js';
+import { openAIProvider } from '../dist-test/onboardingProvider.js';
+import { intakeSummary } from '../dist-test/fixedIntake.js';
+import { completeFixture, syntheticAnswers } from '../dist-test/completePlanFixture.js';
+import { encodeCompleteWire } from '../dist-test/completePlanWire.js';
 const config = {
     key: 'synthetic',
     model: 'gpt-6-luna',
@@ -102,7 +102,7 @@ test('atomic reservations rollback all when any slot fails and durable marker re
     const queries = [];
     const pool = {
       connect: async () => ({
-        query: async (sql, args) => {
+        query: async (sql, _args) => {
           queries.push(sql);
           if (sql.startsWith('SELECT count')) return { rows: [{ count: failAt === 0 ? 1 : 0 }] };
           if (sql.startsWith('SELECT fitquest.reserve'))

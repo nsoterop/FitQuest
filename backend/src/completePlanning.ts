@@ -14,7 +14,7 @@ import {
   supportedTargetKinds,
 } from './activityCatalog.js';
 import { initialOutlinePrompt, parsePlainOutline } from './plainOutline.js';
-import { planOverview } from './completePlanContract.js';
+import { planOverview } from './shared/completePlanContract.js';
 import { intakeAnswers } from './fixedIntake.js';
 import { OnboardingError } from './onboardingError.js';
 import type { OnboardingProvider } from './onboardingProvider.js';
@@ -28,7 +28,7 @@ import {
   type WeeklyPlan,
   type PlanResponse,
   type Exercise,
-} from './completePlanContract.js';
+} from './shared/completePlanContract.js';
 import {
   completeResponseSchema,
   completeWireName,
@@ -236,7 +236,8 @@ function diagnoseStructure(plan: WeeklyPlan, dates: string[]): never {
     days: dates.map((date) => ({ date, sessions: [] })),
     catalogGaps: [{ goal: 'diagnostic', reason: 'diagnostic' }],
   };
-  if (!Boolean(validOverview(plan, dates))) {
+  const overviewValid: boolean = validOverview(plan, dates);
+  if (!overviewValid) {
     for (const [day, d] of plan.days.entries()) {
       if (d.date !== dates[day])
         invalidComplete('invalid_plan:week_schema', 'structure', 'overview', { day });
@@ -271,7 +272,8 @@ function diagnoseStructure(plan: WeeklyPlan, dates: string[]): never {
           );
         const probe = structuredClone(base);
         probe.days[day]!.sessions = [{ ...s, blocks: [b] }];
-        if (!Boolean(validCompletePlan(probe, dates))) {
+        const probeValid: boolean = validCompletePlan(probe, dates);
+        if (!probeValid) {
           const withoutRecovery = structuredClone(probe);
           withoutRecovery.days[day]!.sessions[0]!.blocks[0]!.recovery = null;
           invalidComplete(

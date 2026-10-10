@@ -1,14 +1,14 @@
 import { NextWeek } from './NextWeek';
-import { hasHistoryConsent } from '../../backend/src/progressConsent';
+import { hasHistoryConsent } from '../../backend/src/shared/progressConsent';
 import { JournalScreen } from './JournalScreen';
 import {
   hasPlanningConsent,
   planningConsentVersion,
   planningConsentScope,
-} from '../../backend/src/planningConsent';
+} from '../../backend/src/shared/planningConsent';
 import { PlanningPermission } from './PlanningPermission';
 import { NutritionTargets } from './NutritionTargets';
-import { isDocumentVersion } from '../../backend/src/documentPlanContract';
+import { isDocumentVersion } from '../../backend/src/shared/documentPlanContract';
 import { NutritionScreen } from './NutritionScreen';
 import { CompleteWeekView } from './CompleteWeekView';
 import { Action, Page, ui, Tabs, Notice } from './Design';
@@ -28,7 +28,6 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   hasAcceptedTraining,
-  acceptedTrainingPlan,
   acceptedPlanForDate,
   needsClarification,
   weekComplete,
@@ -351,7 +350,7 @@ function AccountTrainingScreen({
         {session.plain?.optional && <Text style={styles.small}>Optional session</Text>}
         {!!session.plain?.goal && <Text style={styles.copy}>{session.plain.goal}</Text>}
         {!!timing && <Text style={styles.small}>{timing[0]!.toUpperCase() + timing.slice(1)}</Text>}
-        {!!session.plain?.durationText ? (
+        {session.plain?.durationText ? (
           <Text style={styles.copy}>About {session.plain.durationText}</Text>
         ) : (
           minutes !== undefined && <Text style={styles.copy}>About {minutes} min</Text>

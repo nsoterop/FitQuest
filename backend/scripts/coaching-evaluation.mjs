@@ -3,14 +3,14 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, appendFile, open } from 'node:fs/promises';
-import { createPool } from '../dist/profileStore.js';
-import { configuredProvider, promptVersion } from '../dist/onboardingProvider.js';
-import { evaluateModelInput } from '../dist/onboardingEvaluation.js';
-import { emptyContext, consistentReply, applyProposal } from '../dist/onboardingDomain.js';
-import { renderOnboardingReply } from '../dist/onboardingReply.js';
-import { prepareWeek, checkWeek, weeklyLimits } from '../dist/weeklyPlanning.js';
-import { prepareReview, checkReview } from '../dist/planReview.js';
-import { coachingCases, distributedReport } from '../dist/coachingCases.js';
+import { createPool } from '../dist-test/profileStore.js';
+import { configuredProvider, promptVersion } from '../dist-test/onboardingProvider.js';
+import { evaluateModelInput } from '../dist-test/onboardingEvaluation.js';
+import { emptyContext, consistentReply, applyProposal } from '../dist-test/onboardingDomain.js';
+import { renderOnboardingReply } from '../dist-test/onboardingReply.js';
+import { prepareWeek, checkWeek, weeklyLimits } from '../dist-test/weeklyPlanning.js';
+import { prepareReview, checkReview } from '../dist-test/planReview.js';
+import { coachingCases, distributedReport } from '../dist-test/coachingCases.js';
 const stage = process.argv[2];
 assert.ok(
   ['onboarding', 'onboarding-repair', 'distributed', 'review', 'review-repair', 'single'].includes(

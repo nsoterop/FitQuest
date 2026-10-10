@@ -6,7 +6,7 @@ import { planningStore } from './planningStore.js';
 import { planningService } from './planning.js';
 import { postgresOnboardingStore } from './onboardingStore.js';
 import { buildApp } from './app.js';
-import { checkOverview } from './outlinePlanning.js';
+
 import { checkWeek } from './weeklyPlanning.js';
 import { weeklyLimits } from './weeklyPlanning.js';
 import { overviewFixture, overviewWorkouts } from './outlinePlanningFixture.js';
@@ -481,7 +481,7 @@ export async function verifyOutlineDatabase(
           return { proposal: value, usage: { input: 100, output: 500, cached: 0, cacheWrite: 0 } };
         };
         await generate('week');
-        let failed = await latest();
+        const failed = await latest();
         assert.deepEqual(failed.outline, p.outline);
         assert.equal(failed.days.length, 0);
         assert.equal(failed.reviewState, 'draft');

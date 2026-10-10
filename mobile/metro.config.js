@@ -1,6 +1,6 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('node:path');
 const config = getDefaultConfig(__dirname);
-// The pure plan contract is shared with the API without a workspace/package rewrite.
-config.watchFolders = [...config.watchFolders, path.resolve(__dirname, '../backend/src')];
+// Watch only platform-neutral contracts; server implementation stays outside the mobile graph.
+config.watchFolders = [...config.watchFolders, path.resolve(__dirname, '../backend/src/shared')];
 module.exports = config;
