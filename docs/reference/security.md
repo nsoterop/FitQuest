@@ -122,3 +122,5 @@ The [OpenAI Responses guide](https://developers.openai.com/api/docs/guides/migra
 ## Release boundary
 
 Routine backend deployment to the existing service and matching mobile JavaScript delivery are Engineering's responsibility after checks and compatibility review. Hosted migrations, service/policy settings, credential/trust changes, new resources, native builds, owner-data resets and paid evaluation require separate authority. No owner-plan regeneration is assigned. Preserve the single $7 lifetime / $0.25 evaluation ledger and all settled/uncertain charges. Temporary test processes must stop after verification.
+
+The owner's later October 10 clarification revokes all standing real-user test-reset authority. Do not delete saved onboarding, plans, profiles or logs for testing, regeneration, deployment or verification; use isolated fixtures and read-only checks. Disposable synthetic test cleanup, explicit user-requested product deletions and established unrelated retention policies remain unchanged. This documentation update does not authorize new feature work, migrations, deployments or data changes.

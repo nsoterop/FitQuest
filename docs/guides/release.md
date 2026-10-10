@@ -2,6 +2,8 @@
 
 Engineering owns routine application deployment to the existing Render service and matching mobile JavaScript delivery after checks and self-review. The owner's October 10 correction in [AGENTS.md](../../AGENTS.md) supersedes earlier publication-only restrictions. The owner subsequently authorized this release's two inventoried forward migrations and explicitly selected leaving account limits disabled. Those migrations and the application release are complete; see [actual verification](../archive/releases/2026-10-10.md). Future hosted migrations and service/policy-setting changes still require explicit approval.
 
+The owner's later October 10 clarification stops real-user test resets and revokes all prior standing owner-only test-reset authority. Preserve onboarding conversations, generated plans, profiles, logs and other saved data during deployment, testing, regeneration and verification. Use isolated fixtures or read-only checks; only disposable synthetic test databases may be cleaned up for testing. Explicit user-requested product deletions and existing unrelated retention policies remain unchanged. This policy update does not authorize a new deployment, migration or data change.
+
 ## Verified state — October 10, 2026
 
 | Item | Read-only result |
