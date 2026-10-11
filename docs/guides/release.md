@@ -1,8 +1,8 @@
 # Release procedure and boundaries
 
-The [project README](../../README.md) is the current-state entry point. Main integration and standalone preview delivery are complete; feature work is frozen for personal testing. The current task is documentation reconciliation only: no app/configuration change, backend redeploy, hosted migration or new native build is required. Follow the owner's applicable assignment and [agent rules](../../AGENTS.md); historical rollout instructions do not grant authority for another release.
+The [project README](../../README.md) is the current-state entry point. Prior main integration and standalone preview delivery are complete. The owner assigned the October 11 [workout completion indicator](../archive/verification/2026-10-11/workout-completion/README.md); other feature work remains frozen for personal testing. That correction requires a matching backend release and new embedded preview, with no migration. Delivery is pending applicable owner authority. Follow the owner's assignment and [agent rules](../../AGENTS.md); historical rollout instructions do not grant authority for another release.
 
-The existing backend remains Live at `1859ef8`, matching current backend/database source. [Standalone preview build 3](phone-preview.md) bundles mobile source `1733958`. Later docs-only commits do not change the installed binary. Exact deployed commits, CI, artifact hashes and migration/source mappings are in the [October 10 release record](../archive/releases/2026-10-10.md). Earlier dates retain their original scope.
+The existing backend remains Live at `1859ef8`, before the completion-status endpoint. [Standalone preview build 3](phone-preview.md) bundles mobile source `1733958` and does not include the new badge. Source commits do not change the installed binary. Exact earlier deployed commits, CI, artifact hashes and migration/source mappings are in the [October 10 release record](../archive/releases/2026-10-10.md). Earlier dates retain their original scope.
 
 ## Source publication
 

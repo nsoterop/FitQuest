@@ -25,6 +25,7 @@ import {
 } from './DocumentTrainingView';
 import { useConversationScroll } from '../../components/ConversationScrollView';
 import { sessionRows } from './trainingPresentation';
+import { useWorkoutCompletions } from './useWorkoutCompletions';
 import type { RecoveryRequest } from '../onboarding/onboardingApi';
 import { privateDrafts } from '../onboarding/onboardingDraftStorage';
 import { useEffect, useRef, useState } from 'react';
@@ -102,6 +103,7 @@ function AccountTrainingScreen({
     });
   const lastToday = useRef(localToday(initialState?.summary?.timeZone));
   const [nutritionOpened, setNutritionOpened] = useState(initialTab === 'nutrition');
+  const [completionRefresh, setCompletionRefresh] = useState(0);
   useEffect(() => {
     if (tab === 'nutrition') setNutritionOpened(true);
   }, [tab]);
@@ -119,7 +121,10 @@ function AccountTrainingScreen({
     };
     const timer = setInterval(() => refresh(), 60000);
     const subscription = AppState.addEventListener('change', (s) => {
-      if (s === 'active') refresh(true);
+      if (s === 'active') {
+        refresh(true);
+        setCompletionRefresh((n) => n + 1);
+      }
     });
     return () => {
       clearInterval(timer);
@@ -264,6 +269,21 @@ function AccountTrainingScreen({
   const shown = state?.plans.find((p) => p.id === selected) ?? current ?? state?.plans[0];
   const onboarded = !!state && hasAcceptedTraining(state);
   const accepted = acceptedPlanForDate(state, daySelection.date);
+  const completionPlan = workout
+    ? (workoutPlan ?? undefined)
+    : tab === 'today'
+      ? accepted
+      : tab === 'week'
+        ? shown
+        : undefined;
+  const completion = useWorkoutCompletions({
+    plan:
+      !journalOpen && isDocumentVersion(completionPlan?.schemaVersion) ? completionPlan : undefined,
+    userId,
+    accessToken,
+    onSessionEnded,
+    refreshVersion: `${refreshVersion ?? 0}:${completionRefresh}`,
+  });
   const openWorkout = (plan: TrainingPlan | undefined, selection: WorkoutSelection) => {
     if (plan?.reviewState === 'accepted') {
       setWorkoutPlan(plan);
@@ -669,7 +689,11 @@ function AccountTrainingScreen({
                 </View>
               ))}
           {isDocumentVersion(shown.schemaVersion) ? (
-            <DocumentWeek plan={shown} onOpen={(selection) => openWorkout(shown, selection)} />
+            <DocumentWeek
+              plan={shown}
+              completed={completion.completed}
+              onOpen={(selection) => openWorkout(shown, selection)}
+            />
           ) : (
             shown.schemaVersion === 'complete-week-v1' && <CompleteWeekView plan={shown} />
           )}
@@ -864,7 +888,10 @@ function AccountTrainingScreen({
         userId={userId}
         accessToken={accessToken}
         onSessionEnded={onSessionEnded}
-        onBack={() => setJournalOpen(false)}
+        onBack={() => {
+          setJournalOpen(false);
+          setCompletionRefresh((n) => n + 1);
+        }}
         source={{
           planId: workoutPlan.id,
           revision: workoutPlan.planRevision!,
@@ -912,9 +939,24 @@ function AccountTrainingScreen({
               {button('Discard changes and leave', onClose, true)}
             </>
           )}
+          {completion.loading && <Text style={ui.copy}>Checking workout completion…</Text>}
+          {completion.error && (
+            <Notice title="Workout completion unavailable">
+              <Text>Could not check saved completion. Your workouts are still available.</Text>
+              <Action
+                label="Retry workout completion"
+                secondary
+                onPress={() => setCompletionRefresh((n) => n + 1)}
+              />
+            </Notice>
+          )}
           {workout && workoutPlan?.reviewState === 'accepted' ? (
             <>
-              <DocumentWorkout plan={workoutPlan} selection={workout} />
+              <DocumentWorkout
+                plan={workoutPlan}
+                selection={workout}
+                completed={completion.completed}
+              />
               <Action label="Log workout" onPress={() => setJournalOpen('resume')} />
               <Action
                 label="Record another occurrence"
@@ -930,6 +972,7 @@ function AccountTrainingScreen({
                 selection={daySelection}
                 onSelect={setDaySelection}
                 plan={accepted}
+                completed={completion.completed}
                 onWeek={() => setTab('week')}
                 onOpen={(selection) => openWorkout(accepted, selection)}
               />

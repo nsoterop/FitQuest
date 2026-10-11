@@ -67,6 +67,31 @@ export type JournalList = {
   }[];
   nextOffset: number | null;
 };
+export type JournalCompletions = {
+  planId: string;
+  revision: number;
+  sessions: { date: string; sessionIndex: number }[];
+};
+export function validJournalCompletions(v: unknown): v is JournalCompletions {
+  const c = v as JournalCompletions;
+  return (
+    journalKeys(c, ['planId', 'revision', 'sessions']) &&
+    foodId(c.planId) &&
+    Number.isSafeInteger(c.revision) &&
+    c.revision > 0 &&
+    c.revision <= 1000000 &&
+    Array.isArray(c.sessions) &&
+    c.sessions.length <= 84 &&
+    c.sessions.every(
+      (s) =>
+        journalKeys(s, ['date', 'sessionIndex']) &&
+        foodDate(s.date) &&
+        Number.isInteger(s.sessionIndex) &&
+        s.sessionIndex >= 0 &&
+        s.sessionIndex < 12,
+    )
+  );
+}
 export type JournalCommand =
   | {
       operationId: string;

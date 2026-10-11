@@ -4,6 +4,8 @@ import type { TrainingPlan } from './trainingApi';
 import { Action, Notice, colors, ui } from '../../components/Design';
 import { rangeText } from './CompleteWeekView';
 import { WorkoutContent } from './WorkoutContent';
+import { completionKey } from './useWorkoutCompletions';
+import { WorkoutCompletionBadge } from './WorkoutCompletionBadge';
 export const dateLabel = (date: string, long = false) =>
   new Intl.DateTimeFormat('en-US', {
     weekday: long ? 'long' : 'short',
@@ -35,12 +37,14 @@ export function DocumentToday({
   onOpen,
   selection,
   onSelect,
+  completed,
 }: {
   plan: TrainingPlan;
   selection: WorkoutSelection;
   onSelect: (value: WorkoutSelection) => void;
   onWeek: () => void;
   onOpen: (selection: WorkoutSelection) => void;
+  completed: ReadonlySet<string>;
 }) {
   const today = localToday(plan.timeZone),
     selectedDate = selection.date,
@@ -115,6 +119,11 @@ export function DocumentToday({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`View workout: ${session.title}`}
+              accessibilityValue={
+                completed.has(completionKey(selectedDate, featured))
+                  ? { text: 'Completed' }
+                  : undefined
+              }
               onPress={() => onOpen({ date: selectedDate, index: featured })}
               style={styles.hero}
             >
@@ -123,6 +132,7 @@ export function DocumentToday({
                 {session.optional ? ' · OPTIONAL' : ''}
               </Text>
               <Text style={styles.heroTitle}>{session.title}</Text>
+              {completed.has(completionKey(selectedDate, featured)) && <WorkoutCompletionBadge />}
               <Text style={[ui.copy, { color: '#D2D5DB' }]}>{session.goal}</Text>
               <View style={[ui.row, { marginTop: 14 }]}>
                 <Text style={[ui.label, styles.light]}>
@@ -142,6 +152,9 @@ export function DocumentToday({
               accessibilityRole="button"
               accessibilityLabel={`Open session ${i + 1}: ${s.title}`}
               accessibilityState={{ selected: featured === i }}
+              accessibilityValue={
+                completed.has(completionKey(selectedDate, i)) ? { text: 'Completed' } : undefined
+              }
               onPress={() => {
                 onSelect({ date: selectedDate, index: i });
                 onOpen({ date: selectedDate, index: i });
@@ -151,6 +164,7 @@ export function DocumentToday({
               <Text style={styles.number}>{String(i + 1).padStart(2, '0')}</Text>
               <View style={{ flex: 1, gap: 5 }}>
                 <Text style={ui.label}>{s.title}</Text>
+                {completed.has(completionKey(selectedDate, i)) && <WorkoutCompletionBadge />}
                 <Text style={ui.copy}>
                   {[s.timing, `${rangeText(s.durationMinutes)} min`, s.optional ? 'Optional' : null]
                     .filter(Boolean)
@@ -160,7 +174,9 @@ export function DocumentToday({
               <Icon name="chevron-right" color={colors.action} />
             </Pressable>
           ))}
-          <Text style={ui.copy}>Saved prescriptions. Completion is not tracked here.</Text>
+          <Text style={ui.copy}>
+            Completed badges reflect sessions you finished in your workout log.
+          </Text>
         </>
       )}
     </>
@@ -169,9 +185,11 @@ export function DocumentToday({
 export function DocumentWeek({
   plan,
   onOpen,
+  completed,
 }: {
   plan: TrainingPlan;
   onOpen: (selection: WorkoutSelection) => void;
+  completed: ReadonlySet<string>;
 }) {
   return (
     <View style={{ gap: 22 }}>
@@ -194,6 +212,9 @@ export function DocumentWeek({
               accessibilityLabel={`Session ${i + 1} on ${d.date}`}
               accessibilityHint={`${s.title}. ${s.goal}. ${s.timing ?? ''} About ${rangeText(s.durationMinutes)} minutes.${s.optional ? ' Optional session.' : ''}`}
               accessibilityRole={plan.reviewState === 'accepted' ? 'button' : undefined}
+              accessibilityValue={
+                completed.has(completionKey(d.date, i)) ? { text: 'Completed' } : undefined
+              }
               disabled={plan.reviewState !== 'accepted'}
               onPress={() => onOpen({ date: d.date, index: i })}
               style={[
@@ -201,7 +222,7 @@ export function DocumentWeek({
                 {
                   padding: 16,
                   borderWidth: 1,
-                  borderColor: colors.line,
+                  borderColor: completed.has(completionKey(d.date, i)) ? '#86CDA1' : colors.line,
                   borderRadius: 12,
                   backgroundColor: colors.canvas,
                 },
@@ -209,6 +230,7 @@ export function DocumentWeek({
             >
               <View style={{ flex: 1, gap: 7 }}>
                 <Text style={ui.section}>{s.title}</Text>
+                {completed.has(completionKey(d.date, i)) && <WorkoutCompletionBadge />}
                 <Text style={ui.copy}>{s.goal}</Text>
                 <View style={ui.row}>
                   <Text style={ui.label}>
@@ -232,9 +254,11 @@ export function DocumentWeek({
 export function DocumentWorkout({
   plan,
   selection,
+  completed,
 }: {
   plan: TrainingPlan;
   selection: WorkoutSelection;
+  completed: ReadonlySet<string>;
 }) {
   if (plan.reviewState !== 'accepted') return null;
   const s = plan.documentPlan?.days.find((d) => d.date === selection.date)?.sessions[
@@ -250,6 +274,7 @@ export function DocumentWorkout({
       <Text accessibilityRole="header" style={ui.title}>
         {s.title}
       </Text>
+      {completed.has(completionKey(selection.date, selection.index)) && <WorkoutCompletionBadge />}
       <View style={ui.row}>
         <Text style={ui.badge}>{rangeText(s.durationMinutes)} min</Text>
         {s.optional && <Text style={ui.badge}>Optional session</Text>}

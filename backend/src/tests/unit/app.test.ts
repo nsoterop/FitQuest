@@ -39,6 +39,41 @@ function dependencies() {
   };
 }
 
+test('workout completion route verifies the account, returns minimal status and never caches private data', async (t) => {
+  const unused = async () => {
+    throw Error('Unexpected journal write');
+  };
+  const calls: unknown[] = [];
+  const planId = 'cccccccc-1111-4111-8111-111111111111';
+  const app = buildApp(false, {
+    ...dependencies(),
+    journal: {
+      list: unused,
+      read: unused,
+      readOperation: unused,
+      command: unused,
+      completedSessions: async (account, id, revision) => {
+        calls.push({ account, id, revision });
+        return { planId: id, revision, sessions: [{ date: '2026-10-05', sessionIndex: 0 }] };
+      },
+    },
+  });
+  t.after(() => app.close());
+  const url = `/workout-journal/completed-sessions?planId=${planId}&revision=2`;
+  const denied = await app.inject({ method: 'GET', url });
+  assert.equal(denied.statusCode, 401);
+  assert.equal(calls.length, 0);
+  const reply = await app.inject({ method: 'GET', url, headers });
+  assert.equal(reply.statusCode, 200);
+  assert.equal(reply.headers['cache-control'], 'no-store');
+  assert.deepEqual(calls, [{ account: accounts.alice, id: planId, revision: 2 }]);
+  assert.deepEqual(reply.json(), {
+    planId,
+    revision: 2,
+    sessions: [{ date: '2026-10-05', sessionIndex: 0 }],
+  });
+});
+
 test('GET /health returns the public API health contract', async (t) => {
   const app = buildApp();
   t.after(() => app.close());
@@ -406,6 +441,10 @@ test('every private route uses the shared pre-auth burst guard and ignores spoof
     ['GET', '/body-weight'],
     ['POST', '/body-weight/commands'],
     ['GET', '/workout-journal'],
+    [
+      'GET',
+      '/workout-journal/completed-sessions?planId=11111111-1111-4111-8111-111111111111&revision=1',
+    ],
     ['POST', '/workout-journal/commands'],
     ['POST', '/onboarding'],
     ['GET', '/onboarding/11111111-1111-4111-8111-111111111111'],
@@ -500,7 +539,13 @@ test('private training, food, journal and weight requests never log input, crede
         generate: fail,
       },
       food: { read: fail, readOperation: fail, command: fail },
-      journal: { list: fail, read: fail, readOperation: fail, command: fail },
+      journal: {
+        completedSessions: fail,
+        list: fail,
+        read: fail,
+        readOperation: fail,
+        command: fail,
+      },
       weight: { list: fail, read: fail, readOperation: fail, command: fail },
       library: { read: fail, readOperation: fail, command: fail },
       onboarding: { create: fail, clarify: fail, read: fail, remove: fail, command: fail },

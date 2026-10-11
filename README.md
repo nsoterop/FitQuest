@@ -6,6 +6,8 @@ Private `main` includes the completed organization, security, UX, birthday, bran
 
 ## What it does
 
+The October 11 [saved-workout completion indicator](docs/archive/verification/2026-10-11/workout-completion/README.md) is prepared in source for Week and Today. Its matching backend release and standalone preview are pending; build 3 does not include this correction.
+
 - **Plan and review:** five progressive intake questions, a complete Monday–Sunday plan with multiple sessions, rest and optional work, explicit revisions, and an overview before acceptance. Accepting or reopening a saved plan makes no AI call.
 - **Train and record:** Today and Week views, readable workout instructions, actual sets/reps/weight or completion, notes, corrections and workout history. Logging does not imply that every prescription was completed.
 - **Track nutrition:** a today-first food diary with manual entry or explicitly requested AI estimates, reviewed candidates, known/unknown nutrient values and logged past-day averages. Past days remain editable. Saved meals and versioned recipes support fractional servings; later edits preserve earlier diary entries.

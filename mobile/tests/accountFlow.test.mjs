@@ -5481,6 +5481,11 @@ test('sign-in and session restoration show one loading screen then Today without
       requests = [];
     globalThis.fetch = async (url, options) => {
       requests.push({ url, method: options.method ?? 'GET' });
+      if (url.includes('/completed-sessions?'))
+        return {
+          status: 200,
+          json: async () => ({ planId: saved.plans[0].id, revision: 1, sessions: [] }),
+        };
       return new Promise((resolve) => waiting.push({ url, resolve }));
     };
     let screen;
@@ -7536,4 +7541,239 @@ test('nutrition memory belongs to the mounted account and late refreshes cannot 
   });
   assert.doesNotMatch(text(screen), /Alice synthetic meal/);
   assert.match(text(screen), /Bob synthetic meal/);
+});
+
+test('Today and Week show confirmed completion per session and refresh after finishing or reopening a log', async (t) => {
+  t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
+  globalThis.__fitquestSecure.clear();
+  const { saved } = await batchDocumentState('accepted');
+  const p = saved.plans[0],
+    j = journalFixture();
+  j.snapshot.source = { planId: p.id, revision: 1, date: p.dates[0], sessionIndex: 0 };
+  let checks = 0,
+    writes = 0;
+  globalThis.fetch = async (url, options) => {
+    if (url.includes('/completed-sessions?')) {
+      checks++;
+      const query = new URL(url).searchParams;
+      assert.equal(query.get('planId'), p.id);
+      assert.equal(query.get('revision'), '1');
+      return {
+        status: 200,
+        json: async () => ({
+          planId: p.id,
+          revision: 1,
+          sessions:
+            j.document.outcome === 'completed' ? [{ date: p.dates[0], sessionIndex: 0 }] : [],
+        }),
+      };
+    }
+    if (url.includes('/workout-journal')) {
+      if (options.method === 'POST') {
+        writes++;
+        const cmd = JSON.parse(options.body);
+        if (cmd.kind === 'save') {
+          assert.equal(cmd.expectedRevision, j.revision);
+          j.document = structuredClone(cmd.document);
+          j.revision++;
+        }
+        return {
+          status: 200,
+          json: async () => ({ id: cmd.operationId, journalId: j.id, revision: j.revision }),
+        };
+      }
+      return { status: 200, json: async () => structuredClone(j) };
+    }
+    return { status: 200, json: async () => structuredClone(saved) };
+  };
+  const screen = await mountTraining({ initialTab: 'today' });
+  t.after(() => act(async () => screen.unmount()));
+  const done = (label) => input(screen, label).props.accessibilityValue?.text === 'Completed';
+  assert.equal(done('View workout: Skill and strength'), false);
+  assert.equal(writes, 0);
+  await act(async () => {
+    press(screen, 'View workout: Skill and strength');
+    await flush();
+  });
+  await act(async () => {
+    press(screen, 'Log workout');
+    await flush();
+    await flush();
+    await flush();
+  });
+  await act(async () => {
+    press(screen, 'Finish session');
+    await flush();
+  });
+  await act(async () => {
+    press(screen, 'Record completed');
+    await flush();
+    await flush();
+  });
+  assert.equal(j.document.outcome, 'completed');
+  await act(async () => {
+    press(screen, 'Back');
+    await flush();
+    await flush();
+  });
+  assert.match(renderedTrainingText(screen), /Completed/);
+  await act(async () => {
+    press(screen, 'Back to day');
+    await flush();
+  });
+  assert(done('View workout: Skill and strength'));
+  assert(done('Open session 1: Skill and strength'));
+  assert.equal(done('Open session 2: Later easy practice'), false);
+  await act(async () => {
+    press(screen, 'Week');
+    await flush();
+  });
+  assert(done('Session 1 on 2026-10-05'));
+  assert.equal(done('Session 2 on 2026-10-05'), false);
+  assert.equal(done('Session 1 on 2026-10-06'), false);
+  await act(async () => {
+    press(screen, 'Session 1 on 2026-10-05');
+    await flush();
+  });
+  await act(async () => {
+    press(screen, 'Log workout');
+    await flush();
+    await flush();
+  });
+  await act(async () => {
+    press(screen, 'Reopen session');
+    await flush();
+    await flush();
+  });
+  assert.equal(j.document.outcome, 'in_progress');
+  await act(async () => {
+    press(screen, 'Back');
+    await flush();
+    await flush();
+  });
+  await act(async () => {
+    press(screen, 'Back to week');
+    await flush();
+  });
+  assert.equal(done('Session 1 on 2026-10-05'), false);
+  assert(checks >= 3);
+});
+
+test('completion failures are retryable without blocking workouts and foreground rechecks saved outcomes', async (t) => {
+  t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
+  const { saved } = await batchDocumentState('accepted'),
+    p = saved.plans[0];
+  let fail = true,
+    complete = true,
+    writes = 0;
+  globalThis.fetch = async (url, options) => {
+    if (options.method === 'POST') writes++;
+    if (url.includes('/completed-sessions?')) {
+      if (fail) throw Error('Invented outage');
+      return {
+        status: 200,
+        json: async () => ({
+          planId: p.id,
+          revision: 1,
+          sessions: complete ? [{ date: p.dates[0], sessionIndex: 0 }] : [],
+        }),
+      };
+    }
+    return { status: 200, json: async () => structuredClone(saved) };
+  };
+  const screen = await mountTraining();
+  t.after(() => act(async () => screen.unmount()));
+  assert.match(renderedTrainingText(screen), /Could not check saved completion/);
+  assert.equal(input(screen, 'Session 1 on 2026-10-05').props.disabled, false);
+  assert.equal(input(screen, 'Session 1 on 2026-10-05').props.accessibilityValue, undefined);
+  fail = false;
+  await act(async () => {
+    press(screen, 'Retry workout completion');
+    await flush();
+  });
+  assert.equal(input(screen, 'Session 1 on 2026-10-05').props.accessibilityValue.text, 'Completed');
+  complete = false;
+  await act(async () => {
+    for (const listener of globalThis.__fitquestAppStateListeners) listener('active');
+    await flush();
+    await flush();
+  });
+  assert.equal(input(screen, 'Session 1 on 2026-10-05').props.accessibilityValue, undefined);
+  assert.equal(writes, 0);
+});
+
+test('completion rejects malformed or mismatched responses and ignores a late former-account response', async (t) => {
+  const { useWorkoutCompletions } =
+    await import('../src/features/training/useWorkoutCompletions.ts');
+  const { saved } = await batchDocumentState('accepted'),
+    p = saved.plans[0];
+  function Status({ userId, version = '0', ended }) {
+    const status = useWorkoutCompletions({
+      plan: p,
+      userId,
+      accessToken: async () => userId + '-token',
+      onSessionEnded: ended,
+      refreshVersion: version,
+    });
+    return React.createElement(
+      'Text',
+      {},
+      JSON.stringify({ done: [...status.completed], error: status.error }),
+    );
+  }
+  let late,
+    code = 200,
+    response = { planId: p.id, revision: 1, sessions: [] },
+    expired = 0;
+  globalThis.fetch = async (_url, options) => {
+    if (options.headers.Authorization === 'Bearer alice-token')
+      return new Promise((resolve) => {
+        late = resolve;
+      });
+    return { status: code, json: async () => response };
+  };
+  let screen;
+  await act(async () => {
+    screen = TestRenderer.create(React.createElement(Status, { userId: 'alice' }));
+    await flush();
+  });
+  t.after(() => act(async () => screen.unmount()));
+  await act(async () => {
+    screen.update(React.createElement(Status, { userId: 'bob' }));
+    await flush();
+  });
+  await act(async () => {
+    late({
+      status: 200,
+      json: async () => ({
+        planId: p.id,
+        revision: 1,
+        sessions: [{ date: p.dates[0], sessionIndex: 0 }],
+      }),
+    });
+    await flush();
+  });
+  assert.doesNotMatch(text(screen), /2026-10-05:0/);
+  for (const [i, value] of [
+    { planId: p.id, revision: 2, sessions: [{ date: p.dates[0], sessionIndex: 0 }] },
+    { planId: 'dddddddd-1111-4111-8111-111111111111', revision: 1, sessions: [] },
+    { planId: p.id, revision: 1, sessions: [{ date: '2026-02-30', sessionIndex: 0 }] },
+    { planId: p.id, revision: 1, sessions: [{ date: p.dates[0], sessionIndex: 12 }] },
+  ].entries()) {
+    response = value;
+    await act(async () => {
+      screen.update(React.createElement(Status, { userId: 'bob', version: String(i + 1) }));
+      await flush();
+    });
+    assert.match(text(screen), /error.*true/);
+    assert.doesNotMatch(text(screen), /2026-10-05:0/);
+  }
+  code = 401;
+  await act(async () => {
+    screen.update(
+      React.createElement(Status, { userId: 'bob', version: 'expired', ended: () => expired++ }),
+    );
+    await flush();
+  });
+  assert.equal(expired, 1);
 });

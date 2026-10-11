@@ -28,6 +28,10 @@ Everything here is dated evidence, not current setup instructions, an active wor
 
 - [Branding and controls](verification/2026-10-10/branding/README.md): normal/large-text synthetic rendering, followed by the transparent-header correction. Native IPA checks are in the release record.
 - [Nutrition repeat visits](verification/2026-10-10/nutrition-cache/README.md): cached data visible during delayed background refresh; in-memory/account-isolation limits.
+
+## Native verification — October 11, 2026
+
+- [Saved workout completion](verification/2026-10-11/workout-completion/README.md): explicit saved outcomes, exact source/account matching, Today/Week badges and synthetic normal-size native captures; matched delivery pending.
 - [Flow-simplification checkpoint](../reference/flow-simplification.md): dated mock/native evidence and links to its captures.
 
 These captures use synthetic fixtures. Their checks and limitations apply to the recorded checkpoint and were not rerun merely because files were moved. Some local temporary evidence paths in old records may no longer exist. Duplicate records and superseded design/instruction documents are available in Git at `a297e2d`; they are intentionally absent from the working tree.

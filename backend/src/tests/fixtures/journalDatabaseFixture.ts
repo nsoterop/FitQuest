@@ -78,6 +78,70 @@ export async function verifyJournalDatabase(
     return { a, plan, document, history, cmd };
   }
   await t.test(
+    'completion is explicit, source-scoped, deduplicated and updated by reopening',
+    async () => {
+      const f = await fresh(),
+        other = await fresh();
+      const empty = { planId: f.plan.id, revision: 1, sessions: [] };
+      assert.deepEqual(await store.completedSessions(f.a, f.plan.id, 1), empty);
+      const receipt = await store.command(f.a, f.cmd);
+      let j = await store.read(f.a, receipt.journalId);
+      const save = async (outcome: typeof j.document.outcome) => {
+        await store.command(f.a, {
+          operationId: randomUUID(),
+          kind: 'save',
+          journalId: j.id,
+          expectedRevision: j.revision,
+          document: { ...j.document, outcome },
+        });
+        j = await store.read(f.a, j.id);
+      };
+      for (const outcome of ['in_progress', 'partial', 'skipped'] as const) {
+        await save(outcome);
+        assert.deepEqual(await store.completedSessions(f.a, f.plan.id, 1), empty);
+      }
+      await save('completed');
+      const done = { ...empty, sessions: [{ date: f.plan.dates[0], sessionIndex: 0 }] };
+      assert.deepEqual(await store.completedSessions(f.a, f.plan.id, 1), done);
+      assert.deepEqual(await store.completedSessions(f.a, f.plan.id, 2), { ...empty, revision: 2 });
+      assert.deepEqual(await store.completedSessions(other.a, other.plan.id, 1), {
+        planId: other.plan.id,
+        revision: 1,
+        sessions: [],
+      });
+      await assert.rejects(store.completedSessions(other.a, f.plan.id, 1), {
+        code: 'journal_source_unavailable',
+      });
+      assert.throws(() => store.completedSessions(f.a, f.plan.id, 0), { code: 'invalid_request' });
+      await save('in_progress');
+      assert.deepEqual(await store.completedSessions(f.a, f.plan.id, 1), empty);
+      await save('completed');
+      const repeated = await store.command(f.a, {
+        ...f.cmd,
+        operationId: randomUUID(),
+        repeat: true,
+      });
+      // An unfinished repeat doesn't erase a completed occurrence.
+      assert.deepEqual(await store.completedSessions(f.a, f.plan.id, 1), done);
+      const repeat = await store.read(f.a, repeated.journalId);
+      await store.command(f.a, {
+        operationId: randomUUID(),
+        kind: 'save',
+        journalId: repeat.id,
+        expectedRevision: repeat.revision,
+        document: { ...repeat.document, outcome: 'completed' },
+      });
+      assert.deepEqual(await store.completedSessions(f.a, f.plan.id, 1), done);
+      // Completion reads aren't capped by the paginated history page.
+      for (let i = 0; i < 51; i++)
+        await store.command(f.a, { ...f.cmd, operationId: randomUUID(), source: null });
+      assert.equal((await store.list(f.a)).items.length, 50);
+      assert.deepEqual(await store.completedSessions(f.a, f.plan.id, 1), done);
+      await owner.query('DELETE FROM auth.sessions WHERE id=$1', [f.a.sessionId]);
+      await assert.rejects(store.completedSessions(f.a, f.plan.id, 1), { code: 'session_ended' });
+    },
+  );
+  await t.test(
     'journal captures exact accepted history and app IDs; no AI/ledger, repeat only deliberately, snapshots survive reordering and exact reset',
     async () => {
       const f = await fresh();

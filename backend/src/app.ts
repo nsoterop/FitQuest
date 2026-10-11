@@ -566,6 +566,12 @@ export function buildApp(
   app.get<{ Querystring: { offset?: string } }>('/workout-journal', privateRoute, async (r) =>
     journal().list(accounts.get(r)!, r.query.offset === undefined ? 0 : Number(r.query.offset)),
   );
+  app.get<{ Querystring: { planId: string; revision: string } }>(
+    '/workout-journal/completed-sessions',
+    privateRoute,
+    async (r) =>
+      journal().completedSessions(accounts.get(r)!, r.query.planId, Number(r.query.revision)),
+  );
   app.get<{ Params: { id: string } }>('/workout-journal/operations/:id', privateRoute, async (r) =>
     journal().readOperation(accounts.get(r)!, r.params.id),
   );

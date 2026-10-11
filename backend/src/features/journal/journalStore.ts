@@ -16,6 +16,7 @@ import {
   type JournalSnapshot,
   type JournalReceipt,
   type JournalList,
+  type JournalCompletions,
   type SetGroup,
 } from '../../shared/journalContract.js';
 type JournalRow = {
@@ -90,6 +91,41 @@ export function journalStore(pool: Pool) {
     }
   }
   return {
+    completedSessions: (
+      a: Account,
+      planId: string,
+      revision: number,
+    ): Promise<JournalCompletions> => {
+      if (!foodId(planId) || !Number.isSafeInteger(revision) || revision < 1 || revision > 1000000)
+        fail('invalid_request', 400);
+      return tx(a, async (c) => {
+        const plan = (
+          await c.query('SELECT dates FROM fitquest.training_plans WHERE user_id=$1 AND id=$2', [
+            a.userId,
+            planId,
+          ])
+        ).rows[0];
+        if (!plan) fail('journal_source_unavailable', 404);
+        // Use the existing account/source index; return no actuals, notes or snapshots.
+        const sources = (plan.dates as string[]).flatMap((date) =>
+          Array.from({ length: 12 }, (_, sessionIndex) =>
+            hash({ planId, revision, date, sessionIndex }),
+          ),
+        );
+        const sessions = (
+          await c.query(
+            `SELECT DISTINCT snapshot->'source'->>'date' AS date,
+              (snapshot->'source'->>'sessionIndex')::integer AS "sessionIndex"
+             FROM fitquest.workout_journals
+             WHERE user_id=$1 AND source_key=ANY($2::text[])
+               AND document->>'outcome'='completed'
+             ORDER BY date,"sessionIndex" LIMIT 84`,
+            [a.userId, sources],
+          )
+        ).rows;
+        return { planId, revision, sessions };
+      });
+    },
     list: (a: Account, offset = 0): Promise<JournalList> => {
       if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000)
         fail('invalid_request', 400);

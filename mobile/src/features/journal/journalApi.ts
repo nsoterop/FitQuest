@@ -1,9 +1,11 @@
 import {
   validJournal,
+  validJournalCompletions,
   type Journal,
   type JournalCommand,
   type JournalReceipt,
   type JournalList,
+  type JournalCompletions,
 } from '../../../../backend/src/shared/journalContract';
 export const journalMessage = (code: string) =>
   (
@@ -29,12 +31,9 @@ export class JournalError extends Error {
     this.code = code;
   }
 }
-export async function journalRequest<T extends Journal | JournalList | JournalReceipt>(
-  path: string,
-  token: string,
-  signal: AbortSignal,
-  command?: JournalCommand,
-): Promise<T> {
+export async function journalRequest<
+  T extends Journal | JournalList | JournalReceipt | JournalCompletions,
+>(path: string, token: string, signal: AbortSignal, command?: JournalCommand): Promise<T> {
   try {
     const u = new URL(process.env.EXPO_PUBLIC_API_URL ?? '');
     if (u.protocol !== 'https:' || u.username || u.password || !token || signal.aborted)
@@ -64,6 +63,8 @@ export async function journalRequest<T extends Journal | JournalList | JournalRe
         !Number.isInteger(v.revision)
       )
         throw Error();
+    } else if (path.startsWith('/completed-sessions?')) {
+      if (!validJournalCompletions(v)) throw Error();
     } else if (path.startsWith('?') || path === '') {
       if (!Array.isArray(v.items) || v.items.length > 50) throw Error();
     } else if (!validJournal(v)) throw Error();
