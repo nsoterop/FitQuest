@@ -4,6 +4,7 @@ Everything here is dated evidence, not current setup instructions, an active wor
 
 ## Releases and audits
 
+- [October 11 delivery](releases/2026-10-11.md): saved-workout completion indicators, matching Live backend `4895564` and standalone preview build 4, with no migration or data reset.
 - [October 10 releases](releases/2026-10-10.md): initial security/UX rollout, birthday backend `1859ef8`, mobile corrections, main integration and finished standalone preview build 3. Each section retains its own source/CI and delivery scope; account policy remains disabled.
 - [October 3–9 release record](releases/2026-10-09.md): accumulated earlier application releases, runtime verification and evidence boundaries. Its final production checkpoint was `2e779e5`.
 - [Publication safety, October 9](audits/publication-safety-2026-10-09.md): privacy/secret scan scope, dependency findings and safe-install verification.
