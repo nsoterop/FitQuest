@@ -13,6 +13,7 @@
       }
     },
     "preview": {
+      "channel": "preview",
       "developmentClient": false,
       "distribution": "internal",
       "environment": "preview",

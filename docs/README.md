@@ -9,6 +9,8 @@ Start with the [project README](../README.md) for current implemented capabiliti
 | Run tests, lint and CI checks | [Development checks](guides/development.md) |
 | Publish source or deliver an assigned release | [Release procedure and boundaries](guides/release.md) |
 | Install the personal iPhone preview without Metro | [Standalone phone preview](guides/phone-preview.md) |
+| Publish compatible changes to an installed preview | [Mobile updates](guides/mobile-updates.md) |
+| Review the planned seven day expiry and Face ID sign in | [Session expiry and Face ID plan](reference/session-expiry-and-face-id.md); planning only |
 | Understand data, planning and scheduling boundaries | [Architecture](reference/architecture.md) |
 | Understand branding and UI icons | [Mobile branding and icons](reference/icons.md) |
 | Understand the illustrative screenshots | [Screenshot provenance](reference/screenshots.md) |
