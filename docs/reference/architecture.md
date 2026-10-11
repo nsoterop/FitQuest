@@ -1,6 +1,6 @@
 # Architecture and operational limits
 
-This describes the implemented application at the October 10 standalone-preview checkpoint. The [project README](../../README.md) is the current-state entry point; [release procedure](../guides/release.md) governs delivery when assigned. Feature work is frozen for personal testing. Retained [product goals](product-goals.md) are aspirations, not implemented features or a work queue.
+This describes the implemented application at the October 11 update-enabled-preview checkpoint. The [project README](../../README.md) is the current-state entry point; [release procedure](../guides/release.md) governs delivery when assigned. Feature work is frozen for personal testing. Retained [product goals](product-goals.md) are aspirations, not implemented features or a work queue.
 
 ## Boundaries
 
@@ -42,7 +42,7 @@ API uptime can delay generation; this is not exact-time/notification delivery. A
 
 The existing API is Live at `1859ef83b212afe3fe7534fa9a011766dac04e9a`, matching current backend/database source. The applied security-account-policy, recurring-enrollment and birthday forward migrations retain their recorded source/hosted version mappings. Account-policy enforcement stays disabled.
 
-Private `main` includes all completed source changes. Finished standalone internal iOS Release build 3 (`971aab97-99da-4f28-8c24-8e19851b2b39`) embeds source `1733958`, current JavaScript/assets and the existing hosted configuration; it requires no Mac/Metro, but hosted features require internet. The separate development profile remains for coding. No OTA/EAS Update or App Store/TestFlight delivery is configured. Git pushes do not update the installed preview, and later docs-only commits do not change it. See [phone instructions](../guides/phone-preview.md) and [exact release evidence](../archive/releases/2026-10-10.md#main-integration-and-standalone-personal-preview).
+`main` includes the completed source changes. Finished internal iOS Release build 5 (`5c579f01-e433-4c2a-bb83-bac14b7104d9`) embeds source `1a3b254` and the approved hosted configuration. It requires no Mac/Metro; hosted features require internet. Expo Updates uses the `preview` channel and fingerprint compatibility: deliberate publications can deliver compatible JavaScript/assets; native changes require a new build. The separate development profile remains for coding. No App Store/TestFlight delivery is configured. Git pushes and docs-only commits do not publish updates. See [phone instructions](../guides/phone-preview.md), [mobile updates](../guides/mobile-updates.md) and [release evidence](../archive/releases/2026-10-11.md#update-enabled-preview-and-authentication-plan). Session expiry/Face ID remain a [plan](session-expiry-and-face-id.md).
 
 The owner reports installing the preview after deleting the prior app and seeing saved data without another sign-in. This supports reported installation/restored visible data, consistent with same-device Keychain behavior; it is not full acceptance. Dated [UX](flow-simplification.md), [security](security.md), [release](../archive/README.md) and [audit](../archive/audits/code-quality-2026-10-10.md) records retain their original checkpoints rather than claiming every historical SHA is current.
 

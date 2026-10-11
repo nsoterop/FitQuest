@@ -4,9 +4,9 @@ React Native 0.86 / React 19 / Expo SDK 57, with TypeScript and an iOS-first int
 
 ## Personal phone testing
 
-Use [standalone iPhone preview build 3](../docs/guides/phone-preview.md). It bundles source `1733958`, including birthday/profile navigation, v3 branding, transparent header, Lucide controls and Nutrition tab caching. It runs without Mac/Metro or shared Wi-Fi; hosted features still need internet. Install over the existing app without uninstalling it. Git pushes and Metro reloads do not update this embedded preview; no OTA/EAS Update channel is configured.
+Use [standalone iPhone preview build 5](../docs/guides/phone-preview.md), source `1a3b254`. It includes the delivered training/branding/Nutrition corrections and Expo Updates. It runs without Mac/Metro; hosted features need internet. Install once over the existing app without uninstalling it. The `preview` channel delivers matching JavaScript/assets after a deliberate [OTA publication](../docs/guides/mobile-updates.md); native changes need a replacement build. Git pushes and Metro reloads do not themselves update this installed preview.
 
-The owner reports installing this preview and seeing prior saved data without another sign-in. This is consistent with an existing same-device Keychain session. Full Mac-off cold launch, saved-data/layout acceptance, VoiceOver and Sunday dispatch remain separate checks. See [delivery evidence](../docs/archive/releases/2026-10-10.md#main-integration-and-standalone-personal-preview).
+The owner reports installing the earlier build 3 preview and seeing prior saved data without another sign-in. This is consistent with an existing same-device Keychain session. Full Mac-off cold launch, saved-data/layout acceptance, VoiceOver and Sunday dispatch remain separate checks. See [delivery evidence](../docs/archive/releases/2026-10-11.md#update-enabled-preview-and-authentication-plan).
 
 ## Development setup and checks
 

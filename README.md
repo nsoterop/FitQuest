@@ -2,9 +2,11 @@
 
 FitQuest is an iOS-focused training and nutrition app for adults. It turns five written intake answers into a weekly plan, keeps prescribed work separate from actual workout results, and brings food, weight and training history together for the next week.
 
-`main` includes the completed organization, security, UX, birthday, branding, Nutrition caching and saved-workout completion changes. The existing API is Live at `4895564`; [standalone iPhone preview build 4](docs/guides/phone-preview.md) embeds that matching source for personal testing without Mac/Metro. Install over the existing app without uninstalling it. Reviewed forward migrations remain applied, and account-limit policy remains disabled. Both PRs remain closed, with branches/history preserved. See [release procedure](docs/guides/release.md) and [October 11 delivery evidence](docs/archive/releases/2026-10-11.md). The owner reported restored data with the earlier preview; build 4 phone acceptance remains pending. Other feature work remains frozen for personal testing.
+`main` includes the completed organization, security, UX, birthday, branding, Nutrition caching and saved-workout completion changes. The existing API is Live at `4895564`; [standalone iPhone preview build 5](docs/guides/phone-preview.md) embeds source `1a3b254` with compatible EAS Update delivery for personal testing without Mac/Metro. Install over the existing app without uninstalling it. Reviewed forward migrations remain applied, and account-limit policy remains disabled. Both PRs remain closed, with branches/history preserved. See [release procedure](docs/guides/release.md) and [October 11 delivery evidence](docs/archive/releases/2026-10-11.md). The owner reported restored data with the earlier preview; build 5 phone acceptance remains pending. Other feature work remains frozen for personal testing.
 
 ## What it does
+
+Build 5 enables deliberate [compatible OTA updates](docs/guides/mobile-updates.md). [Seven-day expiry and optional Face ID/passkey sign-in](docs/reference/session-expiry-and-face-id.md) are planned; authentication behavior is unchanged.
 
 The October 11 [saved-workout completion indicator](docs/archive/verification/2026-10-11/workout-completion/README.md) is delivered in build 4 for Week, Today and workout details. A green **Completed** badge reflects a finished saved workout log; reopening its only completed occurrence removes the badge after refresh.
 

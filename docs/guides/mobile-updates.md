@@ -1,6 +1,6 @@
 # Publish compatible iPhone updates
 
-FitQuest's `preview` EAS profile targets the existing project's `preview` update channel. Build 5 is prepared to add Expo Updates; builds 3 and 4 cannot receive OTA updates. Install the finished update-enabled build once using [phone instructions](phone-preview.md). Until that build is delivered and installed, the older app continues using its embedded bundle.
+FitQuest's `preview` EAS profile targets the existing project's `preview` update channel. Finished build 5 adds Expo Updates; builds 3 and 4 cannot receive OTA updates. Install build 5 once using [phone instructions](phone-preview.md). Its initial baseline update is published and eligible for the verified native runtime. Older installed builds continue using their embedded bundle. [Delivery verification](../archive/verification/2026-10-11/mobile-updates/README.md).
 
 ## What can be updated
 
@@ -18,7 +18,7 @@ The app checks for updates on launch with a zero wait for downloading: it starts
    npx eas-cli@24.9.0 update --platform ios --channel preview --environment preview --message "Describe the tested change" --non-interactive --json
    ```
 
-4. Capture the update ID, source revision and runtime. Verify the manifest and assets using the installed build's exact runtime/channel. A successful upload alone does not establish eligibility or that a phone downloaded it. Verify a cold launch on the registered phone and report source, native build and OTA revision separately.
+4. Capture the update ID, source revision and runtime. Verify the manifest and assets using the installed build's exact runtime/channel. Use the manifest's protocol-required asset request headers when verifying downloads; keep those generated authorization headers in private files. A successful upload alone does not establish eligibility or that a phone downloaded it. Verify a cold launch on the registered phone and report source, native build and OTA revision separately.
 
 Publication is deliberate; a Git push does not automatically run EAS Update. Keep the existing public client environment, app/keychain identity, signing and account/data isolation. Do not upgrade billing or create a fresh paid allowance. If publication is uncertain, inspect existing update groups before retrying. Keep server/native compatibility and existing receipts/drafts during rollback; use Expo's supported compatible-update rollback/republication procedure without deleting real records. [Expo update setup](https://docs.expo.dev/eas-update/getting-started/).
 
