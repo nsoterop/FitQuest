@@ -14,7 +14,7 @@ Prior instructions and duplicate release notes were removed from the working tre
 
 ## Publication boundary
 
-The October 11 read-only GitHub inspection reports the repository as public. The existing private-publication authority does not cover publishing this new change publicly. Commit the tested result locally and obtain the owner's applicable public-publication and delivery authority; do not change visibility to work around this boundary.
+The October 11 read-only GitHub inspection reports the repository as public. After reviewing tested commit `926ce06`, the owner replied “publish it” to the concrete request for public-main publication, the matching existing-service backend deployment and one updated standalone iPhone preview within the existing allowance. That scoped delivery is authorized; preserve signing, devices, identity and all data. This does not authorize visibility/settings/migration/billing changes or another build beyond that preview.
 
 Local scoped implementation/documentation edits, checks, commits and a normal fast-forward push to private `main` are authorized for this task. Inspect actual deployment/Blueprint/EAS triggers and remote divergence before pushing. Check for a matching PR if protections require one; attach any created PR to this chat. Verify the remote revision and exact-source CI. Do not change protections, visibility/default branch, service settings or credentials to bypass a blocker; do not rewrite history or force-push. MIT remains selected. Future deployment, native build, migration, policy/resource or paid work follows the owner's applicable assignment and authority, not an old archive or completed exception.
 
