@@ -1,5 +1,9 @@
 import { athleteDataPolicy } from '../../ai/athleteDataPolicy.js';
-import { progressRules, stableProgress } from '../weekly-planning/progressContext.js';
+import {
+  newWeekVarietyRules,
+  progressRules,
+  stableProgress,
+} from '../weekly-planning/progressContext.js';
 import { Ajv } from 'ajv';
 import {
   documentPlanVersion,
@@ -128,6 +132,7 @@ export function prepareDocument(provider: OnboardingProvider, input: PlanningInp
     'Return daily estimated nutrition in the nutrition object: caloriesKcal in kcal, proteinGrams, carbohydrateGrams and fatGrams in grams; version 1. Use status available with values and at most a short rationale or assumptions. If suitable targets cannot be provided, use status unavailable, null nutrient values and a short reason. Do not force numeric advice.',
     loggingInstruction,
     ...(input.progress ? [progressRules] : []),
+    ...(input.progress && !input.documentReview ? [newWeekVarietyRules] : []),
     ...(input.documentReview
       ? [
           'Revise the saved week according to the athlete feedback. Preserve the work they ask to keep and return the complete updated week.',

@@ -22,6 +22,10 @@ import {
 } from '../fixtures/documentPlanFixture.js';
 import { intakeSummary } from '../../features/onboarding/fixedIntake.js';
 import { openAIProvider } from '../../ai/onboardingProvider.js';
+import {
+  newWeekVarietyRules,
+  progressRules,
+} from '../../features/weekly-planning/progressContext.js';
 const dates = Array.from({ length: 7 }, (_, i) => `2026-10-${String(i + 5).padStart(2, '0')}`),
   answers = [
     'Build confidence & stamina',
@@ -128,6 +132,93 @@ test('document validates only display structure, dates and bounds; arbitrary act
   const leaked = structuredClone(overview) as any;
   leaked.days[0].sessions[0].workoutMarkdown = 'private details';
   assert.equal(validDocumentOverview(leaked, dates, 'document-week-v4'), false);
+});
+
+test('new-week requests carry variety guidance and unchanged baseline; saved-week reviews and initial plans do not', async () => {
+  const baseline = documentFixture(dates),
+    baselineBefore = structuredClone(baseline),
+    upcomingDates = dates.map((date) =>
+      new Date(Date.parse(date + 'T12:00:00Z') + 7 * 86400000).toISOString().slice(0, 10),
+    ),
+    progress = {
+      acceptedBaseline: { dates, timeZone: 'America/New_York', plan: baseline },
+      endingWeek: [],
+      changes: '',
+    },
+    upcoming = { ...input, dates: upcomingDates, progress };
+  let calls = 0;
+  const provider = openAIProvider(
+    {
+      key: 'synthetic-key',
+      model: 'gpt-6.1-sol',
+      capMicro: 7000000,
+      inputRate: 2,
+      cachedRate: 0.1,
+      cacheWriteRate: 2.5,
+      outputRate: 10,
+    },
+    async (_url, options) => {
+      calls++;
+      const wire = JSON.parse(String(options!.body));
+      assert(wire.instructions.includes(newWeekVarietyRules));
+      assert(wire.instructions.includes(progressRules));
+      assert.match(wire.instructions, /keep a similar high-level structure/);
+      assert.match(wire.instructions, /changing only sets, reps, load or duration does not count/);
+      assert.match(wire.instructions, /never force an unsuitable substitution/);
+      assert.deepEqual(JSON.parse(wire.input).progress, progress);
+      assert.deepEqual(JSON.parse(wire.input).dates, upcomingDates);
+      assert.equal(wire.model, 'gpt-6.1-sol');
+      assert.deepEqual(wire.reasoning, { effort: 'low' });
+      return new Response(
+        JSON.stringify({
+          status: 'completed',
+          usage: { input_tokens: 100, output_tokens: 2500 },
+          output: [
+            {
+              type: 'message',
+              content: [
+                {
+                  type: 'output_text',
+                  text: JSON.stringify({
+                    version: 1,
+                    result: { kind: 'plan', plan: documentFixture(upcomingDates) },
+                  }),
+                },
+              ],
+            },
+          ],
+        }),
+      );
+    },
+  );
+  const prepared = prepareDocument(provider, upcoming);
+  const result = await provider.call(prepared.body, new AbortController().signal);
+  assert.deepEqual(checkDocumentResult(result.proposal, upcoming), documentFixture(upcomingDates));
+  assert.equal(calls, 1);
+  assert.equal(
+    prepared.reserveMicro,
+    provider.cost({
+      input: Buffer.byteLength(prepared.body),
+      output: 48000,
+      cached: 0,
+      cacheWrite: 0,
+    }),
+  );
+  const revised = JSON.parse(
+    prepareDocument(provider, {
+      ...upcoming,
+      documentReview: { plan: documentFixture(upcomingDates), feedback: 'Keep all exercises.' },
+    }).body,
+  );
+  assert(!revised.instructions.includes(newWeekVarietyRules));
+  assert(revised.instructions.includes(progressRules));
+  assert.equal(JSON.parse(revised.input).review.feedback, 'Keep all exercises.');
+  assert.deepEqual(JSON.parse(revised.input).progress, progress);
+  const initial = JSON.parse(prepareDocument(provider, input).body);
+  assert(!initial.instructions.includes(newWeekVarietyRules));
+  assert(!initial.instructions.includes(progressRules));
+  assert.deepEqual(baseline, baselineBefore);
+  assert.equal(calls, 1);
 });
 test('real provider adapter dispatches the document wire once per initial/revision; handles refusal/incomplete without retries', async () => {
   let calls = 0,
