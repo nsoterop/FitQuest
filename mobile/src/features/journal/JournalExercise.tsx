@@ -29,7 +29,7 @@ export function JournalExercise({
   const { unit } = useWeightUnits();
   const dimensions = useWindowDimensions();
   const tableWidth =
-    dimensions.fontScale > 1.3 ? Math.round(280 * Math.min(dimensions.fontScale, 2.5)) : undefined;
+    dimensions.fontScale > 1.6 ? Math.round(280 * Math.min(dimensions.fontScale, 2.5)) : undefined;
   const active = r.groups.filter((g) => !g.removed);
   const canAdd = r.groups.length < 24 || r.groups.some((g) => g.removed && g.sets === 1);
   const [notesOpen, setNotesOpen] = useState(!!r.notes);

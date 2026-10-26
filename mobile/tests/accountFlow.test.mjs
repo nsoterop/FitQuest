@@ -86,7 +86,7 @@ globalThis.__fitquestTestClient = {
 };
 const native = `export const Image='Image', View='View', Text='Text', TextInput='TextInput', Pressable='Pressable', ScrollView='ScrollView', Modal='Modal', KeyboardAvoidingView='KeyboardAvoidingView';
   export const AccessibilityInfo={setAccessibilityFocus(){}};export const findNodeHandle=()=>null;
-  export const Platform={OS:'ios'}; export const useWindowDimensions=()=>({width:375,height:812,fontScale:1});
+  export const Platform={OS:'ios'}; export const useWindowDimensions=()=>({width:375,height:812,fontScale:(globalThis.__fitquestFontScale??1)});
   export const StyleSheet={create:x=>x}; export const Keyboard={dismiss(){},addListener(){return {remove(){}}}};
   export const AppState={currentState:'active',addEventListener:(_event,callback)=>{globalThis.__fitquestAppStateListeners.add(callback);return {remove(){globalThis.__fitquestAppStateListeners.delete(callback)}}}};
   export const Linking={addEventListener:(_name,callback)=>{globalThis.__fitquestLinkListener=callback;return {remove(){}}},getInitialURL:async()=>null};`;
@@ -8651,4 +8651,34 @@ test('offline account preferences keep cached units usable and a late former-acc
     JSON.parse(globalThis.__fitquestSecure.get('weight-preferences.bob')).weightUnit,
     'lb',
   );
+});
+
+test('largest standard text keeps the three input columns together and larger accessibility text can scroll without losing labels', async (t) => {
+  const { JournalExercise } = await import('../src/features/journal/JournalExercise.tsx');
+  const { editableJournal, loggingFor } = await import('../src/features/journal/journalSets.ts');
+  const j = journalFixture(),
+    result = editableJournal(j, randomUUID).results[0];
+  let screen;
+  t.after(async () => {
+    await act(async () => screen?.unmount());
+    delete globalThis.__fitquestFontScale;
+  });
+  const props = {
+    result,
+    hint: loggingFor(j, result.id),
+    fields: {},
+    disabled: false,
+    onField() {},
+    onChange() {},
+  };
+  globalThis.__fitquestFontScale = 1.35;
+  await act(async () => {
+    screen = TestRenderer.create(React.createElement(JournalExercise, props));
+  });
+  assert.equal(screen.root.findAllByType('ScrollView').length, 0);
+  assert.equal(input(screen, 'Dumbbell squat · set 3 · Reps').props.value, '8');
+  globalThis.__fitquestFontScale = 2.2;
+  await act(async () => screen.update(React.createElement(JournalExercise, { ...props })));
+  assert.equal(screen.root.findAllByType('ScrollView')[0].props.horizontal, true);
+  assert.equal(input(screen, 'Dumbbell squat · set 3 · Weight (lb)').props.value, '40');
 });
