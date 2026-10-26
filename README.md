@@ -2,13 +2,13 @@
 
 FitQuest is an iOS-focused training and nutrition app for adults. It turns five written intake answers into a weekly plan, keeps prescribed work separate from actual workout results, and brings food, weight and training history together for the next week.
 
-The [October 26 workout-logging release](docs/archive/releases/2026-10-26.md) is published from `2b4f83b` with passing CI, Live in the existing API and available as a compatible preview OTA for [installed build 5](docs/guides/phone-preview.md). It adds durable autosave, per-set confirmation, exercise information/notes and one-action Finish. Saved user data and plans remain intact; no migration or new native build was needed. Physical-phone OTA launch remains owner acceptance. Other feature work is frozen, and account-limit policy remains disabled.
+The [October 26 workout-logging release and UI correction](docs/archive/releases/2026-10-26.md) are published with passing CI: mobile source `8412c86` is available as a compatible preview OTA for [installed build 5](docs/guides/phone-preview.md), with the existing API Live at `2b4f83b`. Logging includes durable autosave, exercise information/notes, editable blue recommendations, recommended set rows and compact controls. Finish records visible values, including unchanged recommendations; per-set checkboxes are removed. Saved user data and plans remain intact; no migration or new native build was needed. Physical-phone OTA launch remains owner acceptance. Other feature work is frozen, and account-limit policy remains disabled.
 
 ## What it does
 
 Build 5 enables deliberate [compatible OTA updates](docs/guides/mobile-updates.md). [Seven-day expiry and optional Face ID/passkey sign-in](docs/reference/session-expiry-and-face-id.md) are planned; authentication behavior is unchanged.
 
-Week, Today and workout details show **Finished** for an acknowledged finished/completed saved occurrence at the exact account/plan/revision/session. Finishing does not fill blank or unconfirmed sets; reopening/correction remains available.
+Week, Today and workout details show **Finished** for an acknowledged finished/completed saved occurrence at the exact account/plan/revision/session. Finish records the visible scalar values; blank/removed sets remain unlogged and ranges need an explicit number or clearing. Reopening/correction remains available.
 
 - **Plan and review:** five progressive intake questions, a complete Monday–Sunday plan with multiple sessions, rest and optional work, explicit revisions, and an overview before acceptance. Accepting or reopening a saved plan makes no AI call.
 - **Train and record:** Today and Week views, readable workout instructions, actual sets/reps/weight or completion, notes, corrections and workout history. Logging does not imply that every prescription was completed.

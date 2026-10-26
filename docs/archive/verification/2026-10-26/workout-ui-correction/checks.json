@@ -1,0 +1,23 @@
+{
+  "manifestId": "01a1795d-89a5-731e-9377-0d1a68165089",
+  "runtime": "3500763d3c624db350764adaff2dac94a933129f",
+  "verifiedFiles": 76,
+  "totalBytes": 2166326,
+  "bundleSHA256": "f31d67e54e3dec7ea12118163e344a0f8a97e496c1836335cdaef3080e5bf61a",
+  "identityMatches": true,
+  "source": "8412c86364cf1de1f4c7c7bbdd69de684b118c5a",
+  "ci": "https://github.com/nsoterop/FitQuest/actions/runs/40373230028",
+  "ciChecks": {
+    "mobile": 194,
+    "backendWithIsolatedPostgres": 350,
+    "installer": 5,
+    "repository": 7
+  },
+  "backend": "2b4f83becbb062d27a6df4a969353e3b9bcdc388",
+  "updateGroup": "a28ef5f7-afac-40c3-bddf-69b212f4380f",
+  "nativeBuild": "5c579f01-e433-4c2a-bb83-bac14b7104d9",
+  "migrationsApplied": [],
+  "nativeBuildCreated": false,
+  "developmentServerStarted": false,
+  "physicalPhoneLaunchVerified": false
+}

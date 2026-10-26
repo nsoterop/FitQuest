@@ -1,0 +1,16 @@
+# Workout UI correction verification — October 26, 2026
+
+Mobile source `8412c86` passed [exact-source CI](https://github.com/nsoterop/FitQuest/actions/runs/40373230028), including 194 mobile tests, 350 backend tests with isolated PostgreSQL, five installer checks and seven repository checks. Local format/lint/types, Expo compatibility, packaging and dependency checks passed. Local Node was 24.12.0; CI used pinned 24.21.0. [Release record](../../../releases/2026-10-26.md#subsequent-workout-ui-correction), [sanitized counts and hashes](checks.json).
+
+The native walkthrough used actual logging components in a finite offline bundle, a copied cached Release simulator host (`com.fitquest.rebuild`), a disposable iPhone 17 Pro/iOS 26.4 simulator, and synthetic account/exercise/fetch fixtures. It used no real Auth, hosted records or AI. The ignored fixture was removed; the published export/source map contains no fixture or test entry. The simulator was stopped and deleted; no development server was started and no owner process was changed. This cached host differs from physical preview build 5 and does not establish phone installation or OTA launch.
+
+Normal-size checks covered details hidden on the workout, full popup guidance, blue editable 20 lb/8 recommendations, three recovered rows in a previously one-row v2 log, unknown weight blank, compact plus/minus and restored row identities. Editing ranges to exact 10/12 values and weight 20 to 25, then Finish, recorded edited and unchanged visible values while unknown weights remained blank. The largest standard Dynamic Type size covered stacked fields and visible selected input above the software keyboard. Relaunch refreshed text metrics with a reset synthetic fixture; persistence/replay is established by component tests, not that native relaunch. Actual VoiceOver focus and the complete accessibility-size matrix remain unverified.
+
+- [Workout with details hidden](workout-details-hidden.png)
+- [Exercise information popup](exercise-info.png)
+- [Blue recommendations and compact controls](recommended-sets-controls.png)
+- [Large-text recommendation editing and keyboard](large-recommendation-keyboard.png)
+
+The final source also includes bounded parser ambiguity guards and explicit Reopen seeding covered by regressions; visual components match the captures. Deterministic fallback supports common unambiguous dose forms, not arbitrary natural language. No saved plan is regenerated or rewritten. Blanks, ambiguous loads, ranges and legacy grouped history retain their documented safeguards.
+
+The build-5 runtime/channel request served update `01a1795d-89a5-731e-9377-0d1a68165089`, group `a28ef5f7-afac-40c3-bddf-69b212f4380f`. All 76 files (launch bundle plus 75 assets; 2,166,326 bytes) were downloaded with protocol-required asset headers and matched manifest SHA-256 hashes. The launch bundle exactly matches the locally verified export; identity and native runtime match build 5. Private asset authorization, environment values and signed URLs remain outside this record. EAS reported usage within included limits and zero overage cost. No backend deployment, migration, native build, paid AI or real-data reset occurred. Phone launch, full accessibility coverage, real coaching output and Sunday dispatch remain owner acceptance.

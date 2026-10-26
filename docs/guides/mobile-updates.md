@@ -2,7 +2,7 @@
 
 FitQuest's `preview` EAS profile targets the existing project's `preview` update channel. Finished build 5 adds Expo Updates; builds 3 and 4 cannot receive OTA updates. Install build 5 once using [phone instructions](phone-preview.md). Its initial baseline update is published and eligible for the verified native runtime. Older installed builds continue using their embedded bundle. [Delivery verification](../archive/verification/2026-10-11/mobile-updates/README.md).
 
-The current [October 26 workout-logging OTA](../archive/releases/2026-10-26.md) is published from `2b4f83b` on `preview`, group `8ce7d0f2-07b1-4274-97a6-7f5e05510c81`. It matches build 5's existing runtime; served manifest/assets passed verification. No new native build was made. Phone launch remains acceptance.
+The current [October 26 workout-logging UI correction OTA](../archive/releases/2026-10-26.md#subsequent-workout-ui-correction) is published from `8412c86` on `preview`, group `a28ef5f7-afac-40c3-bddf-69b212f4380f`. It matches build 5's existing runtime; served manifest/assets passed verification. No new native build was made. Phone launch remains acceptance.
 
 ## What can be updated
 
