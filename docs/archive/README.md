@@ -4,6 +4,8 @@ Everything here is dated evidence, not current setup instructions, an active wor
 
 ## Releases and audits
 
+- [October 26 workout logging](releases/2026-10-26.md): durable autosave, set confirmation, exercise information/notes and Finish; Live API and matching build-5 preview OTA, with no migration or reset.
+
 - [October 11 delivery](releases/2026-10-11.md): saved-workout completion indicators, matching Live backend `4895564`, then update-enabled preview build 5 and verified baseline OTA, with no migration or data reset.
 - [October 10 releases](releases/2026-10-10.md): initial security/UX rollout, birthday backend `1859ef8`, mobile corrections, main integration and finished standalone preview build 3. Each section retains its own source/CI and delivery scope; account policy remains disabled.
 - [October 3–9 release record](releases/2026-10-09.md): accumulated earlier application releases, runtime verification and evidence boundaries. Its final production checkpoint was `2e779e5`.
@@ -38,3 +40,8 @@ Everything here is dated evidence, not current setup instructions, an active wor
 These captures use synthetic fixtures. Their checks and limitations apply to the recorded checkpoint and were not rerun merely because files were moved. Some local temporary evidence paths in old records may no longer exist. Duplicate records and superseded design/instruction documents are available in Git at `a297e2d`; they are intentionally absent from the working tree.
 
 - [Compatible mobile updates, October 11](verification/2026-10-11/mobile-updates/README.md): native configuration, matching runtime/manifest/assets, cancellation of the accidental duplicate and delivery boundaries.
+
+
+## Verification — October 26, 2026
+
+- [Workout logging](verification/2026-10-26/workout-logging/README.md): synthetic native normal/large-text checks, exact-source CI, Live API and compatible served-OTA integrity; physical-phone acceptance pending.

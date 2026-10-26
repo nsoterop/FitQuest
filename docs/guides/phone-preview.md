@@ -2,6 +2,8 @@
 
 [Install FitQuest preview build 5](https://expo.dev/accounts/nsoterop/projects/fitquest/builds/5c579f01-e433-4c2a-bb83-bac14b7104d9) on the already-registered iPhone. This finished internal/ad-hoc iOS **Release** build, version 0.1.0/build 5, bundles source `1a3b2548432008fcaf4f838fec0392b906347f6a`. It includes the transparent header, Lucide controls, Nutrition caching fix and green saved-workout **Completed** indicators and connects to the existing hosted API/Auth services. It needs no Mac, Metro or shared Wi-Fi; hosted sign-in, saved records and synchronization still need internet.
 
+The [October 26 workout-logging OTA](../archive/releases/2026-10-26.md) updates compatible build 5 to source `2b4f83b`, including autosave, individual confirmed sets, exercise information/notes and Finish indicators. Once build 5 is installed, finish current work, cold-launch online to download, then close/reopen again to apply it. **No reinstall is needed for this update.** Published compatibility is verified; actual launch on your phone remains acceptance.
+
 ## Install and test
 
 Install **over the existing FitQuest app**, without uninstalling it. Open its home-screen icon normally; sign into the same account if needed. The owner reports having deleted/reinstalled the prior build 3 preview and seeing prior data without another sign-in. That observation is recorded as reported use, not a recommendation to uninstall or proof of every saved record and startup condition.

@@ -2,6 +2,8 @@
 
 FitQuest's `preview` EAS profile targets the existing project's `preview` update channel. Finished build 5 adds Expo Updates; builds 3 and 4 cannot receive OTA updates. Install build 5 once using [phone instructions](phone-preview.md). Its initial baseline update is published and eligible for the verified native runtime. Older installed builds continue using their embedded bundle. [Delivery verification](../archive/verification/2026-10-11/mobile-updates/README.md).
 
+The current [October 26 workout-logging OTA](../archive/releases/2026-10-26.md) is published from `2b4f83b` on `preview`, group `8ce7d0f2-07b1-4274-97a6-7f5e05510c81`. It matches build 5's existing runtime; served manifest/assets passed verification. No new native build was made. Phone launch remains acceptance.
+
 ## What can be updated
 
 JavaScript, screen styling and bundled assets can be published to an installed build with a matching native runtime. Backend changes use the existing backend release process. New native packages, permissions, entitlements, Expo/React Native upgrades or another native runtime change require a compatible replacement build. The fingerprint policy computes compatibility from native inputs; do not override it just to force an update onto an incompatible app. [Expo runtime versions](https://docs.expo.dev/eas-update/runtime-versions/).

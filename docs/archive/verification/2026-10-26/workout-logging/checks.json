@@ -1,0 +1,25 @@
+{
+  "source": "2b4f83becbb062d27a6df4a969353e3b9bcdc388",
+  "ciRun": 40361888762,
+  "tests": {
+    "backendWithPostgres": 350,
+    "installer": 5,
+    "mobile": 184,
+    "repository": 7
+  },
+  "runtime": "3500763d3c624db350764adaff2dac94a933129f",
+  "ota": {
+    "manifestId": "01a1791e-5c54-772b-b91b-ebc082f63d0f",
+    "runtime": "3500763d3c624db350764adaff2dac94a933129f",
+    "verifiedFiles": 76,
+    "totalBytes": 2157750,
+    "bundleSHA256": "9d94df4f38c67b14f51a76ce5263d9add339a34b7e0e6b43c9b773ed21582753",
+    "identityMatches": true
+  },
+  "backendDeployment": "dep-dbfo8el9fdbs739u0b50",
+  "hostedMigrationsApplied": [],
+  "realUserWritesPerformed": false,
+  "paidAiCalls": 0,
+  "temporaryServersStarted": 0,
+  "phoneAcceptance": "pending"
+}

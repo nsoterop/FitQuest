@@ -6,6 +6,8 @@ React Native 0.86 / React 19 / Expo SDK 57, with TypeScript and an iOS-first int
 
 Use [standalone iPhone preview build 5](../docs/guides/phone-preview.md), source `1a3b254`. It includes the delivered training/branding/Nutrition corrections and Expo Updates. It runs without Mac/Metro; hosted features need internet. Install once over the existing app without uninstalling it. The `preview` channel delivers matching JavaScript/assets after a deliberate [OTA publication](../docs/guides/mobile-updates.md); native changes need a replacement build. Git pushes and Metro reloads do not themselves update this installed preview.
 
+The [October 26 logging OTA](../docs/archive/releases/2026-10-26.md), source `2b4f83b`, is published to the same preview channel/runtime and verified against its served manifest/assets. On build 5, finish current work and cold-launch online, then close/reopen again to apply it. This adds autosave, per-set confirmation, exercise information/notes and Finish; no reinstall is needed. Physical-phone launch remains acceptance.
+
 The owner reports installing the earlier build 3 preview and seeing prior saved data without another sign-in. This is consistent with an existing same-device Keychain session. Full Mac-off cold launch, saved-data/layout acceptance, VoiceOver and Sunday dispatch remain separate checks. See [delivery evidence](../docs/archive/releases/2026-10-11.md#update-enabled-preview-and-authentication-plan).
 
 ## Development setup and checks

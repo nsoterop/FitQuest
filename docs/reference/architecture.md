@@ -1,6 +1,8 @@
 # Architecture and operational limits
 
-This describes the implemented application at the October 11 update-enabled-preview checkpoint. The [project README](../../README.md) is the current-state entry point; [release procedure](../guides/release.md) governs delivery when assigned. Feature work is frozen for personal testing. Retained [product goals](product-goals.md) are aspirations, not implemented features or a work queue.
+This describes the implemented application through the October 26 workout-logging delivery. The [project README](../../README.md) is the current-state entry point; [release procedure](../guides/release.md) governs delivery when assigned. Feature work is frozen for personal testing. Retained [product goals](product-goals.md) are aspirations, not implemented features or a work queue.
+
+The [October 26 release](../archive/releases/2026-10-26.md) keeps the same architecture and hosting. Optional versioned logging hints and journal v2 use existing JSON columns, with legacy transport projection and old-writer protection. Local raw edits/pending stable operations are encrypted; serialized idle autosave retains newer edits through replay and conflict. Per-set confirmation distinguishes suggested/draft data from actuals; finished sessions do not imply all prescribed work. No migration, native dependency or new service was introduced.
 
 ## Boundaries
 

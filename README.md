@@ -2,15 +2,13 @@
 
 FitQuest is an iOS-focused training and nutrition app for adults. It turns five written intake answers into a weekly plan, keeps prescribed work separate from actual workout results, and brings food, weight and training history together for the next week.
 
-`main` includes the completed organization, security, UX, birthday, branding, Nutrition caching, saved-workout completion and new-week exercise-variety guidance. The existing API is Live at `0891730`; [standalone iPhone preview build 5](docs/guides/phone-preview.md) embeds source `1a3b254` with compatible EAS Update delivery for personal testing without Mac/Metro. Install over the existing app without uninstalling it. Reviewed forward migrations remain applied, and account-limit policy remains disabled. Both PRs remain closed, with branches/history preserved. See [release procedure](docs/guides/release.md), [October 11 preview evidence](docs/archive/releases/2026-10-11.md) and [October 12 generator delivery](docs/archive/releases/2026-10-12.md). The owner reported restored data with the earlier preview; build 5 phone acceptance remains pending. Other feature work remains frozen for personal testing.
-
-The owner-approved October 26 [workout-logging implementation](docs/reference/workout-logging-implementation.md) is in progress locally. It adds durable autosave, per-set confirmation, exercise information/notes and one-action Finish; deployment and preview OTA verification are pending. Saved user records remain intact.
+The [October 26 workout-logging release](docs/archive/releases/2026-10-26.md) is published from `2b4f83b` with passing CI, Live in the existing API and available as a compatible preview OTA for [installed build 5](docs/guides/phone-preview.md). It adds durable autosave, per-set confirmation, exercise information/notes and one-action Finish. Saved user data and plans remain intact; no migration or new native build was needed. Physical-phone OTA launch remains owner acceptance. Other feature work is frozen, and account-limit policy remains disabled.
 
 ## What it does
 
 Build 5 enables deliberate [compatible OTA updates](docs/guides/mobile-updates.md). [Seven-day expiry and optional Face ID/passkey sign-in](docs/reference/session-expiry-and-face-id.md) are planned; authentication behavior is unchanged.
 
-The October 11 [saved-workout completion indicator](docs/archive/verification/2026-10-11/workout-completion/README.md) is delivered in build 4 for Week, Today and workout details. A green **Completed** badge reflects a finished saved workout log; reopening its only completed occurrence removes the badge after refresh.
+Week, Today and workout details show **Finished** for an acknowledged finished/completed saved occurrence at the exact account/plan/revision/session. Finishing does not fill blank or unconfirmed sets; reopening/correction remains available.
 
 - **Plan and review:** five progressive intake questions, a complete Monday–Sunday plan with multiple sessions, rest and optional work, explicit revisions, and an overview before acceptance. Accepting or reopening a saved plan makes no AI call.
 - **Train and record:** Today and Week views, readable workout instructions, actual sets/reps/weight or completion, notes, corrections and workout history. Logging does not imply that every prescription was completed.
