@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import test, { beforeEach } from 'node:test';
 beforeEach((t) => t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-04T12:00:00Z') }));
 import { registerHooks } from 'node:module';
@@ -5996,7 +5997,6 @@ test('workout action distinguishes empty, actual input, finished and local parti
   assert(input(screen, 'Start workout'));
   t.after(async () => act(async () => screen.unmount()));
 });
-const { randomUUID } = await import('node:crypto');
 function journalFixture() {
   const names = ['Dumbbell squat', 'Push-up', 'Easy walk'],
     modes = ['weighted_reps', 'reps', 'completion'];
@@ -6112,65 +6112,58 @@ async function journalEdit(screen, label, value) {
     await flush();
   });
 }
-test('journal has three exact layouts, blank actuals, variable groups, retained mode edits, notes relaunch and explicit partial save', async (t) => {
+test('journal uses individual suggested set rows with explicit confirmation, retained edits and removal Undo', async (t) => {
   globalThis.__fitquestSecure.clear();
   const j = journalFixture(),
     server = journalServer(j);
   let screen = await mountJournal(j);
-  assert.equal(input(screen, 'Dumbbell squat · group 1 · Weight (lb)').props.value, '');
-  assert(!text(screen).includes('Push-up · group 1 · Weight'));
-  assert(!text(screen).includes('Easy walk · group 1'));
-  assert(text(screen).includes('Walk for 20 minutes.'));
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '40');
+  assert.equal(input(screen, 'Dumbbell squat · set 3 · Reps').props.value, '8');
+  assert(!text(screen).includes('Push-up · set 1 · Weight'));
+  assert.equal(server.commands.length, 0);
   for (const [field, value] of [
     ['Weight (lb)', '0'],
-    ['Sets', '2'],
     ['Reps', '8'],
   ])
-    await journalEdit(screen, 'Dumbbell squat · group 1 · ' + field, value);
-  await act(async () => press(screen, 'Add set group for Dumbbell squat'));
+    await journalEdit(screen, 'Dumbbell squat · set 1 · ' + field, value);
+  await act(async () => press(screen, 'Confirm set 1 for Dumbbell squat'));
+  await act(async () => press(screen, 'Add set for Dumbbell squat'));
   for (const [field, value] of [
     ['Weight (lb)', '35'],
-    ['Sets', '1'],
     ['Reps', '6'],
   ])
-    await journalEdit(screen, 'Dumbbell squat · group 2 · ' + field, value);
+    await journalEdit(screen, 'Dumbbell squat · set 4 · ' + field, value);
+  await act(async () => press(screen, 'Confirm set 4 for Dumbbell squat'));
   await act(async () => press(screen, 'Options for Dumbbell squat'));
   await act(async () => press(screen, 'Dumbbell squat: Completion only'));
   assert(input(screen, 'Completed Dumbbell squat'));
   await act(async () => press(screen, 'Options for Dumbbell squat'));
-  await act(async () => press(screen, 'Dumbbell squat: Weight, sets and reps'));
-  assert.equal(input(screen, 'Dumbbell squat · group 2 · Reps').props.value, '6');
-  await act(async () => press(screen, 'Remove Dumbbell squat group 2'));
-  await act(async () => press(screen, 'Undo removal of Dumbbell squat group 2'));
-  assert.equal(input(screen, 'Dumbbell squat · group 2 · Reps').props.value, '6');
+  await act(async () => press(screen, 'Dumbbell squat: Weight and reps'));
+  await act(async () => press(screen, 'Subtract set for Dumbbell squat'));
+  await act(async () => press(screen, 'Undo removal of Dumbbell squat set 1'));
+  assert.equal(input(screen, 'Dumbbell squat · set 4 · Reps').props.value, '6');
   await journalEdit(
     screen,
     'Notes for your coach · Optional',
-    'Changed the final set. Private notes.',
+    'Changed final set. Synthetic note.',
   );
   await act(async () => screen.unmount());
   screen = await mountJournal(j);
   t.after(async () => act(async () => screen.unmount()));
-  assert.equal(
-    input(screen, 'Notes for your coach · Optional').props.value,
-    'Changed the final set. Private notes.',
-  );
-  assert.equal(input(screen, 'Dumbbell squat · group 1 · Weight (lb)').props.value, '0');
-  assert.equal(server.commands.length, 0);
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '0');
   await act(async () => press(screen, 'Finish session'));
   await act(async () => {
     press(screen, 'Record partial');
     await flush();
     await flush();
   });
-  assert.equal(server.commands.length, 1);
   assert.equal(server.current.document.outcome, 'partial');
   assert.equal(server.current.document.results[0].groups[0].weight, 0);
-  assert.equal(server.current.document.results[0].groups[1].reps, 6);
+  assert.equal(server.current.document.results[0].groups[3].reps, 6);
+  assert.equal(server.current.document.results[0].groups[1].confirmed, false);
+  assert.equal(server.current.document.results[0].groups[1].weight, null);
   assert.equal(server.current.document.results[1].groups[0].reps, null);
   assert.equal(server.current.document.results[2].completed, null);
-  assert(input(screen, 'Edit log'));
-  assert.match(renderedTrainingText(screen), /2 unlogged/);
 });
 test('journal lost responses retain the same pending operation; conflicts require explicit reapply without losing corrections', async (t) => {
   globalThis.__fitquestSecure.clear();
@@ -6218,8 +6211,8 @@ test('journal rapid raw edits restore by semantic source after navigation, inclu
     server = journalServer(j);
   let screen = await mountJournal(j);
   await act(async () => {
-    input(screen, 'Dumbbell squat · group 1 · Weight (lb)').props.onChangeText('12.');
-    input(screen, 'Dumbbell squat · group 1 · Reps').props.onChangeText('8');
+    input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.onChangeText('12.');
+    input(screen, 'Dumbbell squat · set 1 · Reps').props.onChangeText('8');
     input(screen, 'Notes for your coach · Optional').props.onChangeText('Immediately leaving');
     screen.unmount();
     await flush();
@@ -6230,8 +6223,8 @@ test('journal rapid raw edits restore by semantic source after navigation, inclu
     source: { date: s.date, sessionIndex: s.sessionIndex, revision: s.revision, planId: s.planId },
   });
   t.after(async () => act(async () => screen.unmount()));
-  assert.equal(input(screen, 'Dumbbell squat · group 1 · Weight (lb)').props.value, '12.');
-  assert.equal(input(screen, 'Dumbbell squat · group 1 · Reps').props.value, '8');
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '12.');
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Reps').props.value, '8');
   assert.equal(input(screen, 'Notes for your coach · Optional').props.value, 'Immediately leaving');
   await act(async () => {
     await new Promise((r) => setTimeout(r, 1100));

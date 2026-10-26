@@ -84,7 +84,7 @@ test('document request uses exact concise context and small display schema, no c
   assert.equal(r.model, 'gpt-6.1-sol');
   assert.equal(p.reserveMicro, 19);
   assert.deepEqual(Object.keys(documentSchema.properties), ['nutrition', 'days']);
-  assert(Buffer.byteLength(JSON.stringify(documentSchema)) < 3200);
+  assert(Buffer.byteLength(JSON.stringify(documentSchema)) < 5200);
   assert(!/catalog|FQ-ACT|activityId|recoveryRest|loadInstruction|targetKind|blocks/.test(p.body));
   assert.equal(r.max_output_tokens, 48000);
   const revised = JSON.parse(
@@ -100,7 +100,12 @@ test('document request uses exact concise context and small display schema, no c
 });
 test('document validates only display structure, dates and bounds; arbitrary activity prose survives unchanged', () => {
   const p = documentFixture(dates);
-  assert(new Ajv({ strict: true }).compile(documentSchema)(p));
+  const wire = structuredClone(p);
+  for (const day of wire.days)
+    for (const session of day.sessions)
+      for (const row of session.exercises)
+        row.logging = { version: 1, setCount: null, reps: null, load: null, description: null };
+  assert(new Ajv({ strict: true }).compile(documentSchema)(wire));
   assert.deepEqual(checkDocument(p, input), p);
   const overview = documentOverview(p);
   assert(validDocumentOverview(overview, dates, 'document-week-v4'));
@@ -332,9 +337,15 @@ test('formatting is the only prompt change; coaching prefix and legacy work rema
     'exercise',
     'prescription',
     'loggingMode',
+    'logging',
   ]);
   assert.equal(rowSchema.items.additionalProperties, false);
-  assert.deepEqual(rowSchema.items.required, ['exercise', 'prescription', 'loggingMode']);
+  assert.deepEqual(rowSchema.items.required, [
+    'exercise',
+    'prescription',
+    'loggingMode',
+    'logging',
+  ]);
   const rows = documentFixture(dates).days[0]!.sessions[0]!.exercises;
   assert(rows.some((r) => r.prescription.includes('20 lb per hand')));
   assert(rows.some((r) => r.prescription.includes('200 m')));
@@ -408,6 +419,10 @@ test('nutrition checks integrity without diet rules or clamping; unavailable and
 test('versioned outcomes are bounded, explicit, and never masquerade as a saved document', () => {
   const validate = new Ajv({ strict: true }).compile(documentResultSchema);
   const plan = documentFixture(dates);
+  for (const day of plan.days)
+    for (const session of day.sessions)
+      for (const row of session.exercises)
+        row.logging = { version: 1, setCount: null, reps: null, load: null, description: null };
   const ok = { version: 1, result: { kind: 'plan', plan } };
   assert(validate(ok));
   assert.deepEqual(checkDocumentResult(ok, input), plan);

@@ -23,6 +23,8 @@ export const journalMessage = (code: string) =>
       operation_conflict:
         'This saved request conflicts with an earlier operation. Your draft is kept.',
       session_ended: 'Your session ended. Sign in again to resume this account’s journal.',
+      journal_client_update_required:
+        'This workout uses newer logging features. Open the latest app update; your saved data is kept.',
     }) as Record<string, string>
   )[code] ??
   'The save could not be confirmed. Your draft is kept. Retry the same request to check saved status.';
@@ -48,6 +50,7 @@ export async function journalRequest<
       method: command ? 'POST' : 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
+        'X-FitQuest-Logging': '2',
         ...(command ? { 'Content-Type': 'application/json' } : {}),
       },
       body: command ? JSON.stringify(command) : undefined,

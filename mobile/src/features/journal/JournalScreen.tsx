@@ -1,16 +1,7 @@
 import { Icon } from '../../components/Icon';
 import { useEffect, useRef, useState } from 'react';
-import {
-  AppState,
-  Keyboard,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { AppState, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Action, Notice, Page, colors, ui } from '../../components/Design';
-import { useConversationScroll } from '../../components/ConversationScrollView';
 import { WorkoutMarkdown } from '../training/WorkoutMarkdown';
 import { operationId } from '../onboarding/onboardingApi';
 import {
@@ -30,6 +21,8 @@ import {
 import { privateJournalDrafts } from './journalStorage';
 import type { JournalDraft } from './journalDraft';
 import { journalRequest, JournalError } from './journalApi';
+import { JournalExercise } from './JournalExercise';
+import { editableJournal, loggingFor, emptySet } from './journalSets';
 import { acknowledgeJournal, editedDocument, journalSourceKey } from './journalEdits';
 type Access = {
   userId: string;
@@ -37,92 +30,12 @@ type Access = {
   onSessionEnded?: () => void;
   onBack: () => void;
 };
-export function JournalField({
-  label,
-  visibleLabel,
-  value,
-  onChange,
-  numeric = false,
-  integer = false,
-  multiline = false,
-  disabled = false,
-}: {
-  label: string;
-  visibleLabel?: string;
-  value: string;
-  onChange: (v: string) => void;
-  numeric?: boolean;
-  integer?: boolean;
-  multiline?: boolean;
-  disabled?: boolean;
-}) {
-  const view = useRef<View | null>(null),
-    focused = useRef(false),
-    scroll = useConversationScroll();
-  const [showDone, setShowDone] = useState(false);
-  const reveal = () => scroll.reveal({ composer: view, question: view });
-  return (
-    <View
-      ref={view}
-      collapsable={false}
-      onLayout={() => {
-        if (focused.current) reveal();
-      }}
-      style={{ gap: 5, flexGrow: 1, minWidth: 80 }}
-    >
-      <Text style={ui.label}>{visibleLabel ?? label}</Text>
-      <TextInput
-        accessibilityLabel={label}
-        value={value}
-        onChangeText={onChange}
-        editable={!disabled}
-        keyboardType={numeric ? (integer ? 'number-pad' : 'decimal-pad') : 'default'}
-        multiline={multiline}
-        maxLength={multiline ? 4000 : 160}
-        style={[
-          ui.input,
-          multiline && { minHeight: 100, maxHeight: 145, textAlignVertical: 'top' },
-        ]}
-        onFocus={() => {
-          focused.current = true;
-          setShowDone(true);
-          scroll.reveal({ composer: view, question: view }, true);
-        }}
-        onBlur={() => {
-          focused.current = false;
-          setShowDone(false);
-        }}
-        onContentSizeChange={() => {
-          if (focused.current) reveal();
-        }}
-      />
-      {showDone && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Done editing"
-          onPress={() => {
-            Keyboard.dismiss();
-            setShowDone(false);
-          }}
-          style={{ minHeight: 44, justifyContent: 'center' }}
-        >
-          <Text style={{ color: colors.action }}>Done</Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-const newGroup = (): SetGroup => ({
-  id: operationId(),
-  weight: null,
-  sets: null,
-  reps: null,
-  unit: 'lb',
-  removed: false,
-});
+import { JournalField } from './JournalField';
+export { JournalField } from './JournalField';
+const newGroup = (): SetGroup => emptySet(operationId);
 const modeLabel = {
-  weighted_reps: 'Weight, sets and reps',
-  reps: 'Sets and reps',
+  weighted_reps: 'Weight and reps',
+  reps: 'Reps only',
   completion: 'Completion only',
 };
 export function JournalScreen(
@@ -202,7 +115,15 @@ function JournalEditor({
   }
   function fieldChange(key: string, value: string) {
     const d = current.current;
-    if (d) change({ ...d, fields: { ...d.fields, [key]: value } });
+    if (d) {
+      const document = d.document ? structuredClone(d.document) : null;
+      const [resultId, groupId] = key.split(':');
+      const group = document?.results
+        .find((r) => r.id === resultId)
+        ?.groups.find((g) => g.id === groupId);
+      if (group && document?.version === 2) group.confirmed = false;
+      change({ ...d, document, fields: { ...d.fields, [key]: value } });
+    }
   }
   useEffect(() => {
     live.current = true;
@@ -312,7 +233,7 @@ function JournalEditor({
         key: old?.key ?? id,
         journal: j,
         source: j.snapshot.source,
-        document: structuredClone(j.document),
+        document: editableJournal(j, operationId),
         pending: null,
         fields: {},
         dirty: false,
@@ -345,6 +266,7 @@ function JournalEditor({
       const j = await request<Journal>('/' + receipt.journalId);
       if (!live.current) return;
       const next = acknowledgeJournal(d, current.current ?? d, j);
+      if (!next.dirty) next.document = editableJournal(j, operationId);
       paint(next);
       await persist(next);
       if (live.current) {
@@ -598,108 +520,15 @@ function JournalEditor({
                       onPress={() => rowChange(r.id, (row) => (row.removed = false))}
                     />
                   </>
-                ) : r.mode === 'completion' ? (
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityLabel={`Completed ${r.name}`}
-                    accessibilityState={{ checked: r.completed === true, disabled: blocked }}
-                    disabled={blocked}
-                    onPress={() =>
-                      rowChange(
-                        r.id,
-                        (row) => (row.completed = row.completed === true ? false : true),
-                      )
-                    }
-                    style={[ui.row, { minHeight: 48, justifyContent: 'flex-start' }]}
-                  >
-                    <Icon
-                      name={r.completed === true ? 'square-check' : 'square'}
-                      color={r.completed === true ? colors.action : colors.muted}
-                    />
-                    <Text style={ui.copy}>
-                      Completed{r.completed === null ? ' · Not logged' : ''}
-                    </Text>
-                  </Pressable>
                 ) : (
-                  <>
-                    {r.groups.map((g, gi) =>
-                      g.removed ? (
-                        <Action
-                          key={g.id}
-                          label={`Undo removal of ${r.name} group ${gi + 1}`}
-                          secondary
-                          disabled={blocked}
-                          onPress={() =>
-                            rowChange(r.id, (row) => (row.groups[gi]!.removed = false))
-                          }
-                        />
-                      ) : (
-                        <View key={g.id} style={{ gap: 8 }}>
-                          {r.groups.length > 1 && <Text style={ui.label}>Set group {gi + 1}</Text>}
-                          <View style={stacked ? { gap: 12 } : ui.row}>
-                            {(r.mode === 'weighted_reps'
-                              ? (['weight', 'sets', 'reps'] as const)
-                              : (['sets', 'reps'] as const)
-                            ).map((f) => {
-                              const key = `${r.id}:${g.id}:${f}`;
-                              return (
-                                <JournalField
-                                  key={f}
-                                  label={`${r.name} · group ${gi + 1} · ${f === 'weight' ? `Weight (${g.unit})` : f === 'sets' ? 'Sets' : 'Reps'}`}
-                                  visibleLabel={
-                                    f === 'weight'
-                                      ? `Weight (${g.unit})`
-                                      : f === 'sets'
-                                        ? 'Sets'
-                                        : 'Reps'
-                                  }
-                                  numeric
-                                  integer={f !== 'weight'}
-                                  value={draft.fields[key] ?? (g[f] === null ? '' : String(g[f]))}
-                                  disabled={blocked}
-                                  onChange={(v) => fieldChange(key, v)}
-                                />
-                              );
-                            })}
-                          </View>
-                          {r.mode === 'weighted_reps' && (
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={`Change weight unit for ${r.name} group ${gi + 1}`}
-                              disabled={blocked}
-                              onPress={() =>
-                                rowChange(
-                                  r.id,
-                                  (row) => (row.groups[gi]!.unit = g.unit === 'lb' ? 'kg' : 'lb'),
-                                )
-                              }
-                              style={{ minHeight: 44, justifyContent: 'center' }}
-                            >
-                              <Text style={{ color: colors.action }}>
-                                Unit: {g.unit} · change (values are not converted)
-                              </Text>
-                            </Pressable>
-                          )}
-                          {r.groups.length > 1 && (
-                            <Action
-                              label={`Remove ${r.name} group ${gi + 1}`}
-                              secondary
-                              disabled={blocked}
-                              onPress={() =>
-                                rowChange(r.id, (row) => (row.groups[gi]!.removed = true))
-                              }
-                            />
-                          )}
-                        </View>
-                      ),
-                    )}
-                    <Action
-                      label={`Add set group for ${r.name}`}
-                      secondary
-                      disabled={blocked || r.groups.length >= 24}
-                      onPress={() => rowChange(r.id, (row) => row.groups.push(newGroup()))}
-                    />
-                  </>
+                  <JournalExercise
+                    result={r}
+                    hint={loggingFor(draft.journal!, r.id)}
+                    fields={draft.fields}
+                    disabled={blocked}
+                    onField={fieldChange}
+                    onChange={(fn) => rowChange(r.id, fn)}
+                  />
                 )}
               </View>
             );
@@ -728,6 +557,7 @@ function JournalEditor({
                         groups: [newGroup()],
                         completed: null,
                         removed: false,
+                        notes: '',
                       },
                     ],
                   });

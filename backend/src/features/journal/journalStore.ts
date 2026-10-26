@@ -287,6 +287,7 @@ export function journalStore(pool: Pool) {
                   name: e.exercise,
                   prescription: e.prescription,
                   mode: e.loggingMode ?? 'completion',
+                  ...(e.logging ? { logging: e.logging } : {}),
                 })),
               };
             }
@@ -323,6 +324,8 @@ export function journalStore(pool: Pool) {
           ).rows[0];
           if (!r) fail('journal_missing', 404);
           if (r.revision !== cmd.expectedRevision) fail('journal_changed');
+          if (r.document.version === 2 && cmd.document.version !== 2)
+            fail('journal_client_update_required');
           if (cmd.document.performedDate > journalToday(cmd.document.timeZone))
             fail('future_journal', 422);
           // Every original/result identity remains present; removals are recoverable flags.

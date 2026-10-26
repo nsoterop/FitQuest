@@ -738,7 +738,11 @@ export async function trainingRequest(
     const response = await fetch(url.toString(), {
       method,
       signal,
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-FitQuest-Logging': '2',
+      },
       ...(method === 'GET' ? {} : { body: JSON.stringify(body) }),
     });
     if (signal.aborted) throw Error();

@@ -1,4 +1,5 @@
 import { foodDate, foodId, foodToday } from './foodContract.ts';
+import type { ExerciseLogging } from './exerciseLogging.ts';
 export const loggingModes = ['weighted_reps', 'reps', 'completion'] as const;
 export type LoggingMode = (typeof loggingModes)[number];
 export type JournalSource = {
@@ -14,6 +15,7 @@ export type SetGroup = {
   reps: number | null;
   unit: 'lb' | 'kg';
   removed: boolean;
+  confirmed?: boolean;
 };
 export type JournalResult = {
   id: string;
@@ -22,13 +24,14 @@ export type JournalResult = {
   groups: SetGroup[];
   completed: boolean | null;
   removed: boolean;
+  notes?: string;
 };
 export type JournalDocument = {
-  version: 1;
+  version: 1 | 2;
   title: string;
   performedDate: string;
   timeZone: string;
-  outcome: 'in_progress' | 'completed' | 'partial' | 'skipped';
+  outcome: 'in_progress' | 'completed' | 'partial' | 'skipped' | 'finished';
   results: JournalResult[];
   notes: string;
 };
@@ -45,6 +48,7 @@ export type JournalSnapshot = {
     name: string;
     prescription: string;
     mode: LoggingMode;
+    logging?: ExerciseLogging;
   }[];
   workoutMarkdown: string | null;
 };
@@ -191,11 +195,17 @@ export function validJournalDocument(v: unknown): v is JournalDocument {
       'results',
       'notes',
     ]) ||
-    d.version !== 1 ||
+    ![1, 2].includes(d.version) ||
     !text(d.title, 160) ||
     !foodDate(d.performedDate) ||
     !journalZone(d.timeZone) ||
-    !['in_progress', 'completed', 'partial', 'skipped'].includes(d.outcome) ||
+    ![
+      'in_progress',
+      'completed',
+      'partial',
+      'skipped',
+      ...(d.version === 2 ? ['finished'] : []),
+    ].includes(d.outcome) ||
     !text(d.notes, 4000, true) ||
     !Array.isArray(d.results) ||
     d.results.length > 96
@@ -205,7 +215,16 @@ export function validJournalDocument(v: unknown): v is JournalDocument {
     new Set(d.results.map((r) => r?.id)).size === d.results.length &&
     d.results.every(
       (r) =>
-        journalKeys(r, ['id', 'name', 'mode', 'groups', 'completed', 'removed']) &&
+        journalKeys(r, [
+          'id',
+          'name',
+          'mode',
+          'groups',
+          'completed',
+          'removed',
+          ...(d.version === 2 ? ['notes'] : []),
+        ]) &&
+        (d.version === 1 || text(r.notes, 2000, true)) &&
         foodId(r.id) &&
         text(r.name, 160) &&
         loggingModes.includes(r.mode) &&
@@ -217,7 +236,16 @@ export function validJournalDocument(v: unknown): v is JournalDocument {
         new Set(r.groups.map((g) => g?.id)).size === r.groups.length &&
         r.groups.every(
           (g) =>
-            journalKeys(g, ['id', 'weight', 'sets', 'reps', 'unit', 'removed']) &&
+            journalKeys(g, [
+              'id',
+              'weight',
+              'sets',
+              'reps',
+              'unit',
+              'removed',
+              ...(d.version === 2 ? ['confirmed'] : []),
+            ]) &&
+            (d.version === 1 || typeof g.confirmed === 'boolean') &&
             foodId(g.id) &&
             numeric(g.weight) &&
             (g.sets === null || integer(g.sets)) &&
@@ -288,5 +316,6 @@ export const resultLogged = (r: JournalResult) =>
     : r.groups.some(
         (g) =>
           !g.removed &&
+          g.confirmed !== false &&
           (g.sets !== null || g.reps !== null || (r.mode === 'weighted_reps' && g.weight !== null)),
       ));

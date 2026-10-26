@@ -1,4 +1,5 @@
 import { loggingModes, type LoggingMode } from './journalContract.ts';
+import { validExerciseLogging, type ExerciseLogging } from './exerciseLogging.ts';
 // Versioned display contracts. Legacy prose is never parsed into exercise records.
 export const legacyDocumentPlanVersion = 'document-week-v1' as const;
 export const rowDocumentPlanVersion = 'document-week-v2' as const;
@@ -24,7 +25,12 @@ export type DocumentSession = {
 };
 export type DocumentPlan = { days: { date: string; sessions: DocumentSession[] }[] };
 export type SessionOverview = Omit<DocumentSession, 'workoutMarkdown'>;
-export type ExerciseRow = { exercise: string; prescription: string; loggingMode?: LoggingMode };
+export type ExerciseRow = {
+  exercise: string;
+  prescription: string;
+  loggingMode?: LoggingMode;
+  logging?: ExerciseLogging;
+};
 export type RowDocumentPlan = {
   days: { date: string; sessions: (SessionOverview & { exercises: ExerciseRow[] })[] }[];
 };
@@ -206,14 +212,24 @@ export function validSavedDocument(
               keys(
                 r,
                 version === documentPlanVersion
-                  ? ['exercise', 'prescription', 'loggingMode']
+                  ? [
+                      'exercise',
+                      'prescription',
+                      'loggingMode',
+                      ...(r.logging === undefined ? [] : ['logging']),
+                    ]
                   : ['exercise', 'prescription'],
               ) &&
               (version !== documentPlanVersion || loggingModes.includes(r.loggingMode!)) &&
+              (r.logging === undefined || validExerciseLogging(r.logging)) &&
               text(r.exercise, 160) &&
               text(r.prescription, 1800),
           ) &&
-          exercises.reduce((n, r) => n + r.exercise.length + r.prescription.length, 0) <= 12000
+          exercises.reduce(
+            (n, r) =>
+              n + r.exercise.length + r.prescription.length + (r.logging?.description?.length ?? 0),
+            0,
+          ) <= 12000
         );
       }),
   );

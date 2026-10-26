@@ -64,6 +64,43 @@ export const documentSchema = object({
               exercise: text(160),
               prescription: text(1800),
               loggingMode: { type: 'string', enum: ['weighted_reps', 'reps', 'completion'] },
+              logging: object({
+                version: { type: 'integer', const: 1 },
+                setCount: {
+                  anyOf: [{ type: 'integer', minimum: 1, maximum: 24 }, { type: 'null' }],
+                },
+                reps: {
+                  anyOf: [
+                    object({
+                      min: { type: 'integer', minimum: 0, maximum: 1000000 },
+                      max: { type: 'integer', minimum: 0, maximum: 1000000 },
+                    }),
+                    { type: 'null' },
+                  ],
+                },
+                load: {
+                  anyOf: [
+                    object({
+                      min: { type: 'number', minimum: 0, maximum: 1000000 },
+                      max: { type: 'number', minimum: 0, maximum: 1000000 },
+                      unit: { type: 'string', enum: ['lb', 'kg'] },
+                      basis: {
+                        type: 'string',
+                        enum: [
+                          'per_dumbbell',
+                          'per_hand',
+                          'barbell_total',
+                          'machine_stack',
+                          'assistance',
+                          'unspecified',
+                        ],
+                      },
+                    }),
+                    { type: 'null' },
+                  ],
+                },
+                description: { anyOf: [text(1200), { type: 'null' }] },
+              }),
             }),
           },
         }),
@@ -90,7 +127,20 @@ type DocumentResult = {
     | { kind: 'plan'; plan: NutritionDocumentPlan }
     | { kind: 'unavailable'; reason: 'out_of_scope' | 'unable' };
 };
-const validateResult = new Ajv({ strict: true }).compile<DocumentResult>(documentResultSchema);
+// Older saved requests/fixtures may lack display hints. New wire requests require nullable hints;
+// compatibility validation still checks every supplied hint with the same bounded schema.
+const compatibleMetadataSchema = (schema: unknown) =>
+  JSON.parse(JSON.stringify(schema), (key, value: unknown) =>
+    key === 'required' &&
+    Array.isArray(value) &&
+    value.includes('exercise') &&
+    value.includes('prescription')
+      ? value.filter((v) => v !== 'logging')
+      : value,
+  );
+const validateResult = new Ajv({ strict: true }).compile<DocumentResult>(
+  compatibleMetadataSchema(documentResultSchema),
+);
 export function checkDocumentResult(value: unknown, input: PlanningInput): NutritionDocumentPlan {
   if (!validateResult(value))
     throw new CompleteValidationError('invalid_document', { stage: 'schema', rule: 'shape' });
@@ -103,7 +153,9 @@ export function checkDocumentResult(value: unknown, input: PlanningInput): Nutri
 }
 export const loggingInstruction =
   'For each exercise row, add loggingMode: weighted_reps for a prescription accurately logged with weight, sets and reps; reps for sets and reps without weight; completion for everything else or ambiguous/composite work. Choose from the actual prescription, not its name alone. This selects only the logging layout; keep activities and prescriptions unrestricted.';
-const validate = new Ajv({ strict: true }).compile<NutritionDocumentPlan>(documentSchema);
+const validate = new Ajv({ strict: true }).compile<NutritionDocumentPlan>(
+  compatibleMetadataSchema(documentSchema),
+);
 export const documentCoachingInstructions =
   "I want you to build a plan for the week to help me achieve my goals. First give the high level plan, then after that, create a workout/exercise list for each session. For the high level plan, return a list with days of the week until Sunday, with each day's session(s) underneath it, the goal for each session and the rough time to complete the session.";
 export const documentDisplayInstructions =
@@ -131,6 +183,7 @@ export function prepareDocument(provider: OnboardingProvider, input: PlanningInp
     nutritionRequest,
     'Return daily estimated nutrition in the nutrition object: caloriesKcal in kcal, proteinGrams, carbohydrateGrams and fatGrams in grams; version 1. Use status available with values and at most a short rationale or assumptions. If suitable targets cannot be provided, use status unavailable, null nutrient values and a short reason. Do not force numeric advice.',
     loggingInstruction,
+    'Add logging display hints version 1 without changing your exercise choices or arrangement: known setCount, rep/load ranges with explicit units and weight basis, and optional description/technique guidance. Use null for unknown or inapplicable values. Do not infer total versus per-dumbbell/per-hand load when unspecified. Keep essential sets, reps, rest, side, effort and load meaning in the faithful readable prescription; use description for additional technique guidance. Suggestions are prescriptions, never performed results. No separate extraction or repair request is available.',
     ...(input.progress ? [progressRules] : []),
     ...(input.progress && !input.documentReview ? [newWeekVarietyRules] : []),
     ...(input.documentReview

@@ -5,6 +5,7 @@ import type { FoodCommand } from './shared/foodContract.js';
 import type { PlanningService } from './features/planning/planning.js';
 import { storedSummarySchema as summarySchema } from './features/planning/trainingSummary.js';
 import type { TrainingSummary } from './features/planning/trainingSummary.js';
+import { legacyLoggingPayload } from './features/journal/journalCompatibility.js';
 import type { GenerationRequest } from './features/planning/planningStore.js';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import type { Account, VerifyAccount } from './features/account/auth.js';
@@ -91,6 +92,24 @@ export function buildApp(
   };
 
   app.get('/health', async () => ({ service: 'fitquest-api', status: 'ok' }));
+  app.addHook('onSend', async (request, reply, payload) => {
+    if (
+      request.headers['x-fitquest-logging'] === '2' ||
+      reply.statusCode !== 200 ||
+      typeof payload !== 'string'
+    )
+      return payload;
+    if (!request.url.startsWith('/training') && !request.url.startsWith('/workout-journal'))
+      return payload;
+    const value = JSON.parse(payload);
+    if (request.url.startsWith('/workout-journal') && value?.document?.version === 2) {
+      reply.code(409);
+      return JSON.stringify({ code: 'journal_client_update_required' });
+    }
+    return request.url.startsWith('/training')
+      ? JSON.stringify(legacyLoggingPayload(value))
+      : payload;
+  });
 
   const textField = { type: 'string', minLength: 1, maxLength: 100, pattern: '\\S' };
   app.post<{ Body: ProfileInput }>(
