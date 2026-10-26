@@ -4,6 +4,8 @@ FitQuest is an iOS-focused training and nutrition app for adults. It turns five 
 
 `main` includes the completed organization, security, UX, birthday, branding, Nutrition caching, saved-workout completion and new-week exercise-variety guidance. The existing API is Live at `0891730`; [standalone iPhone preview build 5](docs/guides/phone-preview.md) embeds source `1a3b254` with compatible EAS Update delivery for personal testing without Mac/Metro. Install over the existing app without uninstalling it. Reviewed forward migrations remain applied, and account-limit policy remains disabled. Both PRs remain closed, with branches/history preserved. See [release procedure](docs/guides/release.md), [October 11 preview evidence](docs/archive/releases/2026-10-11.md) and [October 12 generator delivery](docs/archive/releases/2026-10-12.md). The owner reported restored data with the earlier preview; build 5 phone acceptance remains pending. Other feature work remains frozen for personal testing.
 
+The owner-approved October 26 [workout-logging implementation](docs/reference/workout-logging-implementation.md) is in progress locally. It adds durable autosave, per-set confirmation, exercise information/notes and one-action Finish; deployment and preview OTA verification are pending. Saved user records remain intact.
+
 ## What it does
 
 Build 5 enables deliberate [compatible OTA updates](docs/guides/mobile-updates.md). [Seven-day expiry and optional Face ID/passkey sign-in](docs/reference/session-expiry-and-face-id.md) are planned; authentication behavior is unchanged.
@@ -35,7 +37,7 @@ Historical native captures from October 9, 2026, using synthetic fixtures. They 
 | `mobile/` | React Native 0.86, React 19, Expo SDK 57 and TypeScript; account-scoped UI and recoverable SecureStore drafts. |
 | `backend/` | Fastify 5 on Node 24; verified Supabase sessions, application authorization, validation, AI dispatch/accounting and the production scheduler. |
 | Supabase | Email/password Auth and PostgreSQL. Private application tables are accessed through the API using the restricted database role and owner-scoped transactions. |
-| `backend/src/shared/` | Nine platform-neutral modules consumed by both API and mobile, kept inside the existing Docker build context. |
+| `backend/src/shared/` | Ten platform-neutral modules consumed by both API and mobile, kept inside the existing Docker build context. |
 | `database/` | Immutable migrations and independently installed, guarded fresh-setup tooling. |
 | `.github/workflows/` | Formatting, lint, types, isolated PostgreSQL/mobile regressions, packaging, dependency triage and full-history secret scanning. |
 

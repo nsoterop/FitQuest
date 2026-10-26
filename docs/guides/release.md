@@ -4,6 +4,8 @@ The [project README](../../README.md) is the current-state entry point. Prior ma
 
 The existing backend is Live at `0891730`, retaining the completion-status endpoint and adding guidance only to new-week generator requests. [Standalone preview build 5](phone-preview.md) embeds source `1a3b254`, retaining the badge and adding matching preview OTA delivery. Its existing contract works with the current backend without another install or OTA publication. [October 11 evidence](../archive/releases/2026-10-11.md) records preview source CI, runtime and artifact checks; [October 12 evidence](../archive/releases/2026-10-12.md) records the generator deployment and saved-plan preservation. Source commits do not change the installed binary. Exact earlier deployed commits, CI, artifact hashes and migration/source mappings are in the [October 10 release record](../archive/releases/2026-10-10.md). Earlier dates retain their original scope.
 
+The owner has now assigned the October 26 four-batch [workout-logging implementation and compatible release](../reference/workout-logging-implementation.md). Local implementation and deterministic checks are complete; final native checks, trigger verification, public-main CI and API/preview OTA delivery remain pending. The Live revisions above are still the deployed baseline until that release is explicitly verified. No native build, hosted migration or user-data reset is authorized by this assignment.
+
 ## Source publication
 
 1. Check the working tree, actual remote/default branch, divergence, protection requirements and existing matching PRs. Preserve other writers' changes and Git history. Use a normal fast-forward/integration under the owner's publication authority; no force-push or protection/visibility change.
