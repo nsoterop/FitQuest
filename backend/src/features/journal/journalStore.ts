@@ -10,7 +10,7 @@ import {
 } from '../../shared/documentPlanContract.js';
 import {
   validJournalCommand,
-  resultLogged,
+  journalHasWork,
   journalToday,
   type Journal,
   type JournalCommand,
@@ -126,7 +126,7 @@ export function journalStore(pool: Pool) {
             date: r.source.date,
             sessionIndex: r.source.sessionIndex,
             journalId: r.id,
-            hasWork: !!r.document.notes.trim() || r.document.results.some(resultLogged),
+            hasWork: journalHasWork(r.document),
             finished: r.document.outcome !== 'in_progress',
           })),
         };

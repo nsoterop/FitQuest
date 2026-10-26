@@ -1,5 +1,5 @@
 import { foodDate, foodId, foodToday } from './foodContract.ts';
-import type { ExerciseLogging } from './exerciseLogging.ts';
+import { validExerciseLogging, type ExerciseLogging } from './exerciseLogging.ts';
 export const loggingModes = ['weighted_reps', 'reps', 'completion'] as const;
 export type LoggingMode = (typeof loggingModes)[number];
 export type JournalSource = {
@@ -300,7 +300,8 @@ export function validJournal(v: unknown): v is Journal {
         foodId(e.id) &&
         text(e.name, 160) &&
         text(e.prescription, 1800) &&
-        loggingModes.includes(e.mode),
+        loggingModes.includes(e.mode) &&
+        (e.logging === undefined || validExerciseLogging(e.logging)),
     ) &&
     typeof j.snapshot.fingerprint === 'string' &&
     (j.snapshot.source === null || validJournalSource(j.snapshot.source)) &&
@@ -309,6 +310,21 @@ export function validJournal(v: unknown): v is Journal {
   );
 }
 export const journalToday = foodToday;
+export const journalHasWork = (d: JournalDocument) =>
+  !!d.notes.trim() ||
+  d.results.some(
+    (r) =>
+      !r.removed &&
+      (!!r.notes?.trim() ||
+        r.completed !== null ||
+        r.groups.some(
+          (g) =>
+            !g.removed &&
+            (g.weight !== null ||
+              g.reps !== null ||
+              (g.confirmed === undefined && g.sets !== null)),
+        )),
+  );
 export const resultLogged = (r: JournalResult) =>
   !r.removed &&
   (r.mode === 'completion'

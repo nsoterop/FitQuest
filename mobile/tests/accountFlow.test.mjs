@@ -63,6 +63,7 @@ globalThis.__fitquestTestClient = {
   },
 };
 const native = `export const Image='Image', View='View', Text='Text', TextInput='TextInput', Pressable='Pressable', ScrollView='ScrollView', Modal='Modal', KeyboardAvoidingView='KeyboardAvoidingView';
+  export const AccessibilityInfo={setAccessibilityFocus(){}};export const findNodeHandle=()=>null;
   export const Platform={OS:'ios'}; export const useWindowDimensions=()=>({width:375,height:812,fontScale:1});
   export const StyleSheet={create:x=>x}; export const Keyboard={dismiss(){},addListener(){return {remove(){}}}};
   export const AppState={currentState:'active',addEventListener:(_event,callback)=>{globalThis.__fitquestAppStateListeners.add(callback);return {remove(){globalThis.__fitquestAppStateListeners.delete(callback)}}}};
@@ -6164,6 +6165,47 @@ test('journal uses individual suggested set rows with explicit confirmation, ret
   assert.equal(server.current.document.results[0].groups[1].weight, null);
   assert.equal(server.current.document.results[1].groups[0].reps, null);
   assert.equal(server.current.document.results[2].completed, null);
+});
+test('journal exercise notes expand on request, restore automatically and save with sets; info popup retains the full source', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j);
+  let screen = await mountJournal(j);
+  assert.equal(
+    screen.root.findAllByProps({ accessibilityLabel: 'Notes for Dumbbell squat' }).length,
+    0,
+  );
+  await act(async () => press(screen, 'Add notes for Dumbbell squat'));
+  await journalEdit(
+    screen,
+    'Notes for Dumbbell squat',
+    'Synthetic technique note; not proof of performed sets.',
+  );
+  await act(async () => press(screen, 'Information for Dumbbell squat'));
+  let popup = screen.root.findAllByType('Modal').find((n) => n.props.visible);
+  assert(popup);
+  assert.equal(popup.props.transparent, true);
+  assert.match(text(screen), /3 × 8 at 40 lb; rest 90 seconds/);
+  await act(async () => popup.props.onRequestClose());
+  assert(!screen.root.findAllByType('Modal').some((n) => n.props.visible));
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+    await flush();
+  });
+  assert.equal(server.commands.length, 1);
+  assert.equal(
+    server.current.document.results[0].notes,
+    'Synthetic technique note; not proof of performed sets.',
+  );
+  assert.equal(server.current.document.results[0].groups[0].weight, null);
+  await act(async () => screen.unmount());
+  screen = await mountJournal(server.current);
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(
+    input(screen, 'Notes for Dumbbell squat').props.value,
+    'Synthetic technique note; not proof of performed sets.',
+  );
 });
 test('journal lost responses retain the same pending operation; conflicts require explicit reapply without losing corrections', async (t) => {
   globalThis.__fitquestSecure.clear();

@@ -1,4 +1,5 @@
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { useState } from 'react';
 import { Action, colors, ui } from '../../components/Design';
 import { Icon } from '../../components/Icon';
 import { JournalField } from './JournalField';
@@ -27,6 +28,7 @@ export function JournalExercise({
   const dimensions = useWindowDimensions(),
     stacked = dimensions.width < 360 || dimensions.fontScale > 1.1;
   const active = r.groups.filter((g) => !g.removed);
+  const [notesOpen, setNotesOpen] = useState(!!r.notes);
   return (
     <>
       {r.mode === 'completion' ? (
@@ -189,6 +191,24 @@ export function JournalExercise({
               />
             ))}
         </>
+      )}
+      {notesOpen || r.notes ? (
+        <JournalField
+          label={`Notes for ${r.name}`}
+          visibleLabel="Exercise notes · Optional"
+          multiline
+          maxLength={2000}
+          value={r.notes ?? ''}
+          disabled={disabled}
+          onChange={(notes) => onChange((row) => (row.notes = notes))}
+        />
+      ) : (
+        <Action
+          label={`Add notes for ${r.name}`}
+          secondary
+          disabled={disabled}
+          onPress={() => setNotesOpen(true)}
+        />
       )}
     </>
   );

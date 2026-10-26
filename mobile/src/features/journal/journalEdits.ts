@@ -1,6 +1,6 @@
 import {
   validJournalDocument,
-  resultLogged,
+  journalHasWork,
   type Journal,
   type JournalSource,
 } from '../../../../backend/src/shared/journalContract';
@@ -46,4 +46,4 @@ export const hasJournalWork = (d: JournalDraft) =>
   !!d.document &&
   (!!d.document.notes.trim() ||
     Object.values(d.fields).some((v) => !!v.trim()) ||
-    d.document.results.some((r) => !r.removed && (!!r.notes?.trim() || resultLogged(r))));
+    journalHasWork(d.document));

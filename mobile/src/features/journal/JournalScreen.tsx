@@ -1,4 +1,5 @@
 import { Icon } from '../../components/Icon';
+import { ExerciseInfo } from '../../components/ExerciseInfo';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Action, Notice, Page, colors, ui } from '../../components/Design';
@@ -470,6 +471,13 @@ function JournalEditor({
                   <Text accessibilityRole="header" style={[ui.section, { flex: 1 }]}>
                     {r.name}
                   </Text>
+                  <ExerciseInfo
+                    name={r.name}
+                    prescription={
+                      original?.prescription ?? 'No prescription was saved for this added activity.'
+                    }
+                    description={original?.logging?.description}
+                  />
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Options for ${r.name}`}

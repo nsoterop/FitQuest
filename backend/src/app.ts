@@ -606,7 +606,15 @@ export function buildApp(
   app.post<{ Body: import('./shared/journalContract.js').JournalCommand }>(
     '/workout-journal/commands',
     { ...privateRoute, bodyLimit: 128000 },
-    async (r) => journal().command(accounts.get(r)!, r.body),
+    async (r) => {
+      if (
+        r.body?.kind === 'save' &&
+        r.body.document?.version === 2 &&
+        r.headers['x-fitquest-logging'] !== '2'
+      )
+        throw new OnboardingError(409, 'journal_client_update_required');
+      return journal().command(accounts.get(r)!, r.body);
+    },
   );
   const library = () => {
     if (!options.library) throw new OnboardingError(503, 'unavailable');

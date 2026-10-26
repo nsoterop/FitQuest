@@ -78,6 +78,47 @@ export async function verifyJournalDatabase(
     return { a, plan, document, history, cmd };
   }
   await t.test(
+    'v2 notes and confirmation roundtrip with receipts; a v1 save cannot erase them',
+    async () => {
+      const f = await fresh(),
+        receipt = await store.command(f.a, f.cmd),
+        j = await store.read(f.a, receipt.journalId);
+      const doc = {
+        ...j.document,
+        version: 2 as const,
+        results: j.document.results.map((r) => ({
+          ...r,
+          notes: 'Synthetic exercise feedback',
+          groups: r.groups.map((g) => ({ ...g, sets: 1, confirmed: false })),
+        })),
+      };
+      const command = {
+        operationId: randomUUID(),
+        kind: 'save' as const,
+        journalId: j.id,
+        expectedRevision: j.revision,
+        document: doc,
+      };
+      const saved = await store.command(f.a, command);
+      assert.deepEqual(await store.command(f.a, command), saved);
+      assert.equal(
+        (await store.read(f.a, j.id)).document.results[0]!.notes,
+        'Synthetic exercise feedback',
+      );
+      await assert.rejects(
+        store.command(f.a, {
+          operationId: randomUUID(),
+          kind: 'save',
+          journalId: j.id,
+          expectedRevision: saved.revision,
+          document: j.document,
+        }),
+        { code: 'journal_client_update_required' },
+      );
+      assert.equal((await store.read(f.a, j.id)).revision, saved.revision);
+    },
+  );
+  await t.test(
     'session action state uses actual input and latest exact occurrence, without exposing notes or values',
     async () => {
       const f = await fresh(),

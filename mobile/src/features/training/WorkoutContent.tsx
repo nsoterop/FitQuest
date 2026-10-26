@@ -5,13 +5,20 @@ import type {
 } from '../../../../backend/src/shared/documentPlanContract';
 import { colors, ui } from '../../components/Design';
 import { WorkoutMarkdown } from './WorkoutMarkdown';
+import { ExerciseInfo } from '../../components/ExerciseInfo';
 // Native text only. Rows never execute HTML, load remote media or parse dose values.
 export function WorkoutContent({
   session,
 }: {
   session: DocumentSession | RowDocumentPlan['days'][number]['sessions'][number];
 }) {
-  if ('workoutMarkdown' in session) return <WorkoutMarkdown source={session.workoutMarkdown} />;
+  if ('workoutMarkdown' in session)
+    return (
+      <>
+        <ExerciseInfo name={session.title} prescription={session.workoutMarkdown} />
+        <WorkoutMarkdown source={session.workoutMarkdown} />
+      </>
+    );
   return (
     <View>
       {session.exercises.map((row, i) => (
@@ -20,9 +27,16 @@ export function WorkoutContent({
           accessibilityLabel={`Exercise ${i + 1}`}
           style={{ paddingVertical: 16, gap: 6, borderBottomWidth: 1, borderColor: colors.line }}
         >
-          <Text accessibilityRole="header" style={ui.section}>
-            {row.exercise}
-          </Text>
+          <View style={ui.row}>
+            <Text accessibilityRole="header" style={[ui.section, { flex: 1 }]}>
+              {row.exercise}
+            </Text>
+            <ExerciseInfo
+              name={row.exercise}
+              prescription={row.prescription}
+              description={row.logging?.description}
+            />
+          </View>
           <Text style={[ui.copy, { color: colors.ink }]}>{row.prescription}</Text>
         </View>
       ))}

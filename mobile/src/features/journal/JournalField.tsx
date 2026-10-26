@@ -12,6 +12,7 @@ export function JournalField({
   multiline = false,
   disabled = false,
   suggested = false,
+  maxLength,
 }: {
   label: string;
   visibleLabel?: string;
@@ -22,6 +23,7 @@ export function JournalField({
   multiline?: boolean;
   disabled?: boolean;
   suggested?: boolean;
+  maxLength?: number;
 }) {
   const view = useRef<View | null>(null),
     focused = useRef(false),
@@ -45,7 +47,7 @@ export function JournalField({
         editable={!disabled}
         keyboardType={numeric ? (integer ? 'number-pad' : 'decimal-pad') : 'default'}
         multiline={multiline}
-        maxLength={multiline ? 4000 : 160}
+        maxLength={maxLength ?? (multiline ? 4000 : 160)}
         style={[
           ui.input,
           suggested && { color: colors.muted },
