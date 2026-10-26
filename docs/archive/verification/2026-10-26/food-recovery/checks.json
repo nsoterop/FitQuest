@@ -1,0 +1,71 @@
+{
+  "source": "20a5faeca342750dcf016bc4e5b89185550271d5",
+  "ci": "https://github.com/nsoterop/FitQuest/actions/runs/40404863537",
+  "mobileTests": 212,
+  "backendTestsWithIsolatedPostgres": 355,
+  "installerChecks": 5,
+  "repositoryChecks": 7,
+  "localFormatLintTypes": true,
+  "expoCompatibility": true,
+  "packaging": true,
+  "dependencyGate": true,
+  "scopedAndHistorySecretScans": true,
+  "backend": {
+    "source": "20a5faeca342750dcf016bc4e5b89185550271d5",
+    "deployment": "dep-dbfsdl6k1f9s73890q20",
+    "state": "Live",
+    "health": 200,
+    "unsignedAndInvalidFoodRequests": 401,
+    "privateResponsesNoStore": true
+  },
+  "newMigrations": [],
+  "artifact": {
+    "source": "20a5faeca342750dcf016bc4e5b89185550271d5",
+    "runtime": "3500763d3c624db350764adaff2dac94a933129f",
+    "bundleSHA256": "0ad05ee93be2420ba7619de5a70a200470d5a1db01253b7606b4a7b7f6624117",
+    "assets": 75,
+    "assetFiles": true,
+    "sourceMatches": {
+      "src/features/account/AccountPanel.tsx": true,
+      "src/features/nutrition/NutritionScreen.tsx": true,
+      "src/features/nutrition/foodApi.ts": true,
+      "src/features/nutrition/foodDraft.ts": true,
+      "src/features/account/secureSessionStorage.ts": true
+    },
+    "absentFixtures": true,
+    "publicEnvironmentMatches": true
+  },
+  "preview": {
+    "group": "701038a5-17d1-41f7-ab05-780eec272498",
+    "update": "01a17a22-7cef-71c4-99f1-0cfae7b7a296",
+    "manifestId": "01a17a22-7cef-71c4-99f1-0cfae7b7a296",
+    "runtime": "3500763d3c624db350764adaff2dac94a933129f",
+    "verifiedFiles": 76,
+    "totalBytes": 2184138,
+    "bundleSHA256": "0ad05ee93be2420ba7619de5a70a200470d5a1db01253b7606b4a7b7f6624117",
+    "identityMatches": true
+  },
+  "native": {
+    "syntheticOnly": true,
+    "cachedHost": "com.fitquest.rebuild",
+    "device": "disposable iPhone 17 Pro / iOS 26.4",
+    "expiredResponseRecoversClarification": true,
+    "fiveItemCandidateReview": true,
+    "noUnconfirmedDiaryEntry": true,
+    "physicalPhoneAcceptance": false
+  },
+  "paidAITestCalls": 0,
+  "nativeBuilds": 0,
+  "developmentServersStarted": 0,
+  "temporarySimulatorRemoved": true,
+  "disposableDatabaseStopped": true,
+  "agentInitiatedRealUserResetOrTestWrite": false,
+  "publicationMetadata": {
+    "source": "20a5faeca342750dcf016bc4e5b89185550271d5",
+    "allBundledFirstPartySourcesMatchGit": true,
+    "verifiedSourceFiles": 70,
+    "emptyRootConfigRemoved": true,
+    "expoRecordedDirtyTreeAtPublication": true,
+    "extraOTARequired": false
+  }
+}

@@ -2,7 +2,7 @@
 
 FitQuest's `preview` EAS profile targets the existing project's `preview` update channel. Finished build 5 adds Expo Updates; builds 3 and 4 cannot receive OTA updates. Install build 5 once using [phone instructions](phone-preview.md). Its initial baseline update is published and eligible for the verified native runtime. Older installed builds continue using their embedded bundle. [Delivery verification](../archive/verification/2026-10-11/mobile-updates/README.md).
 
-The current [October 26 loading and recommendation OTA](../archive/releases/2026-10-26.md#saved-progress-loading-and-explicit-dose-fallback) is published from `7bc2430` on `preview`, group `659026e7-7168-4c15-b41a-a67a8572543a`. It removes the optional-unit startup gate and recovers explicit set/reps doses from ordinary rest-round text. It matches build 5's runtime; served manifest and all 76 files passed verification. The API stays Live at `33423d1` and the previously approved account-unit migration remains applied; no new migration or native build was needed. Phone launch remains acceptance.
+The current [October 26 food and session-recovery OTA](../archive/releases/2026-10-26.md#food-interpretation-and-session-recovery) is published from `20a5fae` on `preview`, group `701038a5-17d1-41f7-ab05-780eec272498`. It recovers exact saved food receipts without automatic AI resubmission and makes temporary Auth verification failures retryable. The matching API is Live; prior migrations remain applied with no new migration/Auth policy/native build. Build 5's runtime, served manifest and all 76 files passed verification. Phone recovery remains acceptance.
 
 ## What can be updated
 

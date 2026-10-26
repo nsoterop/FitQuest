@@ -6,7 +6,7 @@ The [October 26 release and table correction](../archive/releases/2026-10-26.md#
 
 ## Boundaries
 
-The React Native client uses Supabase for Auth and Fastify for application data. Both restored mobile sessions and private API operations verify identity with Auth. PostgreSQL access uses the restricted application role, private schema, session checks and owner-scoped transactions with forced RLS. User-editable identity fields do not authorize access.
+The React Native client uses Supabase for Auth and Fastify for application data. Both restored mobile sessions and private API operations verify identity with Auth. Temporary verification transport failures hide private mobile screens behind a retry without discarding stored sessions/drafts; confirmed invalid identities remain rejected. Food results are stored behind the live-session/ownership guard before the response-token recheck, and exact receipt GETs recover interrupted results without replaying a paid command. PostgreSQL access uses the restricted application role, private schema, session checks and owner-scoped transactions with forced RLS. User-editable identity fields do not authorize access.
 
 Server records hold profiles/intake, saved plans and acceptance, journals, food/library snapshots, weight measurements, operation receipts, enrollment/consent and permanent accounting. SecureStore holds native sessions and account-scoped recoverable input/operation drafts. Local drafts and prescribed plans are not server-confirmed actual records. The same-device Keychain session can survive iOS uninstall/reinstall; session entries use device-only accessibility and do not migrate to a new device through backup restoration. [Session behavior](../../mobile/README.md#accounts-and-shared-code).
 
@@ -42,7 +42,7 @@ API uptime can delay generation; this is not exact-time/notification delivery. A
 
 ## Delivery and evidence
 
-The existing API is Live at `33423d1fb723afac09968d35a7d0279ac5575e5e`, matching delivered mobile/backend source. Approved migration `20261026182728_account_weight_units` adds the private preference table; its hosted version/source bytes match. Earlier security-policy, recurring-enrollment and birthday version mappings remain intact. Account-policy enforcement stays disabled.
+The existing API is Live at `20a5faeca342750dcf016bc4e5b89185550271d5`, matching delivered mobile/backend source. Approved migration `20261026182728_account_weight_units` and earlier security-policy, recurring-enrollment and birthday mappings remain applied; the food/session recovery correction required no migration or hosted Auth policy change. Account-policy enforcement stays disabled.
 
 `main` includes the completed source changes. Finished internal iOS Release build 5 (`5c579f01-e433-4c2a-bb83-bac14b7104d9`) embeds source `1a3b254` and the approved hosted configuration. It requires no Mac/Metro; hosted features require internet. Expo Updates uses the `preview` channel and fingerprint compatibility: deliberate publications can deliver compatible JavaScript/assets; native changes require a new build. The separate development profile remains for coding. No App Store/TestFlight delivery is configured. Git pushes and docs-only commits do not publish updates. See [phone instructions](../guides/phone-preview.md), [mobile updates](../guides/mobile-updates.md) and [release evidence](../archive/releases/2026-10-11.md#update-enabled-preview-and-authentication-plan). Session expiry/Face ID remain a [plan](session-expiry-and-face-id.md).
 

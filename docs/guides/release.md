@@ -1,6 +1,6 @@
 # Release procedure and boundaries
 
-The [October 26 loading and recommendation correction](../archive/releases/2026-10-26.md#saved-progress-loading-and-explicit-dose-fallback) is delivered from mobile source `7bc2430`: exact-source CI passed and preview OTA group `659026e7-7168-4c15-b41a-a67a8572543a` matches build 5. The existing API stays Live at `33423d1`; the previously approved account-unit migration remains applied. No new migration/backend deploy/native build was required. [Phone instructions](phone-preview.md) distinguish publication from owner acceptance. Existing plans/records, accounting and production channel are preserved. Follow the owner's current assignment and [agent rules](../../AGENTS.md); historical releases do not grant further build, OTA, migration or reset authority.
+The [October 26 food and session-recovery correction](../archive/releases/2026-10-26.md#food-interpretation-and-session-recovery) is delivered from `20a5fae`: exact-source CI passed, the existing API is Live and preview OTA group `701038a5-17d1-41f7-ab05-780eec272498` matches build 5. Prior migrations remain applied; no new migration, hosted Auth policy or native build was required. [Phone instructions](phone-preview.md) distinguish publication from acceptance. Records, drafts, accounting and production mapping remain protected. Follow the owner's current assignment and [agent rules](../../AGENTS.md); historical releases do not grant further build, OTA, migration or reset authority.
 
 ## Source publication
 
