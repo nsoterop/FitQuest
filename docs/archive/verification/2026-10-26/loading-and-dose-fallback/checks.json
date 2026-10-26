@@ -1,0 +1,63 @@
+{
+  "source": "7bc2430776e22e8ff6f84704f419b24f98cb6348",
+  "ci": "https://github.com/nsoterop/FitQuest/actions/runs/40392105569",
+  "checks": {
+    "mobile": 205,
+    "backendIsolatedPostgres": 351,
+    "installer": 5,
+    "repository": 7,
+    "formatLintTypes": true,
+    "expoCompatibility": true,
+    "packaging": true,
+    "dependencyGate": true,
+    "secretScans": true
+  },
+  "artifact": {
+    "source": "7bc2430776e22e8ff6f84704f419b24f98cb6348",
+    "runtime": "3500763d3c624db350764adaff2dac94a933129f",
+    "bundleSHA256": "6983ef0c829c9b4059768aff5399b86c0c0b1f30447143d289ebc11c557da8ff",
+    "assets": 75,
+    "assetFiles": true,
+    "sourceMatches": {
+      "src/features/journal/JournalExercise.tsx": true,
+      "src/features/journal/JournalField.tsx": true,
+      "src/features/account/WeightUnitPreference.tsx": true,
+      "src/features/account/ProfileIntakeForm.tsx": true,
+      "src/features/journal/prescriptionHints.ts": true,
+      "src/features/account/weightUnits.ts": true,
+      "src/components/ExercisePrescription.tsx": true
+    },
+    "absentFixtures": true,
+    "publicEnvironmentMatches": true
+  },
+  "preview": {
+    "group": "659026e7-7168-4c15-b41a-a67a8572543a",
+    "update": "01a179d1-3e60-7347-bf18-9e912ee60f52",
+    "manifestId": "01a179d1-3e60-7347-bf18-9e912ee60f52",
+    "runtime": "3500763d3c624db350764adaff2dac94a933129f",
+    "verifiedFiles": 76,
+    "totalBytes": 2181122,
+    "bundleSHA256": "6983ef0c829c9b4059768aff5399b86c0c0b1f30447143d289ebc11c557da8ff",
+    "identityMatches": true
+  },
+  "backend": {
+    "source": "33423d1fb723afac09968d35a7d0279ac5575e5e",
+    "deployment": "dep-dbfqedd9fdbs739pr60g",
+    "redeployedForThisCorrection": false
+  },
+  "newMigrations": [],
+  "syntheticNative": {
+    "host": "cached Release simulator host, com.fitquest.rebuild",
+    "device": "disposable iPhone 17 Pro / iOS 26.4",
+    "threeRows": true,
+    "repsRangeEditable": true,
+    "unknownWeightEmpty": true,
+    "openingDoesNotRecordActuals": true
+  },
+  "physicalPhoneAcceptance": false,
+  "paidAICalls": 0,
+  "nativeBuilds": 0,
+  "developmentServersStarted": 0,
+  "temporarySimulatorRemoved": true,
+  "realRecordsChangedForVerification": false
+}
