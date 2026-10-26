@@ -1,3 +1,5 @@
+import { useWeightUnits } from '../account/WeightUnitPreference';
+import { weightEntry, weightNumber, type WeightUnit } from '../account/weightUnits';
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Action, Notice, ui } from '../../components/Design';
@@ -14,14 +16,15 @@ import {
   type WeightCommand,
 } from '../../../../backend/src/shared/weightContract';
 type Props = { userId: string; accessToken: () => Promise<string>; onSessionEnded?: () => void };
-const description = (e: WeightEntry) =>
+const description = (e: WeightEntry, unit: WeightUnit) =>
   e.measurement
-    ? `${e.measurement.value} ${e.measurement.unit} · ${e.measurement.date}`
+    ? `${weightNumber(e.measurement.value, e.measurement.unit, unit)} ${unit} · ${e.measurement.date}`
     : 'Measurement deleted';
 export function BodyWeight(props: Props) {
   return <WeightAccount key={props.userId} {...props} />;
 }
 function WeightAccount({ userId, accessToken, onSessionEnded }: Props) {
+  const { unit } = useWeightUnits();
   const [list, setList] = useState<WeightList>({ items: [], nextOffset: null }),
     [loaded, setLoaded] = useState(false),
     [ready, setReady] = useState(false),
@@ -143,7 +146,7 @@ function WeightAccount({ userId, accessToken, onSessionEnded }: Props) {
       timeZone = m?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     change({
       value: m ? String(m.value) : '',
-      unit: m?.unit ?? 'lb',
+      unit: m?.unit ?? unit,
       date: m?.date ?? weightToday(timeZone),
       timeZone,
       entryId: e?.id ?? null,
@@ -194,9 +197,10 @@ function WeightAccount({ userId, accessToken, onSessionEnded }: Props) {
   async function save() {
     const d = current.current;
     if (!d || d.pending) return;
+    const shown = weightEntry(d.value, d.unit, unit);
     const measurement = {
-      value: Number(d.value),
-      unit: d.unit,
+      value: Number(shown.value),
+      unit: shown.unit,
       date: d.date,
       timeZone: d.timeZone,
     };
@@ -253,7 +257,7 @@ function WeightAccount({ userId, accessToken, onSessionEnded }: Props) {
       </Text>
       <Text style={ui.copy}>
         {latest
-          ? `Latest measurement: ${description(latest)}`
+          ? `Latest measurement: ${description(latest, unit)}`
           : loaded
             ? 'No weight measurements yet.'
             : 'Loading weight…'}
@@ -285,27 +289,14 @@ function WeightAccount({ userId, accessToken, onSessionEnded }: Props) {
       {editing && draft && (
         <>
           <JournalField
-            label={`Body weight (${draft.unit})`}
-            value={draft.value}
+            label={`Body weight (${weightEntry(draft.value, draft.unit, unit).unit})`}
+            value={weightEntry(draft.value, draft.unit, unit).value}
             numeric
             disabled={blocked}
-            onChange={(value) => change({ ...draft, value })}
+            onChange={(value) =>
+              change({ ...draft, value, unit: weightEntry(draft.value, draft.unit, unit).unit })
+            }
           />
-          <View style={ui.row}>
-            {(['lb', 'kg'] as const).map((unit) => (
-              <Action
-                key={unit}
-                label={unit === 'lb' ? 'Pounds (lb)' : 'Kilograms (kg)'}
-                secondary={unit !== draft.unit}
-                disabled={blocked}
-                onPress={() => change({ ...draft, unit })}
-              />
-            ))}
-          </View>
-          <Text style={ui.copy}>
-            Enter your scale’s reading in the selected unit. Changing units does not convert the
-            number.
-          </Text>
           <JournalField
             label="Measurement date (YYYY-MM-DD)"
             value={draft.date}
@@ -326,7 +317,7 @@ function WeightAccount({ userId, accessToken, onSessionEnded }: Props) {
           )}
           {conflict && (
             <>
-              <Notice title="Current saved measurement">{description(conflict)}</Notice>
+              <Notice title="Current saved measurement">{description(conflict, unit)}</Notice>
               <Action
                 label={
                   conflict.deletedAt
@@ -396,9 +387,9 @@ function WeightAccount({ userId, accessToken, onSessionEnded }: Props) {
         <>
           {list.items.map((e) => (
             <View key={e.id} style={{ gap: 5 }}>
-              <Text style={ui.copy}>{description(e)}</Text>
+              <Text style={ui.copy}>{description(e, unit)}</Text>
               <Action
-                label={`Edit weight ${e.measurement!.date} · ${e.measurement!.value} ${e.measurement!.unit}`}
+                label={`Edit weight ${e.measurement!.date} · ${weightNumber(e.measurement!.value, e.measurement!.unit, unit)} ${unit}`}
                 secondary
                 disabled={busy || !!draft || !ready}
                 onPress={() => start(e)}

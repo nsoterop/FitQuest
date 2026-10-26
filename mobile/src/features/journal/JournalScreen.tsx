@@ -1,3 +1,6 @@
+import { useWeightUnits } from '../account/WeightUnitPreference';
+import { weightNumber, weightLabel, type WeightUnit } from '../account/weightUnits';
+import { ExercisePrescription } from '../../components/ExercisePrescription';
 import { Icon } from '../../components/Icon';
 import { ExerciseInfo } from '../../components/ExerciseInfo';
 import { WorkoutMarkdown } from '../training/WorkoutMarkdown';
@@ -16,7 +19,6 @@ import {
   type JournalReceipt,
   type JournalResult,
   type JournalSource,
-  type SetGroup,
 } from '../../../../backend/src/shared/journalContract';
 import { privateJournalDrafts } from './journalStorage';
 import type { JournalDraft } from './journalDraft';
@@ -38,7 +40,6 @@ type Access = {
 };
 import { JournalField } from './JournalField';
 export { JournalField } from './JournalField';
-const newGroup = (): SetGroup => emptySet(operationId);
 const modeLabel = {
   weighted_reps: 'Weight and reps',
   reps: 'Reps only',
@@ -75,6 +76,9 @@ function JournalEditor({
   draftKey,
   repeat = false,
 }: Access & { source?: JournalSource; journalId?: string; draftKey?: string; repeat?: boolean }) {
+  const { unit } = useWeightUnits();
+  const unitRef = useRef(unit);
+  unitRef.current = unit;
   const [draft, setDraft] = useState<JournalDraft | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
@@ -118,7 +122,7 @@ function JournalEditor({
     const d = current.current;
     if (d?.document) change({ ...d, document: { ...d.document, ...patch } });
   }
-  function fieldChange(key: string, value: string) {
+  function fieldChange(key: string, value: string, inputUnit?: WeightUnit) {
     const d = current.current;
     if (d) {
       const document = d.document ? structuredClone(d.document) : null;
@@ -126,8 +130,14 @@ function JournalEditor({
       const group = document?.results
         .find((r) => r.id === resultId)
         ?.groups.find((g) => g.id === groupId);
-      if (group && document?.version === 2)
+      if (group && document?.version === 2) {
+        if (inputUnit && key.endsWith(':weight')) {
+          if (group.weight !== null && group.unit !== inputUnit)
+            group.weight = Number(weightNumber(group.weight, group.unit, inputUnit));
+          group.unit = inputUnit;
+        }
         group.confirmed = document.outcome !== 'in_progress' && !d.finishRequested;
+      }
       change({ ...d, document, fields: { ...d.fields, [key]: value } });
     }
   }
@@ -370,7 +380,7 @@ function JournalEditor({
     }
     if (!d.dirty) return;
     if (d.finishRequested) {
-      const prepared = finishVisibleSets(d);
+      const prepared = finishVisibleSets(d, unitRef.current);
       if (
         JSON.stringify(prepared.document) !== JSON.stringify(d.document) ||
         JSON.stringify(prepared.fields) !== JSON.stringify(d.fields)
@@ -434,7 +444,7 @@ function JournalEditor({
     if (!d?.document) return;
     const next =
       outcome === 'finished'
-        ? finishVisibleSets(d)
+        ? finishVisibleSets(d, unitRef.current)
         : {
             ...d,
             document: d.journal
@@ -534,7 +544,7 @@ function JournalEditor({
                     .filter((g) => !g.removed)
                     .map(
                       (g) =>
-                        `${g.weight ?? '—'} ${g.unit} · ${g.sets ?? '—'} sets · ${g.reps ?? '—'} reps`,
+                        `${g.weight === null ? '—' : weightNumber(g.weight, g.unit, unit)} ${weightLabel(unit)} · ${g.sets ?? '—'} sets · ${g.reps ?? '—'} reps`,
                     )
                     .join('; ')}
             </Text>
@@ -670,6 +680,13 @@ function JournalEditor({
                     <Icon name="ellipsis" />
                   </Pressable>
                 </View>
+                {original && (
+                  <ExercisePrescription
+                    prescription={original.prescription}
+                    mode={r.mode}
+                    hint={loggingFor(draft.journal!, r.id)}
+                  />
+                )}
                 {menu === r.id && (
                   <>
                     <Text style={ui.label}>Change input type · entered values are retained</Text>
@@ -743,7 +760,7 @@ function JournalEditor({
                         id: operationId(),
                         name: newName.trim(),
                         mode: 'completion',
-                        groups: [newGroup()],
+                        groups: [emptySet(operationId, unit)],
                         completed: null,
                         removed: false,
                         notes: '',

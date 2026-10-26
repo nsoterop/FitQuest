@@ -1,14 +1,13 @@
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
-import { useState } from 'react';
+import { useWeightUnits } from '../account/WeightUnitPreference';
+import { weightEntry, weightLabel, weightNumber, type WeightUnit } from '../account/weightUnits';
+import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { useState, type ReactNode } from 'react';
 import { Action, colors, ui } from '../../components/Design';
 import { Icon } from '../../components/Icon';
 import { JournalField } from './JournalField';
 import { emptySet, suggestion } from './journalSets';
 import { operationId } from '../onboarding/onboardingApi';
-import {
-  weightBasisLabel,
-  type ExerciseLogging,
-} from '../../../../backend/src/shared/exerciseLogging';
+import { type ExerciseLogging } from '../../../../backend/src/shared/exerciseLogging';
 import type { JournalResult } from '../../../../backend/src/shared/journalContract';
 export function JournalExercise({
   result: r,
@@ -24,11 +23,13 @@ export function JournalExercise({
   fields: Record<string, string>;
   showRecommendations?: boolean;
   disabled: boolean;
-  onField: (key: string, value: string) => void;
+  onField: (key: string, value: string, unit?: WeightUnit) => void;
   onChange: (change: (row: JournalResult) => void) => void;
 }) {
-  const dimensions = useWindowDimensions(),
-    stacked = dimensions.width < 360 || dimensions.fontScale > 1.1;
+  const { unit } = useWeightUnits();
+  const dimensions = useWindowDimensions();
+  const tableWidth =
+    dimensions.fontScale > 1.3 ? Math.round(280 * Math.min(dimensions.fontScale, 2.5)) : undefined;
   const active = r.groups.filter((g) => !g.removed);
   const canAdd = r.groups.length < 24 || r.groups.some((g) => g.removed && g.sets === 1);
   const [notesOpen, setNotesOpen] = useState(!!r.notes);
@@ -51,45 +52,42 @@ export function JournalExercise({
         </Pressable>
       ) : (
         <>
-          {active.map((g) => {
-            const i = r.groups.findIndex((x) => x.id === g.id);
-            if (g.sets !== 1)
+          <SetTable width={tableWidth}>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingBottom: 4 }}>
+              <Text style={[ui.label, { width: 36 }]}>Set</Text>
+              {r.mode === 'weighted_reps' && (
+                <Text style={[ui.label, { flex: 1 }]}>Weight ({weightLabel(unit)})</Text>
+              )}
+              <Text style={[ui.label, { flex: 1 }]}>Reps</Text>
+            </View>
+            {active.map((g, index) => {
+              const i = r.groups.findIndex((x) => x.id === g.id);
+              if (g.sets !== 1)
+                return (
+                  <View key={g.id} style={{ gap: 4 }}>
+                    <Text style={ui.label}>Legacy grouped entry · retained</Text>
+                    <Text style={ui.copy}>
+                      {g.sets ?? 'Unknown'} sets · {g.reps ?? 'Unknown'} reps
+                      {r.mode === 'weighted_reps'
+                        ? ` · ${g.weight === null ? 'Unknown' : weightNumber(g.weight, g.unit, unit)} ${weightLabel(unit)}`
+                        : ''}
+                      . Original values retained; add individual sets below for new work.
+                    </Text>
+                    <Action
+                      label="Remove entry"
+                      accessibilityLabel={`Remove legacy group for ${r.name}`}
+                      compact
+                      secondary
+                      disabled={disabled}
+                      onPress={() =>
+                        onChange((row) => (row.groups.find((x) => x.id === g.id)!.removed = true))
+                      }
+                    />
+                  </View>
+                );
               return (
-                <View key={g.id}>
-                  <Text style={ui.label}>Legacy grouped entry · retained</Text>
-                  <Text style={ui.copy}>
-                    {g.sets ?? 'Unknown'} sets · {g.reps ?? 'Unknown'} reps
-                    {r.mode === 'weighted_reps' ? ` · ${g.weight ?? 'Unknown'} ${g.unit}` : ''}.
-                    Original values retained; add individual sets below for new work.
-                  </Text>
-                  <Action
-                    label="Remove entry"
-                    accessibilityLabel={`Remove legacy group for ${r.name}`}
-                    compact
-                    secondary
-                    disabled={disabled}
-                    onPress={() =>
-                      onChange((row) => (row.groups.find((x) => x.id === g.id)!.removed = true))
-                    }
-                  />
-                </View>
-              );
-            const confirmed = g.confirmed === true;
-            return (
-              <View key={g.id} style={{ gap: 8 }}>
-                <Text style={ui.label}>
-                  Set {i + 1} ·{' '}
-                  {confirmed
-                    ? 'Recorded'
-                    : g.weight !== null ||
-                        g.reps !== null ||
-                        Object.keys(fields).some((k) => k.startsWith(`${r.id}:${g.id}:`))
-                      ? 'Draft'
-                      : hint.reps || hint.load
-                        ? 'Recommended'
-                        : 'Not logged'}
-                </Text>
-                <View style={stacked ? { gap: 10 } : ui.row}>
+                <View key={g.id} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                  <Text style={[ui.copy, { width: 36 }]}>{index + 1}</Text>
                   {(r.mode === 'weighted_reps'
                     ? (['weight', 'reps'] as const)
                     : (['reps'] as const)
@@ -97,20 +95,15 @@ export function JournalExercise({
                     const key = `${r.id}:${g.id}:${f}`,
                       rec = showRecommendations ? suggestion(hint, g, f) : '',
                       exact = /^\d+(\.\d+)?$/.test(rec);
-                    const value = fields[key] ?? (g[f] === null ? rec : String(g[f]));
-                    const label =
-                      f === 'weight'
-                        ? hint.load?.basis && hint.load.basis !== 'unspecified'
-                          ? weightBasisLabel(hint.load.basis, g.unit)
-                          : `Weight (${g.unit})`
-                        : 'Reps';
+                    const raw = fields[key] ?? (g[f] === null ? rec : String(g[f]));
+                    const entry =
+                      f === 'weight' ? weightEntry(raw, g.unit, unit) : { value: raw, unit };
                     return (
-                      <View key={f} style={{ flex: 1, gap: 4 }}>
+                      <View key={f} style={{ flex: 1 }}>
                         <JournalField
-                          label={`${r.name} · set ${i + 1} · ${f === 'weight' ? `Weight (${g.unit})` : 'Reps'}`}
-                          visibleLabel={label}
-                          value={value}
-                          onChange={(v) => onField(key, v)}
+                          label={`${r.name} · set ${i + 1} · ${f === 'weight' ? `Weight (${entry.unit})` : 'Reps'}`}
+                          hideLabel
+                          value={entry.value}
                           numeric
                           integer={f === 'reps'}
                           disabled={disabled}
@@ -119,46 +112,20 @@ export function JournalExercise({
                             !!rec &&
                             (fields[key] === undefined || (!exact && fields[key] === rec))
                           }
+                          onChange={(v) => onField(key, v, f === 'weight' ? entry.unit : undefined)}
                         />
-                        {rec && !exact && (
-                          <Text style={ui.copy}>Enter the specific value you used.</Text>
+                        {f === 'weight' && entry.unit !== unit && (
+                          <Text style={{ fontSize: 12, color: colors.muted }}>
+                            Unfinished {entry.unit} entry
+                          </Text>
                         )}
                       </View>
                     );
                   })}
                 </View>
-                {r.mode === 'weighted_reps' && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Change weight unit for ${r.name} set ${i + 1}`}
-                    disabled={disabled}
-                    onPress={() =>
-                      onChange((row) => {
-                        const item = row.groups.find((x) => x.id === g.id)!;
-                        item.unit = item.unit === 'lb' ? 'kg' : 'lb';
-                        item.confirmed = !showRecommendations && !!g.confirmed;
-                      })
-                    }
-                    accessibilityHint="Change unit without converting the entered number"
-                    style={{
-                      minHeight: 44,
-                      minWidth: 64,
-                      paddingHorizontal: 12,
-                      alignSelf: 'flex-start',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: 1,
-                      borderColor: colors.line,
-                      borderRadius: 8,
-                      backgroundColor: colors.canvas,
-                    }}
-                  >
-                    <Text style={{ color: colors.action }}>{g.unit} ⇄</Text>
-                  </Pressable>
-                )}
-              </View>
-            );
-          })}
+              );
+            })}
+          </SetTable>
           <View
             style={{
               flexDirection: 'row',
@@ -181,8 +148,7 @@ export function JournalExercise({
                 onChange((row) => {
                   const removed = row.groups.find((g) => g.removed && g.sets === 1);
                   if (removed) removed.removed = false;
-                  else
-                    row.groups.push(emptySet(operationId, hint.load?.unit ?? active.at(-1)?.unit));
+                  else row.groups.push(emptySet(operationId, unit));
                 })
               }
               style={({ pressed }) => ({
@@ -221,21 +187,6 @@ export function JournalExercise({
               <Text style={{ fontSize: 24, color: colors.action }}>−</Text>
             </Pressable>
           </View>
-          {r.groups
-            .filter((g) => g.removed)
-            .map((g) => (
-              <Action
-                key={g.id}
-                label={`Restore set ${r.groups.findIndex((x) => x.id === g.id) + 1}`}
-                accessibilityLabel={`Undo removal of ${r.name} set ${r.groups.findIndex((x) => x.id === g.id) + 1}`}
-                compact
-                secondary
-                disabled={disabled}
-                onPress={() =>
-                  onChange((row) => (row.groups.find((x) => x.id === g.id)!.removed = false))
-                }
-              />
-            ))}
         </>
       )}
       {notesOpen || r.notes ? (
@@ -259,5 +210,16 @@ export function JournalExercise({
         />
       )}
     </>
+  );
+}
+
+function SetTable({ width, children }: { width?: number; children: ReactNode }) {
+  const table = <View style={{ gap: 8, ...(width ? { minWidth: width } : null) }}>{children}</View>;
+  return width ? (
+    <ScrollView horizontal keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      {table}
+    </ScrollView>
+  ) : (
+    table
   );
 }

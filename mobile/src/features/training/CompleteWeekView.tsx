@@ -1,3 +1,5 @@
+import { useWeightUnits } from '../account/WeightUnitPreference';
+import { weightText } from '../account/weightUnits';
 import { isDocumentVersion } from '../../../../backend/src/shared/documentPlanContract';
 import { WorkoutContent } from './WorkoutContent';
 import React from 'react';
@@ -52,6 +54,7 @@ export function exerciseText(e: Exercise, names: NonNullable<TrainingPlan['activ
     .join(' · ');
 }
 export function CompleteWeekView({ plan }: { plan: TrainingPlan }) {
+  const { unit } = useWeightUnits();
   const o = isDocumentVersion(plan.schemaVersion) ? plan.documentOverview : plan.overview;
   if (!o) return null;
   return (
@@ -100,7 +103,7 @@ export function CompleteWeekView({ plan }: { plan: TrainingPlan }) {
                       </Text>
                       {b.exercises.map((e, k) => (
                         <Text key={k} style={styles.copy}>
-                          {exerciseText(e, plan.activityNames ?? {})}
+                          {weightText(exerciseText(e, plan.activityNames ?? {}), unit)}
                         </Text>
                       ))}
                       {b.recovery && (
@@ -111,7 +114,10 @@ export function CompleteWeekView({ plan }: { plan: TrainingPlan }) {
                           ({recoveryCount(b)} {recoveryCount(b) === 1 ? 'recovery' : 'recoveries'}):{' '}
                           {[
                             b.recovery.activity
-                              ? exerciseText(b.recovery.activity, plan.activityNames ?? {})
+                              ? weightText(
+                                  exerciseText(b.recovery.activity, plan.activityNames ?? {}),
+                                  unit,
+                                )
                               : null,
                             b.recovery.restSeconds
                               ? `Rest ${rangeText(b.recovery.restSeconds)} sec`

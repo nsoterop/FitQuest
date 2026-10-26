@@ -90,5 +90,9 @@
   {
     "file": "20261010190000_profile_birthday.sql",
     "sha256": "a5f9ccd9d99c4d8c0e9423ecb834d6ca486fd781e753f5fc76895ac1f066c69b"
+  },
+  {
+    "file": "20261026182728_account_weight_units.sql",
+    "sha256": "380d3e43a2df9957ebe49e33432464728048a1d7313b2ecf375c1d8a197c0e2d"
   }
 ]

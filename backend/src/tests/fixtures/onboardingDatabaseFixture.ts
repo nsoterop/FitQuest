@@ -1,3 +1,4 @@
+import { verifyPreferencesDatabase } from './preferencesDatabaseFixture.js';
 import { verifySecurityDatabase } from './securityDatabaseFixture.js';
 import { verifySchedulerDatabase } from './schedulerDatabaseFixture.js';
 import { verifyProgressDatabase } from './progressDatabaseFixture.js';
@@ -2146,6 +2147,16 @@ export async function verifyOnboardingDatabase(
       await store.settle(alice, work.work.attempt, null);
     },
   );
+  await owner.query(
+    await readFile(
+      new URL(
+        '../../../../database/migrations/20261026182728_account_weight_units.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  await verifyPreferencesDatabase(t, owner, pool, profiles);
   await verifyPlanningDatabase(t, owner, pool, profiles);
   await verifyReadinessDatabase(t, owner, pool, profiles);
   await verifyWeeklyDatabase(t, owner, pool, profiles);

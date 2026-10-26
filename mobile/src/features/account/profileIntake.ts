@@ -1,3 +1,4 @@
+import { convertWeight, weightNumber, type WeightUnit } from './weightUnits.ts';
 import { birthdayAge, profileGenders } from '../../../../backend/src/shared/profileBirthday.ts';
 export type IntakeFields = {
   firstName: string;
@@ -20,6 +21,7 @@ export type IntakePayload = {
 
 export function validateIntake(
   fields: IntakeFields,
+  unit: WeightUnit = 'lb',
 ): { payload: IntakePayload } | { error: string } {
   const firstName = fields.firstName.trim();
   const lastName = fields.lastName.trim();
@@ -38,14 +40,16 @@ export function validateIntake(
   const birthday = fields.birthday.trim();
   if (birthdayAge(birthday) === null)
     return { error: 'Choose a valid birthday, not in the future (up to age 130).' };
-  const weight = Number(fields.weight);
+  const weight = convertWeight(Number(fields.weight), unit, 'lb');
   if (
     !/^\d+(\.\d+)?$/.test(fields.weight.trim()) ||
     !Number.isFinite(weight) ||
     weight <= 0 ||
     weight > 1500
   ) {
-    return { error: 'Enter weight in pounds, greater than 0 and up to 1,500.' };
+    return {
+      error: `Enter weight greater than 0 and up to ${weightNumber(1500, 'lb', unit)} ${unit}.`,
+    };
   }
   if (!profileGenders.some((option) => option === gender))
     return { error: 'Select Male or Female.' };
@@ -136,14 +140,14 @@ export type SavedProfile = Omit<IntakePayload, 'birthday'> & {
   ageCapturedAt: string;
   updatedAt: string;
 };
-export function profileFields(profile: SavedProfile): IntakeFields {
+export function profileFields(profile: SavedProfile, unit: WeightUnit = 'lb'): IntakeFields {
   return {
     firstName: profile.firstName,
     lastName: profile.lastName,
     heightFeet: String(Math.floor(profile.height.value / 12)),
     heightInches: String(profile.height.value % 12),
     birthday: profile.birthday ?? '',
-    weight: String(profile.weight.value),
+    weight: weightNumber(profile.weight.value, 'lb', unit),
     gender: profile.gender,
   };
 }

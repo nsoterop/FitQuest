@@ -12,6 +12,28 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 process.env.EXPO_PUBLIC_API_URL = 'https://fitquest-api.example';
+// Existing account-flow fixtures use a separate synthetic preferences service.
+let preferenceHandler = async (_url, options) => ({
+  status: 200,
+  json: async () => ({
+    weightUnit: options?.body ? JSON.parse(options.body).weightUnit : 'lb',
+    revision: options?.body ? 1 : 0,
+  }),
+});
+let flowFetch = globalThis.fetch;
+Object.defineProperty(globalThis, 'fetch', {
+  configurable: true,
+  get: () => {
+    const implementation = flowFetch;
+    return async (url, options) =>
+      String(url).endsWith('/account-preferences')
+        ? preferenceHandler(url, options)
+        : implementation(url, options);
+  },
+  set: (fn) => {
+    flowFetch = fn;
+  },
+});
 let authListener;
 const alice = {
   user: { id: 'alice', email: 'alice@example.test', email_confirmed_at: '2026-10-02T12:00:00Z' },
@@ -4310,7 +4332,7 @@ test('explicit wire minutes and event-count aliases render canonical doses after
   assert.match(rendered, /Outdoor walking · 120–180 sec/);
   assert.match(rendered, /Between rounds \(2 recoveries\): Outdoor walking · 30–60 sec/);
   assert.match(rendered, /Rest 30–45 sec/);
-  assert.match(rendered, /5–8 count · each side · 4 kg/);
+  assert.match(rendered, /5–8 count · each side · 8\.82 lbs/);
   assert.match(rendered, /Optional session/);
   assert.match(rendered, /Evening/);
   assert.match(rendered, /Rest — no planned session/);
@@ -5637,7 +5659,10 @@ test('new exercise rows stay private until acceptance, render exact ordered plai
     .filter((x) => typeof x === 'string');
   for (const row of document.days[0].sessions[0].exercises) {
     assert(texts.includes(row.exercise));
-    assert(!texts.includes(row.prescription));
+    assert.equal(
+      texts.includes(row.prescription),
+      (row.loggingMode ?? 'completion') === 'completion',
+    );
     assert((await exerciseInfoText(screen, row.exercise)).includes(row.prescription));
   }
   assert(texts.indexOf('Dumbbell squat') < texts.indexOf('Run / walk intervals'));
@@ -5951,6 +5976,8 @@ test('nutrition compares consumed values only to the accepted dated version; unk
   assert(!text(screen).includes('2350'));
 });
 
+const { WeightUnitsProvider, WeightUnitSetting } =
+  await import('../src/features/account/WeightUnitPreference.tsx');
 const { JournalScreen } = await import('../src/features/journal/JournalScreen.tsx');
 const { privateJournalDrafts } = await import('../src/features/journal/journalStorage.ts');
 const { WorkoutJournalAction } = await import('../src/features/journal/WorkoutJournalAction.tsx');
@@ -6153,7 +6180,7 @@ test('journal uses blue editable recommendations, compact set controls and Finis
   await act(async () => press(screen, 'Options for Dumbbell squat'));
   await act(async () => press(screen, 'Dumbbell squat: Weight and reps'));
   await act(async () => press(screen, 'Subtract set for Dumbbell squat'));
-  await act(async () => press(screen, 'Undo removal of Dumbbell squat set 4'));
+  await act(async () => press(screen, 'Add set for Dumbbell squat'));
   assert.equal(input(screen, 'Dumbbell squat · set 4 · Reps').props.value, '6');
   await journalEdit(
     screen,
@@ -6298,7 +6325,7 @@ test('clearing a recommended value survives idle save, relaunch and Finish witho
   assert.equal(server.current.document.results[0].groups[0].reps, 8);
   assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '');
 });
-test('clearing all values on a finished set removes its actual report and unit corrections retain recorded values', async (t) => {
+test('clearing all values on a finished set removes its actual report without row unit controls', async (t) => {
   globalThis.__fitquestSecure.clear();
   const j = journalFixture(),
     server = journalServer(j),
@@ -6310,16 +6337,20 @@ test('clearing all values on a finished set removes its actual report and unit c
     await flush();
   });
   await act(async () => press(screen, 'Edit log'));
-  await act(async () => press(screen, 'Change weight unit for Dumbbell squat set 1'));
+  assert(
+    !screen.root.findAllByProps({
+      accessibilityLabel: 'Change weight unit for Dumbbell squat set 1',
+    }).length,
+  );
   await act(async () => {
     press(screen, 'Save changes');
     await flush();
     await flush();
   });
-  assert.equal(server.current.document.results[0].groups[0].unit, 'kg');
+  assert.equal(server.current.document.results[0].groups[0].unit, 'lb');
   assert.equal(server.current.document.results[0].groups[0].weight, 40);
   assert.equal(server.current.document.results[0].groups[0].confirmed, true);
-  await journalEdit(screen, 'Dumbbell squat · set 1 · Weight (kg)', '');
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Weight (lb)', '');
   await journalEdit(screen, 'Dumbbell squat · set 1 · Reps', '');
   await act(async () => {
     press(screen, 'Save changes');
@@ -6758,7 +6789,7 @@ test('journal subtraction preserves incomplete input for Undo without blocking a
   screen = await mountJournal(server.current);
   t.after(async () => act(async () => screen.unmount()));
   await act(async () => press(screen, 'Edit log'));
-  await act(async () => press(screen, 'Undo removal of Dumbbell squat set 3'));
+  await act(async () => press(screen, 'Add set for Dumbbell squat'));
   assert.equal(input(screen, 'Dumbbell squat · set 3 · Weight (lb)').props.value, '12.');
 });
 test('journal local storage failure is actionable and does not claim Saved or dispatch cloud work', async (t) => {
@@ -6977,15 +7008,26 @@ function weightServer() {
     },
   };
 }
-async function mountWeight(extra = {}) {
+async function mountWeight(extra = {}, withUnits = false) {
   let screen;
   await act(async () => {
     screen = TestRenderer.create(
-      React.createElement(BodyWeight, {
-        userId: 'alice',
-        accessToken: async () => 'alice-token',
-        ...extra,
-      }),
+      withUnits
+        ? React.createElement(
+            WeightUnitsProvider,
+            { userId: 'alice', accessToken: async () => 'alice-token', onSessionEnded() {} },
+            React.createElement(WeightUnitSetting),
+            React.createElement(BodyWeight, {
+              userId: 'alice',
+              accessToken: async () => 'alice-token',
+              ...extra,
+            }),
+          )
+        : React.createElement(BodyWeight, {
+            userId: 'alice',
+            accessToken: async () => 'alice-token',
+            ...extra,
+          }),
     );
     await flush();
     await flush();
@@ -7002,7 +7044,7 @@ async function weightPress(screen, label) {
 test('body weight is blank by default, persists unsaved decimals/date/units across relaunch and cleanup, saves/edits/deletes explicitly', async (t) => {
   globalThis.__fitquestSecure.clear();
   const server = weightServer();
-  let screen = await mountWeight();
+  let screen = await mountWeight({}, true);
   await weightPress(screen, 'Log weight');
   assert.equal(input(screen, 'Body weight (lb)').props.value, '');
   assert.equal(input(screen, 'Measurement date (YYYY-MM-DD)').props.value, foodDay);
@@ -7011,7 +7053,7 @@ test('body weight is blank by default, persists unsaved decimals/date/units acro
   await act(async () => screen.unmount());
   await privateDrafts.clear('alice');
   assert.deepEqual(await privateWeightDrafts.read('bob'), null);
-  screen = await mountWeight();
+  screen = await mountWeight({}, true);
   t.after(async () => act(async () => screen.unmount()));
   await weightPress(screen, 'Resume weight draft');
   assert.equal(input(screen, 'Body weight (lb)').props.value, '154.75');
@@ -7349,7 +7391,7 @@ test('current saved plans render hostile exercise and nutrition text literally w
   assert(strings().includes(rationale));
   await act(async () => press(screen, 'Session 1 on 2026-10-05'));
   assert(strings().includes(exercise));
-  assert(!strings().includes(prescription));
+  assert(strings().includes(prescription)); // Completion-only instructions remain visible and literal.
   await act(async () => press(screen, `Information for ${exercise}`));
   assert(strings().includes(prescription));
   assert.equal(
@@ -8418,4 +8460,195 @@ test('completion rejects malformed or mismatched responses and ignores a late fo
     await flush();
   });
   assert.equal(expired, 1);
+});
+test('table logging has one column header, short recommendations and inline warmups without Done, row-unit or restore controls', async (t) => {
+  const oldFrame = globalThis.requestAnimationFrame,
+    oldCancel = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = () => 0;
+  globalThis.cancelAnimationFrame = () => {};
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => {
+    await act(async () => screen.unmount());
+    globalThis.requestAnimationFrame = oldFrame;
+    globalThis.cancelAnimationFrame = oldCancel;
+  });
+  const displayed = renderedTrainingText(screen);
+  assert.match(displayed, /Recommended: 3 × 8, 40 lbs/);
+  assert.match(displayed, /Weight \(lbs\)/);
+  assert.equal(
+    screen.root.findAllByType('Text').filter((n) => n.children.join('') === 'Set').length,
+    2,
+  );
+  const field = input(screen, 'Dumbbell squat · set 1 · Weight (lb)');
+  await act(async () => field.props.onFocus());
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Done editing' }).length, 0);
+  assert.equal(
+    screen.root.findAll((n) =>
+      String(n.props.accessibilityLabel ?? '').startsWith('Change weight unit'),
+    ).length,
+    0,
+  );
+  await act(async () => press(screen, 'Subtract set for Dumbbell squat'));
+  assert.equal(
+    screen.root.findAll((n) =>
+      String(n.props.accessibilityLabel ?? '').startsWith('Undo removal of Dumbbell squat set'),
+    ).length,
+    0,
+  );
+  await act(async () => press(screen, 'Add set for Dumbbell squat'));
+  assert.equal(input(screen, 'Dumbbell squat · set 3 · Reps').props.value, '8');
+  assert.equal(server.commands.length, 0);
+  const { WorkoutContent } = await import('../src/features/training/WorkoutContent.tsx');
+  let warmup;
+  const instructions =
+    '5 minutes easy movement, then 2–4 progressively heavier squat warm-up sets. Warm-up sets should not be tiring; set rack safeties before work sets.';
+  await act(async () => {
+    warmup = TestRenderer.create(
+      React.createElement(WorkoutContent, {
+        session: {
+          exercises: [
+            { exercise: 'Warm-up', loggingMode: 'completion', prescription: instructions },
+          ],
+        },
+      }),
+    );
+  });
+  t.after(async () => act(async () => warmup.unmount()));
+  assert.match(renderedTrainingText(warmup), /5 minutes easy movement/);
+  assert.match(renderedTrainingText(warmup), /set rack safeties before work sets/);
+});
+test('weight setting synchronizes across fresh clients, preserves original records, and reconciles a lost save response without a second write', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const previous = preferenceHandler;
+  let saved = { weightUnit: 'lb', revision: 0 },
+    writes = 0,
+    lose = false;
+  preferenceHandler = async (_url, options) => {
+    if (options.method === 'PUT') {
+      writes++;
+      const change = JSON.parse(options.body);
+      if (change.expectedRevision !== saved.revision)
+        return { status: 409, json: async () => ({}) };
+      saved = { weightUnit: change.weightUnit, revision: saved.revision + 1 };
+      if (lose) {
+        lose = false;
+        throw Error('Synthetic response lost');
+      }
+    }
+    return { status: 200, json: async () => structuredClone(saved) };
+  };
+  t.after(() => {
+    preferenceHandler = previous;
+  });
+  const j = journalFixture(),
+    original = structuredClone(j);
+  journalServer(j);
+  const screens = [];
+  t.after(async () => {
+    for (const screen of screens) await act(async () => screen.unmount());
+  });
+  const mountUnitJournal = async () => {
+    let s;
+    await act(async () => {
+      s = TestRenderer.create(
+        React.createElement(
+          WeightUnitsProvider,
+          { userId: 'alice', accessToken: async () => 'alice-token', onSessionEnded() {} },
+          React.createElement(WeightUnitSetting),
+          React.createElement(JournalScreen, {
+            userId: 'alice',
+            journalId: j.id,
+            accessToken: async () => 'alice-token',
+            onBack() {},
+          }),
+        ),
+      );
+      await flush();
+      await flush();
+      await flush();
+    });
+    screens.push(s);
+    return s;
+  };
+  let screen = await mountUnitJournal();
+  await weightPress(screen, 'Kilograms (kg)');
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (kg)').props.value, '18.14');
+  assert.match(renderedTrainingText(screen), /Recommended: 3 × 8, 18.14 kg/);
+  assert.deepEqual(j, original, 'preference change does not write the saved journal or plan');
+  await act(async () => screen.unmount());
+  screens.pop();
+  globalThis.__fitquestSecure.clear(); // Fresh synthetic device, same server account.
+  screen = await mountUnitJournal();
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (kg)').props.value, '18.14');
+  lose = true;
+  await weightPress(screen, 'Pounds (lbs)');
+  assert.match(renderedTrainingText(screen), /Could not sync/);
+  assert.equal(writes, 2);
+  await weightPress(screen, 'Reload weight units');
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '40');
+  assert.equal(writes, 2, 'readback reconciles unknown response without resubmitting');
+  // A concurrent device changed revision; stale setting must not overwrite it.
+  saved = { weightUnit: 'kg', revision: saved.revision + 1 };
+  await weightPress(screen, 'Kilograms (kg)');
+  assert.match(renderedTrainingText(screen), /changed on another device/);
+  await weightPress(screen, 'Reload weight units');
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (kg)').props.value, '18.14');
+});
+test('offline account preferences keep cached units usable and a late former-account read cannot switch the next account', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  globalThis.__fitquestSecure.set(
+    'weight-preferences.alice',
+    JSON.stringify({ weightUnit: 'kg', revision: 3 }),
+  );
+  const previous = preferenceHandler;
+  preferenceHandler = async () => {
+    throw Error('Synthetic offline');
+  };
+  t.after(() => {
+    preferenceHandler = previous;
+  });
+  let screen;
+  const tree = (userId) =>
+    React.createElement(
+      WeightUnitsProvider,
+      { key: userId, userId, accessToken: async () => userId + '-token', onSessionEnded() {} },
+      React.createElement(WeightUnitSetting),
+    );
+  await act(async () => {
+    screen = TestRenderer.create(tree('alice'));
+    await flush();
+    await flush();
+  });
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(input(screen, 'Kilograms (kg)').props.accessibilityState.selected, true);
+  assert.match(renderedTrainingText(screen), /Could not sync/);
+  let deliver;
+  preferenceHandler = async (_url, options) =>
+    options.headers.Authorization === 'Bearer alice-token'
+      ? new Promise((resolve) => {
+          deliver = resolve;
+        })
+      : { status: 200, json: async () => ({ weightUnit: 'lb', revision: 1 }) };
+  await act(async () => {
+    press(screen, 'Reload weight units');
+    await flush();
+  });
+  await act(async () => {
+    screen.update(tree('bob'));
+    await flush();
+    await flush();
+  });
+  assert.equal(input(screen, 'Pounds (lbs)').props.accessibilityState.selected, true);
+  await act(async () => {
+    deliver({ status: 200, json: async () => ({ weightUnit: 'kg', revision: 99 }) });
+    await flush();
+  });
+  assert.equal(input(screen, 'Pounds (lbs)').props.accessibilityState.selected, true);
+  assert.equal(
+    JSON.parse(globalThis.__fitquestSecure.get('weight-preferences.bob')).weightUnit,
+    'lb',
+  );
 });

@@ -1,3 +1,5 @@
+import { WeightUnitSetting, useWeightUnits } from './WeightUnitPreference';
+import { weightNumber, weightLabel } from './weightUnits';
 import { Icon } from '../../components/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -22,7 +24,10 @@ export function AccountView({
   onSessionEnded: () => void;
   onJournal?: () => void;
 }) {
-  const [view, setView] = useState<'account' | 'profile' | 'signout' | 'sharing'>('account'),
+  const { unit } = useWeightUnits();
+  const [view, setView] = useState<'account' | 'profile' | 'signout' | 'sharing' | 'units'>(
+      'account',
+    ),
     [profile, setProfile] = useState<SavedProfile | null>(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(false),
@@ -111,10 +116,14 @@ export function AccountView({
           </>
           <AccountLink label="Saved profile" onPress={() => setView('profile')} />
           <View style={ui.divider} />
+          <AccountLink label="Weight units" onPress={() => setView('units')} />
+          <View style={ui.divider} />
           <AccountLink label="Sharing permission" onPress={() => setView('sharing')} />
           <View style={ui.divider} />
           <AccountLink label="Sign out" onPress={() => setView('signout')} />
         </>
+      ) : view === 'units' ? (
+        <WeightUnitSetting />
       ) : view === 'signout' ? (
         <>
           <Text accessibilityRole="header" style={ui.title}>
@@ -158,7 +167,10 @@ export function AccountView({
                       ['Age as recorded', `${profile.age} years`],
                       ['Birthday', 'Not recorded'],
                     ]),
-                ['Weight as recorded', `${profile.weight.value} lb`],
+                [
+                  'Weight as recorded',
+                  `${weightNumber(profile.weight.value, 'lb', unit)} ${weightLabel(unit)}`,
+                ],
                 ['Gender', profile.gender],
                 ['Last saved', new Date(profile.updatedAt).toLocaleDateString()],
               ].map(([label, value]) => (

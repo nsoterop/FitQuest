@@ -1,3 +1,4 @@
+import { preferencesStore } from './features/account/preferencesStore.js';
 import { accountRequestGuard } from './features/account/requestLimits.js';
 import { weeklyScheduler } from './features/weekly-planning/weeklyScheduler.js';
 import { weightStore } from './features/weight/weightStore.js';
@@ -48,6 +49,7 @@ const app = buildApp(
     store: postgresProfileStore(pool),
     accountRequestGuard: accountRequestGuard(pool),
     verifyAccount: supabaseVerifier(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY),
+    preferences: preferencesStore(pool),
     weight: weightStore(pool),
     journal: journalStore(pool),
     library: foodLibraryStore(pool),

@@ -1,3 +1,5 @@
+import { useWeightUnits } from '../features/account/WeightUnitPreference';
+import { weightText } from '../features/account/weightUnits';
 import { useRef, useState, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
@@ -21,6 +23,7 @@ export function ExerciseInfo({
   description?: string | null;
   children?: ReactNode;
 }) {
+  const { unit } = useWeightUnits();
   const [open, setOpen] = useState(false),
     trigger = useRef<View | null>(null),
     heading = useRef<Text | null>(null);
@@ -78,14 +81,14 @@ export function ExerciseInfo({
                 <Text style={ui.label}>Prescription</Text>
                 {children ?? (
                   <Text selectable style={ui.copy}>
-                    {prescription}
+                    {weightText(prescription, unit)}
                   </Text>
                 )}
                 {!!description && (
                   <>
                     <Text style={ui.label}>Guidance</Text>
                     <Text selectable style={ui.copy}>
-                      {description}
+                      {weightText(description, unit)}
                     </Text>
                   </>
                 )}

@@ -1,3 +1,4 @@
+import { weightEntry, type WeightUnit } from '../account/weightUnits';
 import type {
   Journal,
   JournalDocument,
@@ -137,12 +138,22 @@ function seedRecommendedSets(j: Journal, d: JournalDocument, resultId: string, i
 }
 export function suggestion(hint: ExerciseLogging, g: SetGroup, f: 'weight' | 'reps') {
   if (g.confirmed) return '';
-  const range = f === 'weight' ? (g.unit === hint.load?.unit ? hint.load : null) : hint.reps;
+  if (f === 'weight') {
+    const load = hint.load;
+    return load
+      ? weightEntry(
+          load.min === load.max ? String(load.min) : `${load.min}–${load.max}`,
+          load.unit,
+          g.unit,
+        ).value
+      : '';
+  }
+  const range = hint.reps;
   return range ? (range.min === range.max ? String(range.min) : `${range.min}–${range.max}`) : '';
 }
 // Finish is the explicit recording action. Opening/autosaving never turns a
 // recommendation into performed work. Ranges stay raw until replaced or cleared.
-export function finishVisibleSets(d: JournalDraft): JournalDraft {
+export function finishVisibleSets(d: JournalDraft, unit?: WeightUnit): JournalDraft {
   if (!d.document || !d.journal || d.document.version !== 2) return d;
   const document = structuredClone(d.document),
     fields = { ...d.fields };
@@ -158,7 +169,13 @@ export function finishVisibleSets(d: JournalDraft): JournalDraft {
         r.mode === 'weighted_reps' ? ['weight', 'reps'] : ['reps'];
       for (const f of numericFields) {
         const key = `${r.id}:${g.id}:${f}`;
-        const raw = fields[key] ?? (g[f] === null ? suggestion(hint, g, f) : String(g[f]));
+        let raw = fields[key] ?? (g[f] === null ? suggestion(hint, g, f) : String(g[f]));
+        if (f === 'weight' && unit) {
+          const shown = weightEntry(raw, g.unit, unit);
+          raw = shown.value;
+          g.unit = shown.unit;
+          if (fields[key] !== undefined) fields[key] = raw;
+        }
         if (!raw.trim()) {
           g[f] = null;
           continue;

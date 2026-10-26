@@ -1,3 +1,5 @@
+import { useWeightUnits } from './WeightUnitPreference';
+import { weightNumber, weightEntry } from './weightUnits';
 import { Page, ui, Action, Notice } from '../../components/Design';
 import { LoadingProgress } from '../../components/LoadingProgress';
 import type { RecoveryRequest } from '../onboarding/onboardingApi';
@@ -55,9 +57,22 @@ function AccountProfileForm({
   onSaved,
   onCancel,
 }: Props) {
+  const { unit: preferredUnit } = useWeightUnits();
+  const [unit, setUnit] = useState(preferredUnit);
   const [fields, setFields] = useState(() =>
-    editingProfile ? profileFields(editingProfile) : emptyFields,
+    editingProfile ? profileFields(editingProfile, unit) : emptyFields,
   );
+  useEffect(() => {
+    if (preferredUnit === unit) return;
+    const shown = weightEntry(fields.weight, unit, preferredUnit);
+    if (shown.unit === preferredUnit) {
+      setFields((previous) => ({
+        ...previous,
+        weight: weightEntry(previous.weight, unit, preferredUnit).value,
+      }));
+      setUnit(preferredUnit);
+    }
+  }, [preferredUnit]);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const pending = useRef<AbortController | null>(null);
@@ -174,7 +189,7 @@ function AccountProfileForm({
         }
         setLoadError(result.error);
       } else if (result.profile) {
-        setFields(profileFields(result.profile));
+        setFields(profileFields(result.profile, unit));
         if (!profileSetupRequested.current) setSavedFirstName(result.profile.firstName);
       } else setFields(emptyFields);
     } catch {
@@ -210,11 +225,13 @@ function AccountProfileForm({
   async function submit() {
     // Lock immediately, before React rerenders, so rapid taps send only one request.
     if (pending.current || reading) return;
-    const validation = validateIntake(fields);
+    const validation = validateIntake(fields, unit);
     if ('error' in validation) {
       setFeedback(validation.error);
       return;
     }
+    if (editingProfile && fields.weight === weightNumber(editingProfile.weight.value, 'lb', unit))
+      validation.payload.weight = editingProfile.weight;
     Keyboard.dismiss();
     const controller = new AbortController();
     pending.current = controller;
@@ -381,7 +398,7 @@ function AccountProfileForm({
           Your previous profile recorded age only. Enter your real birthday to update it.
         </Text>
       )}
-      {field('weight', 'Weight (lb)', 'decimal-pad')}
+      {field('weight', `Weight (${unit})`, 'decimal-pad')}
       <GenderSelect
         value={fields.gender}
         disabled={submitting}

@@ -1,3 +1,5 @@
+import { useWeightUnits } from '../account/WeightUnitPreference';
+import { weightText } from '../account/weightUnits';
 import React from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 // Deliberately text-only: no WebView, HTML interpreter, image, link handler or network loader.
@@ -24,6 +26,8 @@ function inline(source: string): React.ReactNode[] {
     });
 }
 export function WorkoutMarkdown({ source }: { source: string }) {
+  const { unit } = useWeightUnits();
+  source = weightText(source, unit);
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
   let fenced = false;
   return (

@@ -283,3 +283,17 @@ test('legacy profiles restore without inventing a birthday or replacing their sa
     'editing asks for the actual birthday and one current selection',
   );
 });
+test('metric profile input keeps the existing pounds contract and physical bounds', () => {
+  const result = validateIntake({ ...fields, weight: '70' }, 'kg');
+  assert('payload' in result);
+  assert.equal(result.payload.weight.unit, 'lb');
+  assert(Math.abs(result.payload.weight.value - 154.3235835294143) < 1e-9);
+  assert('error' in validateIntake({ ...fields, weight: '700' }, 'kg'));
+  const saved = {
+    ...payload,
+    age: 29,
+    ageCapturedAt: '2026-10-04T12:00:00Z',
+    updatedAt: '2026-10-04T12:00:00Z',
+  };
+  assert.equal(profileFields(saved, 'kg').weight, '70.53');
+});

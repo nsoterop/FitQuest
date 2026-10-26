@@ -1,3 +1,4 @@
+import { WeightUnitsProvider } from './WeightUnitPreference';
 import { JournalHistory } from '../journal/JournalScreen';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Keyboard, Linking, Pressable, Text, TextInput, View } from 'react-native';
@@ -286,48 +287,55 @@ export function AccountPanel() {
         <Action label="Retry sign out" busy={busy} onPress={() => void signOut()} />
       </Page>
     );
-  if (session && journalOpen)
-    return (
-      <JournalHistory
-        userId={session.user.id}
-        accessToken={() => accessToken(session.user.id)}
-        onBack={() => setJournalOpen(false)}
-        onSessionEnded={() => void signOut('Your session ended. Please sign in again.')}
-      />
-    );
   if (session)
     return (
-      <View style={ui.screen}>
-        <View
-          style={accountOpen ? { display: 'none' } : ui.screen}
-          accessibilityElementsHidden={accountOpen}
-          importantForAccessibility={accountOpen ? 'no-hide-descendants' : 'auto'}
-        >
-          <ProfileIntakeForm
-            trainingRefresh={trainingRefresh}
-            key={session.user.id}
+      <WeightUnitsProvider
+        key={session.user.id}
+        userId={session.user.id}
+        accessToken={() => accessToken(session.user.id)}
+        onSessionEnded={() => void signOut('Your session ended. Please sign in again.')}
+      >
+        {journalOpen ? (
+          <JournalHistory
             userId={session.user.id}
             accessToken={() => accessToken(session.user.id)}
-            onAccount={() => setAccountOpen(true)}
+            onBack={() => setJournalOpen(false)}
             onSessionEnded={() => void signOut('Your session ended. Please sign in again.')}
           />
-        </View>
-        {accountOpen && (
-          <AccountView
-            userId={session.user.id}
-            onJournal={() => setJournalOpen(true)}
-            key={session.user.id}
-            email={session.user.email ?? ''}
-            accessToken={() => accessToken(session.user.id)}
-            onBack={() => {
-              setAccountOpen(false);
-              setTrainingRefresh((n) => n + 1);
-            }}
-            onSignOut={() => void signOut()}
-            onSessionEnded={() => void signOut('Your session ended. Please sign in again.')}
-          />
+        ) : (
+          <View style={ui.screen}>
+            <View
+              style={accountOpen ? { display: 'none' } : ui.screen}
+              accessibilityElementsHidden={accountOpen}
+              importantForAccessibility={accountOpen ? 'no-hide-descendants' : 'auto'}
+            >
+              <ProfileIntakeForm
+                trainingRefresh={trainingRefresh}
+                key={session.user.id}
+                userId={session.user.id}
+                accessToken={() => accessToken(session.user.id)}
+                onAccount={() => setAccountOpen(true)}
+                onSessionEnded={() => void signOut('Your session ended. Please sign in again.')}
+              />
+            </View>
+            {accountOpen && (
+              <AccountView
+                userId={session.user.id}
+                onJournal={() => setJournalOpen(true)}
+                key={session.user.id}
+                email={session.user.email ?? ''}
+                accessToken={() => accessToken(session.user.id)}
+                onBack={() => {
+                  setAccountOpen(false);
+                  setTrainingRefresh((n) => n + 1);
+                }}
+                onSignOut={() => void signOut()}
+                onSessionEnded={() => void signOut('Your session ended. Please sign in again.')}
+              />
+            )}
+          </View>
         )}
-      </View>
+      </WeightUnitsProvider>
     );
   if (confirmation)
     return (

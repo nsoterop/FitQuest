@@ -112,6 +112,7 @@ export function Action({
   icon,
   accessibilityLabel,
   compact = false,
+  selected,
 }: {
   label: string;
   onPress: () => void;
@@ -121,12 +122,17 @@ export function Action({
   icon?: IconName;
   accessibilityLabel?: string;
   compact?: boolean;
+  selected?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled: disabled || busy, busy }}
+      accessibilityState={{
+        disabled: disabled || busy,
+        busy,
+        ...(selected === undefined ? {} : { selected }),
+      }}
       disabled={disabled || busy}
       onPress={onPress}
       style={({ pressed }) => [

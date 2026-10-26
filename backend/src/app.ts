@@ -25,6 +25,7 @@ export function buildApp(
     verifyAccount?: VerifyAccount;
     onboarding?: OnboardingService;
     planning?: PlanningService;
+    preferences?: import('./features/account/preferencesStore.js').PreferencesStore;
     weight?: import('./features/weight/weightStore.js').WeightStore;
     journal?: import('./features/journal/journalStore.js').JournalStore;
     library?: import('./features/nutrition/foodLibraryStore.js').FoodLibraryStore;
@@ -232,6 +233,16 @@ export function buildApp(
       });
     },
   };
+  const preferences = () => {
+    if (!options.preferences) throw new OnboardingError(503, 'unavailable');
+    return options.preferences;
+  };
+  app.get('/account-preferences', privateRoute, async (r) => preferences().read(accounts.get(r)!));
+  app.put<{ Body: import('./shared/accountPreferences.js').PreferencesChange }>(
+    '/account-preferences',
+    { ...privateRoute, bodyLimit: 512 },
+    async (r) => preferences().save(accounts.get(r)!, r.body),
+  );
   const onboarding = () => {
     if (!options.onboarding) throw new OnboardingError(503, 'unavailable');
     return options.onboarding;

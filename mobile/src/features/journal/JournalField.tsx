@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
+import { useRef } from 'react';
+import { Text, TextInput, View } from 'react-native';
 import { colors, ui } from '../../components/Design';
 import { useConversationScroll } from '../../components/ConversationScrollView';
 export function JournalField({
@@ -13,6 +13,7 @@ export function JournalField({
   disabled = false,
   suggested = false,
   maxLength,
+  hideLabel = false,
 }: {
   label: string;
   visibleLabel?: string;
@@ -24,11 +25,11 @@ export function JournalField({
   disabled?: boolean;
   suggested?: boolean;
   maxLength?: number;
+  hideLabel?: boolean;
 }) {
   const view = useRef<View | null>(null),
     focused = useRef(false),
     scroll = useConversationScroll();
-  const [showDone, setShowDone] = useState(false);
   const reveal = () => scroll.reveal({ composer: view, question: view });
   return (
     <View
@@ -39,7 +40,7 @@ export function JournalField({
       }}
       style={{ gap: 5, flexGrow: 1, minWidth: 80 }}
     >
-      <Text style={ui.label}>{visibleLabel ?? label}</Text>
+      {!hideLabel && <Text style={ui.label}>{visibleLabel ?? label}</Text>}
       <TextInput
         accessibilityLabel={label}
         value={value}
@@ -56,39 +57,15 @@ export function JournalField({
         ]}
         onFocus={() => {
           focused.current = true;
-          setShowDone(true);
           scroll.reveal({ composer: view, question: view }, true);
         }}
         onBlur={() => {
           focused.current = false;
-          setShowDone(false);
         }}
         onContentSizeChange={() => {
           if (focused.current) reveal();
         }}
       />
-      {showDone && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Done editing"
-          onPress={() => {
-            Keyboard.dismiss();
-            setShowDone(false);
-          }}
-          style={{
-            minHeight: 44,
-            paddingHorizontal: 14,
-            alignSelf: 'flex-start',
-            borderWidth: 1,
-            borderColor: '#B6C4F5',
-            borderRadius: 8,
-            backgroundColor: colors.actionWash,
-            justifyContent: 'center',
-          }}
-        >
-          <Text style={{ color: colors.action }}>Done</Text>
-        </Pressable>
-      )}
     </View>
   );
 }

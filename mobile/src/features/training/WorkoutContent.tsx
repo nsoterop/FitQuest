@@ -1,3 +1,5 @@
+import { ExercisePrescription } from '../../components/ExercisePrescription';
+import { prescriptionHints } from '../journal/prescriptionHints';
 import { Text, View } from 'react-native';
 import type {
   DocumentSession,
@@ -23,24 +25,40 @@ export function WorkoutContent({
     );
   return (
     <View>
-      {session.exercises.map((row, i) => (
-        <View
-          key={i}
-          accessibilityLabel={`Exercise ${i + 1}`}
-          style={{ paddingVertical: 16, gap: 6, borderBottomWidth: 1, borderColor: colors.line }}
-        >
-          <View style={ui.row}>
-            <Text accessibilityRole="header" style={[ui.section, { flex: 1 }]}>
-              {row.exercise}
-            </Text>
-            <ExerciseInfo
-              name={row.exercise}
+      {session.exercises.map((row, i) => {
+        const mode = row.loggingMode ?? 'completion',
+          fallback = prescriptionHints(row.prescription, mode),
+          hint = {
+            ...fallback,
+            ...row.logging,
+            setCount: row.logging?.setCount ?? fallback.setCount,
+            reps: row.logging?.reps ?? fallback.reps,
+            load: row.logging?.load ?? fallback.load,
+          };
+        return (
+          <View
+            key={i}
+            accessibilityLabel={`Exercise ${i + 1}`}
+            style={{ paddingVertical: 16, gap: 6, borderBottomWidth: 1, borderColor: colors.line }}
+          >
+            <View style={ui.row}>
+              <Text accessibilityRole="header" style={[ui.section, { flex: 1 }]}>
+                {row.exercise}
+              </Text>
+              <ExerciseInfo
+                name={row.exercise}
+                prescription={row.prescription}
+                description={row.logging?.description}
+              />
+            </View>
+            <ExercisePrescription
               prescription={row.prescription}
-              description={row.logging?.description}
+              mode={row.loggingMode ?? 'completion'}
+              hint={hint}
             />
           </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }

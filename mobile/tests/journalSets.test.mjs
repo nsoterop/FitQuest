@@ -219,3 +219,22 @@ test('alternative counts or loads never become a selected exact recommendation',
   assert.equal(hint.reps, null);
   assert.equal(hint.load, null);
 });
+test('Finish records the displayed preferred-unit recommendation without rewriting its source or losing incomplete units', () => {
+  const j = fixture();
+  j.snapshot.exercises[0].prescription = '3 x 8 at 20 lb per dumbbell';
+  const doc = editableJournal(j, randomUUID),
+    r = doc.results[0],
+    before = structuredClone(j);
+  const d = { journal: j, document: doc, fields: {} };
+  const finished = finishVisibleSets(d, 'kg');
+  assert.equal(finished.document.results[0].groups[0].weight, 9.07);
+  assert.equal(finished.document.results[0].groups[0].unit, 'kg');
+  assert.equal(finished.document.results[0].groups[0].confirmed, true);
+  assert.deepEqual(j, before);
+  assert.equal(d.document.results[0].groups[0].weight, null);
+  const key = `${r.id}:${r.groups[0].id}:weight`;
+  const incomplete = finishVisibleSets({ ...d, fields: { [key]: '12.' } }, 'kg');
+  assert.equal(incomplete.fields[key], '12.');
+  assert.equal(incomplete.document.results[0].groups[0].unit, 'lb');
+  assert.equal(incomplete.document.results[0].groups[0].confirmed, false);
+});
