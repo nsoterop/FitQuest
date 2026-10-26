@@ -238,3 +238,24 @@ test('Finish records the displayed preferred-unit recommendation without rewriti
   assert.equal(incomplete.document.results[0].groups[0].unit, 'lb');
   assert.equal(incomplete.document.results[0].groups[0].confirmed, false);
 });
+test('explicit work-set doses survive ordinary references to rest rounds while circuit counts remain manual', async () => {
+  const { prescriptionHints } = await import('../src/features/journal/prescriptionHints.ts');
+  for (const text of [
+    '3x6-8',
+    '3 × 6–8 reps; rest between rounds.',
+    '3 sets of 6–8 reps; do not round your back.',
+  ]) {
+    const hint = prescriptionHints(text, 'weighted_reps');
+    assert.equal(hint.setCount, 3, text);
+    assert.deepEqual(hint.reps, { min: 6, max: 8 }, text);
+    assert.equal(hint.load, null);
+  }
+  for (const text of [
+    '3 × 6–8 reps per round.',
+    '3 × 6–8 reps; 2 rounds.',
+    '3 × 6–8 reps; rounds: 2.',
+    '3 rounds of 6–8 reps.',
+    '3 × 6–8 reps; repeat rounds.',
+  ])
+    assert.equal(prescriptionHints(text, 'weighted_reps').setCount, null, text);
+});

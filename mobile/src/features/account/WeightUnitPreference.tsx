@@ -1,4 +1,3 @@
-import { LoadingProgress } from '../../components/LoadingProgress';
 import * as SecureStore from 'expo-secure-store';
 import { validPreferences } from '../../../../backend/src/shared/accountPreferences';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -89,6 +88,7 @@ export function WeightUnitsProvider({
         if (!current.current) {
           const defaults: AccountPreferences = { weightUnit: 'lb', revision: 0 };
           current.current = defaults;
+          setSaved(defaults);
         }
         void run();
       }
@@ -102,11 +102,10 @@ export function WeightUnitsProvider({
       sub.remove();
     };
   }, []);
-  if (!saved) return <LoadingProgress />;
   return (
     <Context.Provider
       value={{
-        unit: saved.weightUnit,
+        unit: saved?.weightUnit ?? 'lb',
         busy,
         error,
         reload: () => run(),

@@ -62,14 +62,17 @@ function AccountProfileForm({
   const [fields, setFields] = useState(() =>
     editingProfile ? profileFields(editingProfile, unit) : emptyFields,
   );
+  const formUnit = useRef(unit);
   useEffect(() => {
-    if (preferredUnit === unit) return;
-    const shown = weightEntry(fields.weight, unit, preferredUnit);
+    if (preferredUnit === formUnit.current) return;
+    const from = formUnit.current;
+    const shown = weightEntry(fields.weight, from, preferredUnit);
     if (shown.unit === preferredUnit) {
       setFields((previous) => ({
         ...previous,
-        weight: weightEntry(previous.weight, unit, preferredUnit).value,
+        weight: weightEntry(previous.weight, from, preferredUnit).value,
       }));
+      formUnit.current = preferredUnit;
       setUnit(preferredUnit);
     }
   }, [preferredUnit]);
@@ -189,7 +192,7 @@ function AccountProfileForm({
         }
         setLoadError(result.error);
       } else if (result.profile) {
-        setFields(profileFields(result.profile, unit));
+        setFields(profileFields(result.profile, formUnit.current));
         if (!profileSetupRequested.current) setSavedFirstName(result.profile.firstName);
       } else setFields(emptyFields);
     } catch {

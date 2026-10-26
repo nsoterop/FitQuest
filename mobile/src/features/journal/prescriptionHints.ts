@@ -16,7 +16,8 @@ export function prescriptionHints(text: string, mode: string): ExerciseLogging {
   };
   if (
     mode === 'completion' ||
-    /\b(rounds?|superset|then|intervals?|warm[ -]?up|drop[ -]?sets?|pyramid)\b|\s\+\s/i.test(text)
+    /\b(superset|then|intervals?|warm[ -]?up|drop[ -]?sets?|pyramid)\b|\s\+\s/i.test(text) ||
+    /\b(?:\d+\s*rounds?|rounds?\s*:?\s*\d+|(?:per|each|every|repeat|for)\s+rounds?)\b/i.test(text)
   )
     return blank;
   if (/\b\d{1,2}\s*sets?\s*(?:or|to|[–-])\s*\d/i.test(text)) return blank;

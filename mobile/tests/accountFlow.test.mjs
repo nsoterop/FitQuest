@@ -8682,3 +8682,115 @@ test('largest standard text keeps the three input columns together and larger ac
   assert.equal(screen.root.findAllByType('ScrollView')[0].props.horizontal, true);
   assert.equal(input(screen, 'Dumbbell squat · set 3 · Weight (lb)').props.value, '40');
 });
+test('slow uncached weight preferences do not serialize saved profile/plan loading or block Today', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  resetAuth(alice);
+  t.mock.timers.setTime(new Date('2026-10-05T16:00:00Z').getTime());
+  const previous = preferenceHandler;
+  let deliverPreferences;
+  preferenceHandler = async () =>
+    new Promise((resolve) => {
+      deliverPreferences = resolve;
+    });
+  t.after(() => {
+    preferenceHandler = previous;
+  });
+  const { saved } = await batchDocumentState('accepted');
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, method: options.method ?? 'GET' });
+    if (url.endsWith('/profile')) return { status: 200, json: async () => ({ profile: payload }) };
+    if (url.includes('/finished-sessions?'))
+      return {
+        status: 200,
+        json: async () => ({ planId: saved.plans[0].id, revision: 1, sessions: [] }),
+      };
+    assert(url.endsWith('/training'));
+    return { status: 200, json: async () => structuredClone(saved) };
+  };
+  const screen = await mount();
+  t.after(async () => act(async () => screen.unmount()));
+  assert(deliverPreferences);
+  assert(requests.some((r) => r.url.endsWith('/profile')));
+  assert(requests.some((r) => r.url.endsWith('/training')));
+  assert.match(renderedTrainingText(screen), /Today\./);
+  assert.doesNotMatch(renderedTrainingText(screen), /Loading your saved progress/);
+  assert(requests.every((r) => r.method === 'GET'));
+  await act(async () => {
+    deliverPreferences({ status: 200, json: async () => ({ weightUnit: 'kg', revision: 1 }) });
+    await flush();
+  });
+  assert.match(renderedTrainingText(screen), /Today\./);
+});
+test('a profile reload finishing after the unit response keeps its physical weight and matching input label', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  resetAuth(alice);
+  const previous = preferenceHandler;
+  let deliverPreferences,
+    deliverProfile,
+    reads = 0;
+  preferenceHandler = async () =>
+    new Promise((resolve) => {
+      deliverPreferences = resolve;
+    });
+  t.after(() => {
+    preferenceHandler = previous;
+  });
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.method ?? 'GET', 'GET');
+    if (url.endsWith('/profile')) {
+      if (++reads === 1) return { status: 200, json: async () => ({ profile: payload }) };
+      return new Promise((resolve) => {
+        deliverProfile = resolve;
+      });
+    }
+    assert(url.endsWith('/training'));
+    return { status: 200, json: async () => ({ summary: null, plans: [] }) };
+  };
+  const screen = await mount();
+  t.after(async () => act(async () => screen.unmount()));
+  assert.match(renderedTrainingText(screen), /Before we begin/);
+  await act(async () => {
+    press(screen, 'Back to profile setup');
+    await flush();
+  });
+  assert(deliverProfile);
+  await act(async () => {
+    deliverPreferences({ status: 200, json: async () => ({ weightUnit: 'kg', revision: 1 }) });
+    await flush();
+  });
+  await act(async () => {
+    deliverProfile({ status: 200, json: async () => ({ profile: payload }) });
+    await flush();
+  });
+  assert.equal(input(screen, 'Weight (kg)').props.value, '70.53');
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Weight (lb)' }).length, 0);
+});
+test('Romanian deadlift fallback shows 3 × 6–8 and seeds three editable rows without recording or rewriting the saved log', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    r = j.document.results[0],
+    e = j.snapshot.exercises[0];
+  r.name = e.name = 'Barbell Romanian deadlift';
+  e.prescription = '3 × 6–8 reps; rest between rounds.';
+  e.logging = { version: 1, setCount: null, reps: null, load: null, description: null };
+  j.document.version = 2;
+  for (const result of j.document.results) {
+    result.notes = '';
+    for (const g of result.groups) Object.assign(g, { sets: 1, confirmed: false });
+  }
+  const before = structuredClone(j),
+    server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  assert.match(renderedTrainingText(screen), /Recommended: 3 × 6–8/);
+  for (let n = 1; n <= 3; n++) {
+    assert.equal(input(screen, `Barbell Romanian deadlift · set ${n} · Reps`).props.value, '6–8');
+    assert.equal(
+      input(screen, `Barbell Romanian deadlift · set ${n} · Weight (lb)`).props.value,
+      '',
+    );
+  }
+  assert.equal(server.commands.length, 0);
+  assert.deepEqual(server.current, before);
+});
