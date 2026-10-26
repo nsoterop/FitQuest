@@ -78,6 +78,35 @@ export async function verifyJournalDatabase(
     return { a, plan, document, history, cmd };
   }
   await t.test(
+    'session action state uses actual input and latest exact occurrence, without exposing notes or values',
+    async () => {
+      const f = await fresh(),
+        other = await fresh();
+      assert.equal((await store.sessionStates(f.a, f.plan.id, 1)).sessions.length, 0);
+      const receipt = await store.command(f.a, f.cmd);
+      const j = await store.read(f.a, receipt.journalId);
+      const initial = (await store.sessionStates(f.a, f.plan.id, 1)).sessions[0]!;
+      assert.equal(initial.hasWork, false);
+      assert.equal(initial.finished, false);
+      await store.command(f.a, {
+        operationId: randomUUID(),
+        kind: 'save',
+        journalId: j.id,
+        expectedRevision: j.revision,
+        document: { ...j.document, notes: 'Synthetic private note' },
+      });
+      const state = await store.sessionStates(f.a, f.plan.id, 1);
+      assert.equal(state.sessions[0]!.hasWork, true);
+      assert(!JSON.stringify(state).includes('Synthetic private note'));
+      assert.equal((await store.sessionStates(f.a, f.plan.id, 2)).sessions.length, 0);
+      await assert.rejects(store.sessionStates(other.a, f.plan.id, 1), {
+        code: 'journal_source_unavailable',
+      });
+      await store.command(f.a, { ...f.cmd, operationId: randomUUID(), repeat: true });
+      assert.equal((await store.sessionStates(f.a, f.plan.id, 1)).sessions[0]!.hasWork, false);
+    },
+  );
+  await t.test(
     'completion is explicit, source-scoped, deduplicated and updated by reopening',
     async () => {
       const f = await fresh(),

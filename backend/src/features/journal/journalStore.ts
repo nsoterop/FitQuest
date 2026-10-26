@@ -10,6 +10,7 @@ import {
 } from '../../shared/documentPlanContract.js';
 import {
   validJournalCommand,
+  resultLogged,
   journalToday,
   type Journal,
   type JournalCommand,
@@ -18,6 +19,7 @@ import {
   type JournalList,
   type JournalCompletions,
   type SetGroup,
+  type JournalSessionStates,
 } from '../../shared/journalContract.js';
 type JournalRow = {
   id: string;
@@ -91,6 +93,45 @@ export function journalStore(pool: Pool) {
     }
   }
   return {
+    sessionStates: (
+      a: Account,
+      planId: string,
+      revision: number,
+    ): Promise<JournalSessionStates> => {
+      if (!foodId(planId) || !Number.isSafeInteger(revision) || revision < 1 || revision > 1000000)
+        fail('invalid_request', 400);
+      return tx(a, async (c) => {
+        const plan = (
+          await c.query('SELECT dates FROM fitquest.training_plans WHERE user_id=$1 AND id=$2', [
+            a.userId,
+            planId,
+          ])
+        ).rows[0];
+        if (!plan) fail('journal_source_unavailable', 404);
+        const sources = (plan.dates as string[]).flatMap((date) =>
+          Array.from({ length: 12 }, (_, sessionIndex) =>
+            hash({ planId, revision, date, sessionIndex }),
+          ),
+        );
+        const rows = (
+          await c.query(
+            `SELECT DISTINCT ON(source_key) id,snapshot->'source' AS source,document FROM fitquest.workout_journals WHERE user_id=$1 AND source_key=ANY($2::text[]) ORDER BY source_key,created_at DESC,id DESC LIMIT 84`,
+            [a.userId, sources],
+          )
+        ).rows;
+        return {
+          planId,
+          revision,
+          sessions: rows.map((r) => ({
+            date: r.source.date,
+            sessionIndex: r.source.sessionIndex,
+            journalId: r.id,
+            hasWork: !!r.document.notes.trim() || r.document.results.some(resultLogged),
+            finished: r.document.outcome !== 'in_progress',
+          })),
+        };
+      });
+    },
     completedSessions: (
       a: Account,
       planId: string,

@@ -1,6 +1,14 @@
 import { Icon } from '../../components/Icon';
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import {
+  AppState,
+  Keyboard,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { Action, Notice, Page, colors, ui } from '../../components/Design';
 import { useConversationScroll } from '../../components/ConversationScrollView';
 import { WorkoutMarkdown } from '../training/WorkoutMarkdown';
@@ -22,6 +30,7 @@ import {
 import { privateJournalDrafts } from './journalStorage';
 import type { JournalDraft } from './journalDraft';
 import { journalRequest, JournalError } from './journalApi';
+import { acknowledgeJournal, editedDocument, journalSourceKey } from './journalEdits';
 type Access = {
   userId: string;
   accessToken: () => Promise<string>;
@@ -129,7 +138,7 @@ export function JournalScreen(
       key={
         props.userId +
         ':' +
-        (props.journalId ?? props.draftKey ?? JSON.stringify(props.source)) +
+        (props.journalId ?? props.draftKey ?? journalSourceKey(props.source)) +
         ':' +
         !!props.repeat
       }
@@ -175,10 +184,10 @@ function JournalEditor({
     const version = ++persistVersion.current;
     await privateJournalDrafts.write(userId, d);
     if (live.current && version === persistVersion.current)
-      setNotice(d.pending ? 'Waiting to sync' : d.dirty ? 'Saved on this device' : 'Saved');
+      setNotice(d.pending || d.dirty ? 'Saved on device · Waiting to sync' : 'Saved');
   }
   function change(d: JournalDraft) {
-    if (lock.current) return;
+    if (!live.current) return;
     const next = { ...d, dirty: true, savedAt: Date.now() };
     paint(next);
     setNotice('Saving on this device…');
@@ -187,8 +196,13 @@ function JournalEditor({
         setError('Could not save this device draft. Keep this screen open and retry saving.');
     });
   }
-  function documentChange(d: JournalDocument) {
-    if (current.current) change({ ...current.current, document: d });
+  function documentChange(patch: Partial<JournalDocument>) {
+    const d = current.current;
+    if (d?.document) change({ ...d, document: { ...d.document, ...patch } });
+  }
+  function fieldChange(key: string, value: string) {
+    const d = current.current;
+    if (d) change({ ...d, fields: { ...d.fields, [key]: value } });
   }
   useEffect(() => {
     live.current = true;
@@ -203,7 +217,9 @@ function JournalEditor({
           : journalId
             ? all.find((d) => d.journal?.id === journalId)
             : !repeat && source
-              ? all.find((d) => JSON.stringify(d.source) === JSON.stringify(source))
+              ? all
+                  .filter((d) => journalSourceKey(d.source) === journalSourceKey(source))
+                  .sort((a, b) => b.savedAt - a.savedAt)[0]
               : undefined;
         if (found) {
           paint(found);
@@ -215,6 +231,7 @@ function JournalEditor({
           );
           if (found.journal && !found.dirty && !found.pending)
             await loadJournal(found.journal.id, found);
+          else if (found.pending) await transmit(found);
           return;
         }
         if (journalId) {
@@ -261,6 +278,22 @@ function JournalEditor({
       controller.current?.abort();
     };
   }, [userId, retry]);
+  useEffect(() => {
+    if (!draft?.dirty || draft.pending || busy || latest || !editable) return;
+    const timer = setTimeout(() => void save(), 1000);
+    return () => clearTimeout(timer);
+  }, [draft, busy, latest, editable]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      const d = current.current;
+      if (!d) return;
+      if (state === 'active') {
+        if (d.pending) void transmit(d);
+        else if (d.dirty && !latest) void save();
+      } else if (!d.pending && d.dirty) void save();
+    });
+    return () => subscription.remove();
+  }, [latest]);
   async function request<T extends Journal | JournalList | JournalReceipt>(
     path: string,
     cmd?: JournalCommand,
@@ -275,7 +308,7 @@ function JournalEditor({
     try {
       const j = await request<Journal>('/' + id);
       if (!live.current) return;
-      const d: JournalDraft = {
+      const loaded: JournalDraft = {
         key: old?.key ?? id,
         journal: j,
         source: j.snapshot.source,
@@ -285,8 +318,12 @@ function JournalEditor({
         dirty: false,
         savedAt: Date.now(),
       };
-      await persist(d);
+      const d =
+        old && current.current && current.current !== old
+          ? acknowledgeJournal(old, current.current, j)
+          : loaded;
       paint(d);
+      await persist(d);
       setEditable(j.document.outcome === 'in_progress');
     } finally {
       lock.current = false;
@@ -302,21 +339,15 @@ function JournalEditor({
     const timer = setTimeout(() => controller.current?.abort(), 30000);
     try {
       await persist(d);
+      // A durable operation may have committed before its response was lost.
+      // Reposting the identical command remains receipt-idempotent on older servers.
       const receipt = await request<JournalReceipt>('/commands', d.pending);
       const j = await request<Journal>('/' + receipt.journalId);
-      const next: JournalDraft = {
-        ...d,
-        journal: j,
-        source: j.snapshot.source,
-        document: structuredClone(j.document),
-        pending: null,
-        fields: {},
-        dirty: false,
-        savedAt: Date.now(),
-      };
+      if (!live.current) return;
+      const next = acknowledgeJournal(d, current.current ?? d, j);
+      paint(next);
       await persist(next);
       if (live.current) {
-        paint(next);
         setEditable(j.document.outcome === 'in_progress');
         setLatest(null);
       }
@@ -333,7 +364,7 @@ function JournalEditor({
           ['invalid_request', 'future_journal', 'journal_identity_changed'].includes(e.code) &&
           d.pending?.kind === 'save'
         ) {
-          const editableDraft = { ...d, pending: null, dirty: true };
+          const editableDraft = { ...(current.current ?? d), pending: null, dirty: true };
           paint(editableDraft);
           await persist(editableDraft);
         }
@@ -358,26 +389,24 @@ function JournalEditor({
       await transmit(d);
       return;
     }
-    const doc = structuredClone(d.document);
+    const doc = editedDocument(d);
+    if (!doc) {
+      setNotice('Saved on device · Complete or clear unfinished numeric entries to sync');
+      return;
+    }
     if (outcome) doc.outcome = outcome;
     try {
-      for (const r of doc.results)
-        for (const g of r.groups)
-          for (const f of ['weight', 'sets', 'reps'] as const) {
-            const raw = d.fields[`${r.id}:${g.id}:${f}`];
-            if (raw !== undefined) {
-              if (raw.trim() === '') g[f] = null;
-              else {
-                if (!(f === 'weight' ? /^\d+(\.\d+)?$/ : /^\d+$/).test(raw.trim())) throw Error();
-                g[f] = Number(raw);
-              }
-            }
-          }
       if (!validJournalDocument(doc)) throw Error();
     } catch {
       setError(
         'Use non-negative numbers for weight and whole numbers for sets and reps. Blank stays unlogged; zero is allowed.',
       );
+      return;
+    }
+    if (JSON.stringify(doc) === JSON.stringify(d.journal.document)) {
+      const clean = { ...d, document: doc, fields: {}, dirty: false };
+      paint(clean);
+      await persist(clean).catch(() => setError('Could not save this device draft. Retry saving.'));
       return;
     }
     const next = {
@@ -396,10 +425,10 @@ function JournalEditor({
   }
   const doc = draft?.document,
     savedDoc = draft?.journal?.document,
-    blocked = busy || !!draft?.pending || !editable;
+    blocked = !editable;
   function rowChange(id: string, fn: (r: JournalResult) => void) {
-    if (!doc) return;
-    const next = structuredClone(doc);
+    if (!current.current?.document) return;
+    const next = structuredClone(current.current.document);
     fn(next.results.find((r) => r.id === id)!);
     documentChange(next);
   }
@@ -480,13 +509,13 @@ function JournalEditor({
               label="Performed date (YYYY-MM-DD)"
               value={doc.performedDate}
               disabled={blocked}
-              onChange={(performedDate) => documentChange({ ...doc, performedDate })}
+              onChange={(performedDate) => documentChange({ performedDate })}
             />
             <JournalField
               label="Performed time zone"
               value={doc.timeZone}
               disabled={blocked}
-              onChange={(timeZone) => documentChange({ ...doc, timeZone })}
+              onChange={(timeZone) => documentChange({ timeZone })}
             />
           </View>
           {!draft.source && (
@@ -494,7 +523,7 @@ function JournalEditor({
               label="Workout name"
               value={doc.title}
               disabled={blocked}
-              onChange={(title) => documentChange({ ...doc, title })}
+              onChange={(title) => documentChange({ title })}
             />
           )}
           {draft.journal?.snapshot.workoutMarkdown && (
@@ -628,9 +657,7 @@ function JournalEditor({
                                   integer={f !== 'weight'}
                                   value={draft.fields[key] ?? (g[f] === null ? '' : String(g[f]))}
                                   disabled={blocked}
-                                  onChange={(v) =>
-                                    change({ ...draft, fields: { ...draft.fields, [key]: v } })
-                                  }
+                                  onChange={(v) => fieldChange(key, v)}
                                 />
                               );
                             })}
@@ -722,7 +749,7 @@ function JournalEditor({
             value={doc.notes}
             multiline
             disabled={blocked}
-            onChange={(notes) => documentChange({ ...doc, notes })}
+            onChange={(notes) => documentChange({ notes })}
           />
           <Text style={ui.copy}>
             Changes, substitutions, difficulty, pain or anything else. Saving notes makes no AI

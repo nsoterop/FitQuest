@@ -48,6 +48,7 @@ test('workout completion route verifies the account, returns minimal status and 
   const app = buildApp(false, {
     ...dependencies(),
     journal: {
+      sessionStates: unused,
       list: unused,
       read: unused,
       readOperation: unused,
@@ -540,6 +541,7 @@ test('private training, food, journal and weight requests never log input, crede
       },
       food: { read: fail, readOperation: fail, command: fail },
       journal: {
+        sessionStates: fail,
         completedSessions: fail,
         list: fail,
         read: fail,

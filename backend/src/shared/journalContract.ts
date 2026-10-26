@@ -72,6 +72,40 @@ export type JournalCompletions = {
   revision: number;
   sessions: { date: string; sessionIndex: number }[];
 };
+export type JournalSessionStates = {
+  planId: string;
+  revision: number;
+  sessions: {
+    date: string;
+    sessionIndex: number;
+    journalId: string;
+    hasWork: boolean;
+    finished: boolean;
+  }[];
+};
+export function validJournalSessionStates(v: unknown): v is JournalSessionStates {
+  const s = v as JournalSessionStates;
+  return (
+    journalKeys(s, ['planId', 'revision', 'sessions']) &&
+    foodId(s.planId) &&
+    Number.isSafeInteger(s.revision) &&
+    s.revision > 0 &&
+    s.revision <= 1000000 &&
+    Array.isArray(s.sessions) &&
+    s.sessions.length <= 84 &&
+    s.sessions.every(
+      (r) =>
+        journalKeys(r, ['date', 'sessionIndex', 'journalId', 'hasWork', 'finished']) &&
+        foodDate(r.date) &&
+        Number.isInteger(r.sessionIndex) &&
+        r.sessionIndex >= 0 &&
+        r.sessionIndex < 12 &&
+        foodId(r.journalId) &&
+        typeof r.hasWork === 'boolean' &&
+        typeof r.finished === 'boolean',
+    )
+  );
+}
 export function validJournalCompletions(v: unknown): v is JournalCompletions {
   const c = v as JournalCompletions;
   return (

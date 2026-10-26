@@ -567,6 +567,12 @@ export function buildApp(
     journal().list(accounts.get(r)!, r.query.offset === undefined ? 0 : Number(r.query.offset)),
   );
   app.get<{ Querystring: { planId: string; revision: string } }>(
+    '/workout-journal/session-states',
+    privateRoute,
+    async (r) =>
+      journal().sessionStates(accounts.get(r)!, r.query.planId, Number(r.query.revision)),
+  );
+  app.get<{ Querystring: { planId: string; revision: string } }>(
     '/workout-journal/completed-sessions',
     privateRoute,
     async (r) =>

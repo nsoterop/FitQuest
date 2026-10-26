@@ -5937,6 +5937,65 @@ test('nutrition compares consumed values only to the accepted dated version; unk
 
 const { JournalScreen } = await import('../src/features/journal/JournalScreen.tsx');
 const { privateJournalDrafts } = await import('../src/features/journal/journalStorage.ts');
+const { WorkoutJournalAction } = await import('../src/features/journal/WorkoutJournalAction.tsx');
+test('workout action distinguishes empty, actual input, finished and local partial drafts for the exact account/session', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture();
+  let saved = null;
+  globalThis.fetch = async () => ({
+    status: 200,
+    json: async () => ({
+      planId: j.snapshot.source.planId,
+      revision: 1,
+      sessions: saved ? [saved] : [],
+    }),
+  });
+  const props = {
+    userId: 'alice',
+    source: j.snapshot.source,
+    accessToken: async () => 'alice-token',
+    onOpen() {},
+  };
+  let screen;
+  const mount = async () => {
+    await act(async () => {
+      screen = TestRenderer.create(React.createElement(WorkoutJournalAction, props));
+      await flush();
+      await flush();
+    });
+  };
+  await mount();
+  assert(input(screen, 'Start workout'));
+  await act(async () => screen.unmount());
+  saved = { ...j.snapshot.source, journalId: j.id, hasWork: true, finished: false };
+  delete saved.planId;
+  delete saved.revision;
+  await mount();
+  assert(input(screen, 'Continue workout'));
+  await act(async () => screen.unmount());
+  saved.finished = true;
+  await mount();
+  assert(input(screen, 'View workout'));
+  await act(async () => screen.unmount());
+  await privateJournalDrafts.write('alice', {
+    key: j.id,
+    journal: j,
+    source: j.snapshot.source,
+    document: j.document,
+    pending: null,
+    fields: { partial: '12.' },
+    dirty: true,
+    savedAt: 1,
+  });
+  await mount();
+  assert(input(screen, 'Continue workout'));
+  await act(async () => screen.unmount());
+  saved = null;
+  props.userId = 'bob';
+  await mount();
+  assert(input(screen, 'Start workout'));
+  t.after(async () => act(async () => screen.unmount()));
+});
 const { randomUUID } = await import('node:crypto');
 function journalFixture() {
   const names = ['Dumbbell squat', 'Push-up', 'Easy walk'],
@@ -6129,11 +6188,7 @@ test('journal lost responses retain the same pending operation; conflicts requir
   await act(async () => screen.unmount());
   screen = await mountJournal(j);
   t.after(async () => act(async () => screen.unmount()));
-  await act(async () => {
-    press(screen, 'Retry saved request');
-    await flush();
-    await flush();
-  });
+  // Relaunch makes one bounded reconciliation attempt with the same operation.
   assert.equal(server.commands[1].operationId, op);
   assert.equal(server.current.revision, 2);
   await journalEdit(screen, 'Notes for your coach · Optional', 'New local correction');
@@ -6156,6 +6211,94 @@ test('journal lost responses retain the same pending operation; conflicts requir
   });
   assert.equal(server.current.document.notes, 'New local correction');
   assert.equal(server.current.revision, 4);
+});
+test('journal rapid raw edits restore by semantic source after navigation, including incomplete numbers', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j);
+  let screen = await mountJournal(j);
+  await act(async () => {
+    input(screen, 'Dumbbell squat · group 1 · Weight (lb)').props.onChangeText('12.');
+    input(screen, 'Dumbbell squat · group 1 · Reps').props.onChangeText('8');
+    input(screen, 'Notes for your coach · Optional').props.onChangeText('Immediately leaving');
+    screen.unmount();
+    await flush();
+  });
+  const s = j.snapshot.source;
+  screen = await mountJournal(j, {
+    journalId: undefined,
+    source: { date: s.date, sessionIndex: s.sessionIndex, revision: s.revision, planId: s.planId },
+  });
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(input(screen, 'Dumbbell squat · group 1 · Weight (lb)').props.value, '12.');
+  assert.equal(input(screen, 'Dumbbell squat · group 1 · Reps').props.value, '8');
+  assert.equal(input(screen, 'Notes for your coach · Optional').props.value, 'Immediately leaving');
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+  });
+  assert.equal(server.commands.length, 0);
+});
+test('journal idle autosave keeps newer edits editable while the first response is delayed', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    base = globalThis.fetch;
+  let release,
+    started = false;
+  const gate = new Promise((r) => {
+    release = r;
+  });
+  globalThis.fetch = async (url, options) => {
+    if (options.method === 'POST' && !started) {
+      started = true;
+      await gate;
+    }
+    return base(url, options);
+  };
+  const screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  await journalEdit(screen, 'Notes for your coach · Optional', 'First');
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+  });
+  assert.equal(started, true);
+  assert.equal(input(screen, 'Notes for your coach · Optional').props.editable, true);
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Newer edit');
+  await act(async () => {
+    release();
+    await flush();
+    await flush();
+  });
+  assert.equal(input(screen, 'Notes for your coach · Optional').props.value, 'Newer edit');
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.notes, 'Newer edit');
+  assert.equal(server.commands.length, 2);
+  assert.equal(server.commands[1].expectedRevision, 2);
+});
+test('journal local storage failure is actionable and does not claim Saved or dispatch cloud work', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => {
+    globalThis.__fitquestSecureFailure = false;
+    await act(async () => screen.unmount());
+  });
+  globalThis.__fitquestSecureFailure = true;
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Keep this in memory');
+  assert.match(text(screen), /Could not save this device draft/);
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+  });
+  assert.equal(server.commands.length, 0);
+  assert.equal(input(screen, 'Notes for your coach · Optional').props.value, 'Keep this in memory');
 });
 test('journal drafts survive onboarding cleanup, remain account scoped, support larger snapshots and do not expire', async () => {
   globalThis.__fitquestSecure.clear();
@@ -7569,6 +7712,23 @@ test('Today and Week show confirmed completion per session and refresh after fin
       };
     }
     if (url.includes('/workout-journal')) {
+      if (url.includes('/session-states?'))
+        return {
+          status: 200,
+          json: async () => ({
+            planId: p.id,
+            revision: 1,
+            sessions: [
+              {
+                date: p.dates[0],
+                sessionIndex: 0,
+                journalId: j.id,
+                hasWork: j.document.outcome !== 'in_progress' || !!j.document.notes,
+                finished: j.document.outcome !== 'in_progress',
+              },
+            ],
+          }),
+        };
       if (options.method === 'POST') {
         writes++;
         const cmd = JSON.parse(options.body);
@@ -7596,7 +7756,7 @@ test('Today and Week show confirmed completion per session and refresh after fin
     await flush();
   });
   await act(async () => {
-    press(screen, 'Log workout');
+    press(screen, 'Start workout');
     await flush();
     await flush();
     await flush();
@@ -7636,7 +7796,7 @@ test('Today and Week show confirmed completion per session and refresh after fin
     await flush();
   });
   await act(async () => {
-    press(screen, 'Log workout');
+    press(screen, 'View workout');
     await flush();
     await flush();
   });

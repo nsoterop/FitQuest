@@ -28,6 +28,7 @@ import { sessionRows } from './trainingPresentation';
 import { useWorkoutCompletions } from './useWorkoutCompletions';
 import type { RecoveryRequest } from '../onboarding/onboardingApi';
 import { privateDrafts } from '../onboarding/onboardingDraftStorage';
+import { WorkoutJournalAction } from '../journal/WorkoutJournalAction';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
@@ -952,12 +953,22 @@ function AccountTrainingScreen({
           )}
           {workout && workoutPlan?.reviewState === 'accepted' ? (
             <>
+              <WorkoutJournalAction
+                userId={userId}
+                accessToken={accessToken}
+                source={{
+                  planId: workoutPlan.id,
+                  revision: workoutPlan.planRevision!,
+                  date: workout.date,
+                  sessionIndex: workout.index,
+                }}
+                onOpen={() => setJournalOpen('resume')}
+              />
               <DocumentWorkout
                 plan={workoutPlan}
                 selection={workout}
                 completed={completion.completed}
               />
-              <Action label="Log workout" onPress={() => setJournalOpen('resume')} />
               <Action
                 label="Record another occurrence"
                 secondary

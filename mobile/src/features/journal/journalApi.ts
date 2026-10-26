@@ -1,6 +1,8 @@
 import {
   validJournal,
   validJournalCompletions,
+  validJournalSessionStates,
+  type JournalSessionStates,
   type Journal,
   type JournalCommand,
   type JournalReceipt,
@@ -32,7 +34,7 @@ export class JournalError extends Error {
   }
 }
 export async function journalRequest<
-  T extends Journal | JournalList | JournalReceipt | JournalCompletions,
+  T extends Journal | JournalList | JournalReceipt | JournalCompletions | JournalSessionStates,
 >(path: string, token: string, signal: AbortSignal, command?: JournalCommand): Promise<T> {
   try {
     const u = new URL(process.env.EXPO_PUBLIC_API_URL ?? '');
@@ -63,6 +65,8 @@ export async function journalRequest<
         !Number.isInteger(v.revision)
       )
         throw Error();
+    } else if (path.startsWith('/session-states?')) {
+      if (!validJournalSessionStates(v)) throw Error();
     } else if (path.startsWith('/completed-sessions?')) {
       if (!validJournalCompletions(v)) throw Error();
     } else if (path.startsWith('?') || path === '') {
