@@ -222,3 +222,43 @@ test('food routes authenticate before parsing private payload and never cache or
     await app.close();
   }
 });
+
+test('food response rechecks distinguish temporary Auth failure from confirmed rejection without exposing the request', async () => {
+  const { OnboardingError } = await import('../../features/onboarding/onboardingError.js');
+  const account = { userId: randomUUID(), sessionId: randomUUID() };
+  for (const outcome of ['unavailable', 'rejected']) {
+    let checks = 0;
+    const unused = async () => {
+      throw Error('Unexpected read');
+    };
+    const app = buildApp(false, {
+      verifyAccount: async () => {
+        if (++checks === 1) return account;
+        if (outcome === 'unavailable') throw Error('Synthetic Auth outage');
+        return null;
+      },
+      food: {
+        read: unused,
+        readOperation: unused,
+        command: async (_a, _cmd, authorize) => {
+          if (!(await authorize())) throw new OnboardingError(401, 'session_ended');
+          throw Error('Unexpected authorization');
+        },
+      },
+    });
+    try {
+      const r = await app.inject({
+        method: 'POST',
+        url: '/food/commands',
+        headers: { authorization: 'Bearer synthetic' },
+        payload: { privateMessage: 'must not echo' },
+      });
+      assert.equal(r.statusCode, outcome === 'unavailable' ? 503 : 401);
+      assert.equal(r.json().code, outcome === 'unavailable' ? 'auth_unavailable' : 'session_ended');
+      assert.equal(r.headers['cache-control'], 'no-store');
+      assert(!r.body.includes('must not echo'));
+    } finally {
+      await app.close();
+    }
+  }
+});

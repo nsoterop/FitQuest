@@ -63,3 +63,18 @@ test('Auth rejection, mismatched identity, anonymous/unconfirmed accounts and ex
     assert.equal(await verify(token(scenario.payload)), null);
   }
 });
+
+test('Auth rate limits, request timeouts and service failures remain unavailable instead of invalidating the session', async () => {
+  for (const status of [408, 429, 503]) {
+    const verify = supabaseVerifier(
+      'https://test.supabase.co',
+      'sb_publishable_test',
+      async () =>
+        new Response(JSON.stringify({ message: 'Synthetic temporary failure' }), {
+          status,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    );
+    await assert.rejects(verify(token(claims)), /Auth unavailable/);
+  }
+});

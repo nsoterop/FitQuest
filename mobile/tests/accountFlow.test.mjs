@@ -4996,10 +4996,14 @@ test('food lost save response checks existing operation and never reinterprets; 
   const state = emptyFood();
   let savedOp;
   let posts = 0;
+  let statusReads = 0;
   globalThis.fetch = async (url, options) => {
     url = String(url);
-    if (options.method === 'GET')
+    if (options.method === 'GET') {
+      if (url.includes('/operations/') && ++statusReads === 1)
+        throw Error('Synthetic status read temporarily unavailable');
       return { status: 200, json: async () => (url.includes('/operations/') ? savedOp : state) };
+    }
     posts++;
     const cmd = JSON.parse(options.body);
     savedOp = {
@@ -8793,4 +8797,390 @@ test('Romanian deadlift fallback shows 3 × 6–8 and seeds three editable rows 
   }
   assert.equal(server.commands.length, 0);
   assert.deepEqual(server.current, before);
+});
+
+test('food interpretation recovers a completed clarification with one status GET after an expired response token or lost response, without a second POST or sign-out', async (t) => {
+  const { foodFixture } = await import('../../backend/src/tests/fixtures/foodFixture.ts');
+  for (const failure of ['expired-token', 'lost-response']) {
+    globalThis.__fitquestSecure.clear();
+    let posted = false,
+      ended = 0,
+      command;
+    const calls = [];
+    const document = { ...foodFixture(), date: foodDay };
+    globalThis.fetch = async (url, options) => {
+      calls.push({
+        url: String(url),
+        method: options.method,
+        token: options.headers.Authorization,
+      });
+      if (options.method === 'POST') {
+        assert(!posted, 'never replay a paid POST');
+        posted = true;
+        command = JSON.parse(options.body);
+        if (failure === 'lost-response') throw Error('synthetic network interruption');
+        return { status: 401, json: async () => ({ code: 'session_ended' }) };
+      }
+      if (String(url).includes('/operations/')) {
+        assert.equal(options.headers.Authorization, 'Bearer fresh-token');
+        return {
+          status: 200,
+          json: async () => ({
+            id: command.operationId,
+            status: 'completed',
+            error: null,
+            entryId: null,
+            candidate: {
+              intent: 'consumed',
+              question: 'Synthetic portion clarification?',
+              document,
+            },
+          }),
+        };
+      }
+      return {
+        status: 200,
+        json: async () =>
+          String(url).includes('/training/nutrition') ? { target: null } : emptyFood(),
+      };
+    };
+    const screen = await mountFood({
+      accessToken: async () => (posted ? 'fresh-token' : 'old-token'),
+      onSessionEnded: () => ended++,
+    });
+    t.after(async () => act(async () => screen.unmount()));
+    await act(async () => press(screen, 'Tell AI what I ate'));
+    await act(async () =>
+      input(screen, 'What I ate').props.onChangeText('Synthetic breakfast and lunch.'),
+    );
+    await act(async () => {
+      press(screen, 'Review with AI');
+      await flush();
+    });
+    assert.match(text(screen), /Synthetic portion clarification/);
+    assert.doesNotMatch(text(screen), /result could not be confirmed/);
+    assert.equal(calls.filter((c) => c.method === 'POST').length, 1);
+    assert.equal(calls.filter((c) => c.url.includes('/operations/')).length, 1);
+    assert.equal(ended, 0);
+    const draft = await privateFoodDrafts.read('alice');
+    assert.equal(draft.pending, null);
+    assert.equal(draft.candidate.id, command.operationId);
+    assert.deepEqual(draft.document, document);
+    await act(async () => screen.unmount());
+  }
+});
+
+test('returning to nutrition checks the exact saved pending food operation and restores its review without dispatch', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const command = {
+    kind: 'interpret',
+    operationId: randomUUID(),
+    message: 'Synthetic held meal.',
+    date: foodDay,
+    timeZone: 'UTC',
+    previousOperation: null,
+    entryId: null,
+    expectedRevision: null,
+  };
+  await privateFoodDrafts.write('alice', {
+    message: command.message,
+    document: null,
+    candidate: null,
+    pending: command,
+    editingId: null,
+    editingRevision: null,
+    date: foodDay,
+    timeZone: 'UTC',
+    savedAt: Date.now(),
+  });
+  let statusReads = 0;
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.method, 'GET');
+    if (String(url).includes('/operations/')) {
+      statusReads++;
+      assert(String(url).endsWith(command.operationId));
+      return {
+        status: 200,
+        json: async () => ({
+          id: command.operationId,
+          status: 'completed',
+          error: null,
+          candidate: {
+            intent: 'unclear',
+            question: 'Synthetic saved clarification?',
+            document: null,
+          },
+          entryId: null,
+        }),
+      };
+    }
+    return {
+      status: 200,
+      json: async () =>
+        String(url).includes('/training/nutrition') ? { target: null } : emptyFood(),
+    };
+  };
+  const screen = await mountFood();
+  t.after(async () => act(async () => screen.unmount()));
+  assert.match(text(screen), /Synthetic saved clarification/);
+  assert.equal(statusReads, 1);
+  assert.equal((await privateFoodDrafts.read('alice')).pending, null);
+});
+
+test('transient Auth verification hides private screens for a retry while preserving the stored session and pending food draft', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  resetAuth(alice);
+  const command = {
+    kind: 'interpret',
+    operationId: randomUUID(),
+    message: 'Synthetic private meal.',
+    date: foodDay,
+    timeZone: 'UTC',
+    previousOperation: null,
+    entryId: null,
+    expectedRevision: null,
+  };
+  const draft = {
+    message: command.message,
+    document: null,
+    candidate: null,
+    pending: command,
+    editingId: null,
+    editingRevision: null,
+    date: foodDay,
+    timeZone: 'UTC',
+    savedAt: Date.now(),
+  };
+  await privateFoodDrafts.write('alice', draft);
+  verify = async () => {
+    throw Error('synthetic Auth network failure');
+  };
+  let reads = 0;
+  globalThis.fetch = async (url) => {
+    reads++;
+    return {
+      status: 200,
+      json: async () =>
+        String(url).endsWith('/profile') ? { profile: payload } : { summary: null, plans: [] },
+    };
+  };
+  const screen = await mount();
+  t.after(async () => act(async () => screen.unmount()));
+  assert(input(screen, 'Retry session verification'));
+  assert.equal(screen.root.findAllByProps({ accessibilityLabel: 'Sign in' }).length, 0);
+  assert.equal(reads, 0);
+  assert.equal(session, alice);
+  assert.deepEqual(await privateFoodDrafts.read('alice'), draft);
+  verify = async () => ({ data: { user: alice.user }, error: null });
+  await act(async () => {
+    press(screen, 'Retry session verification');
+    await flush();
+  });
+  assert.match(text(screen), /Before we begin/);
+  assert.deepEqual(await privateFoodDrafts.read('alice'), draft);
+});
+
+test('food recovery retains the same request after a missing receipt and retries a command only on an explicit tap', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const commands = [];
+  let ended = 0;
+  globalThis.fetch = async (url, options) => {
+    if (options.method === 'POST') {
+      commands.push(JSON.parse(options.body));
+      if (commands.length === 1) return { status: 401, json: async () => ({}) };
+      return {
+        status: 200,
+        json: async () => ({
+          id: commands[0].operationId,
+          status: 'completed',
+          error: null,
+          entryId: null,
+          candidate: {
+            intent: 'unclear',
+            question: 'Synthetic retry clarification?',
+            document: null,
+          },
+        }),
+      };
+    }
+    if (String(url).includes('/operations/'))
+      return { status: 404, json: async () => ({ code: 'food_operation_missing' }) };
+    return {
+      status: 200,
+      json: async () =>
+        String(url).includes('/training/nutrition') ? { target: null } : emptyFood(),
+    };
+  };
+  const screen = await mountFood({ onSessionEnded: () => ended++ });
+  t.after(async () => act(async () => screen.unmount()));
+  await act(async () => press(screen, 'Tell AI what I ate'));
+  await act(async () => input(screen, 'What I ate').props.onChangeText('Synthetic meal.'));
+  await act(async () => {
+    press(screen, 'Review with AI');
+    await flush();
+  });
+  assert.equal(commands.length, 1);
+  assert.equal(ended, 0);
+  assert.deepEqual((await privateFoodDrafts.read('alice')).pending, commands[0]);
+  await act(async () => {
+    press(screen, 'Retry saved request');
+    await flush();
+  });
+  assert.deepEqual(commands, [commands[0], commands[0]]);
+  assert.match(text(screen), /Synthetic retry clarification/);
+});
+
+test('food recovery never accepts another operation receipt and a second confirmed unauthorized read ends the session', async (t) => {
+  for (const outcome of ['mismatched', 'unauthorized']) {
+    globalThis.__fitquestSecure.clear();
+    let command,
+      posts = 0,
+      ended = 0;
+    globalThis.fetch = async (url, options) => {
+      if (options.method === 'POST') {
+        posts++;
+        command = JSON.parse(options.body);
+        return { status: 401, json: async () => ({}) };
+      }
+      if (String(url).includes('/operations/'))
+        return outcome === 'unauthorized'
+          ? { status: 401, json: async () => ({}) }
+          : {
+              status: 200,
+              json: async () => ({
+                id: randomUUID(),
+                status: 'completed',
+                error: null,
+                entryId: null,
+                candidate: {
+                  intent: 'unclear',
+                  question: 'Must not display this other receipt.',
+                  document: null,
+                },
+              }),
+            };
+      return {
+        status: 200,
+        json: async () =>
+          String(url).includes('/training/nutrition') ? { target: null } : emptyFood(),
+      };
+    };
+    const screen = await mountFood({ onSessionEnded: () => ended++ });
+    t.after(async () => act(async () => screen.unmount()));
+    await act(async () => press(screen, 'Tell AI what I ate'));
+    await act(async () => input(screen, 'What I ate').props.onChangeText('Synthetic meal.'));
+    await act(async () => {
+      press(screen, 'Review with AI');
+      await flush();
+    });
+    assert.equal(posts, 1);
+    assert.equal(ended, outcome === 'unauthorized' ? 1 : 0);
+    assert.doesNotMatch(text(screen), /Must not display/);
+    if (outcome === 'mismatched')
+      assert.deepEqual((await privateFoodDrafts.read('alice')).pending, command);
+    await act(async () => screen.unmount());
+  }
+});
+
+test('a transient refreshed-session verification preserves the pending food identity and retries the latest session before revealing private screens', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  resetAuth(alice);
+  globalThis.fetch = async (url) => ({
+    status: 200,
+    json: async () =>
+      String(url).endsWith('/profile') ? { profile: payload } : { summary: null, plans: [] },
+  });
+  const screen = await mount();
+  t.after(async () => act(async () => screen.unmount()));
+  const pending = {
+    kind: 'interpret',
+    operationId: randomUUID(),
+    message: 'Synthetic retained meal.',
+    date: foodDay,
+    timeZone: 'UTC',
+    previousOperation: null,
+    entryId: null,
+    expectedRevision: null,
+  };
+  await privateFoodDrafts.write('alice', {
+    message: pending.message,
+    document: null,
+    candidate: null,
+    pending,
+    editingId: null,
+    editingRevision: null,
+    date: foodDay,
+    timeZone: 'UTC',
+    savedAt: Date.now(),
+  });
+  verify = async () => ({
+    data: { user: null },
+    error: { name: 'AuthRetryableFetchError', status: 503 },
+  });
+  await act(async () => {
+    session = { ...alice, access_token: 'fresh-alice-token' };
+    authListener('TOKEN_REFRESHED', session);
+    await flush();
+  });
+  assert(input(screen, 'Retry session verification'));
+  assert.doesNotMatch(text(screen), /Before we begin/);
+  assert.equal((await privateFoodDrafts.read('alice')).pending.operationId, pending.operationId);
+  verify = async (token) => {
+    assert.equal(token, 'fresh-alice-token');
+    return { data: { user: alice.user }, error: null };
+  };
+  await act(async () => {
+    press(screen, 'Retry session verification');
+    await flush();
+  });
+  assert.match(text(screen), /Before we begin/);
+  assert.equal((await privateFoodDrafts.read('alice')).pending.operationId, pending.operationId);
+});
+
+test('an expired saved food candidate preserves the original message instead of clearing it during automatic status recovery', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const pending = {
+    kind: 'interpret',
+    operationId: randomUUID(),
+    message: 'Synthetic recoverable original meal.',
+    date: foodDay,
+    timeZone: 'UTC',
+    previousOperation: null,
+    entryId: null,
+    expectedRevision: null,
+  };
+  await privateFoodDrafts.write('alice', {
+    message: pending.message,
+    document: null,
+    candidate: null,
+    pending,
+    editingId: null,
+    editingRevision: null,
+    date: foodDay,
+    timeZone: 'UTC',
+    savedAt: Date.now(),
+  });
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.method, 'GET');
+    return {
+      status: 200,
+      json: async () =>
+        String(url).includes('/operations/')
+          ? {
+              id: pending.operationId,
+              status: 'completed',
+              error: null,
+              candidate: null,
+              entryId: null,
+            }
+          : String(url).includes('/training/nutrition')
+            ? { target: null }
+            : emptyFood(),
+    };
+  };
+  const screen = await mountFood();
+  t.after(async () => act(async () => screen.unmount()));
+  assert.match(text(screen), /conversation expired/);
+  assert.equal(input(screen, 'What I ate').props.value, pending.message);
+  assert.equal((await privateFoodDrafts.read('alice')).message, pending.message);
 });

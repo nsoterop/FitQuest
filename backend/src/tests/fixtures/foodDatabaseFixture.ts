@@ -557,6 +557,71 @@ export async function verifyFoodDatabase(
     },
   );
   await t.test(
+    'a completed paid food result remains recoverable after response-token rejection or a temporary recheck failure without another dispatch',
+    async () => {
+      for (const unavailable of [false, true]) {
+        const f = await fresh(),
+          command = f.interpret();
+        await assert.rejects(
+          f.service.command(f.a, command, async () => {
+            if (unavailable) throw Error('Synthetic temporary verification failure');
+            return false;
+          }),
+        );
+        const saved = await f.store.readOperation(f.a, command.operationId);
+        assert.equal(saved.status, 'completed');
+        assert(saved.candidate);
+        assert.equal((await f.read()).entries.length, 0);
+        assert.deepEqual(await f.service.command(f.a, command, yes), saved);
+        assert.equal(f.calls(), 1);
+        assert.equal(
+          (
+            await owner.query('SELECT state FROM fitquest.onboarding_attempts WHERE user_id=$1', [
+              f.a.userId,
+            ])
+          ).rows[0].state,
+          'settled',
+        );
+      }
+    },
+  );
+  await t.test(
+    'a session actually revoked during food interpretation cannot finish or read the private candidate',
+    async () => {
+      const f = await fresh(),
+        command = f.interpret(),
+        call = f.provider.call;
+      f.provider.call = async (...args) => {
+        const result = await call(...args);
+        await owner.query(
+          "UPDATE auth.sessions SET not_after=now()-interval '1 second' WHERE id=$1",
+          [f.a.sessionId],
+        );
+        return result;
+      };
+      await assert.rejects(f.service.command(f.a, command, yes), { code: 'session_ended' });
+      await assert.rejects(f.store.readOperation(f.a, command.operationId), {
+        code: 'session_ended',
+      });
+      const stored = (
+        await owner.query(
+          'SELECT candidate FROM fitquest.food_operations WHERE user_id=$1 AND id=$2',
+          [f.a.userId, command.operationId],
+        )
+      ).rows[0];
+      assert.equal(stored.candidate, null);
+      assert.equal(f.calls(), 1);
+      assert.equal(
+        (
+          await owner.query('SELECT state FROM fitquest.onboarding_attempts WHERE user_id=$1', [
+            f.a.userId,
+          ])
+        ).rows[0].state,
+        'settled',
+      );
+    },
+  );
+  await t.test(
     'food save rollback leaves no entry or receipt, allowing exact retry without AI',
     async () => {
       const f = await fresh();

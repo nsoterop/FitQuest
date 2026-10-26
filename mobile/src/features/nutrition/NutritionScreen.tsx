@@ -479,10 +479,33 @@ function AccountNutritionScreen({
     setError('');
     const timeout = setTimeout(() => c.abort(), 75000);
     try {
-      const t = await token.current();
+      let t = await token.current();
       if (!live.current || c.signal.aborted) return;
       await fn(async <T extends FoodState | FoodOperation>(path: string, body?: unknown) => {
-        const v = await foodRequest<T>(path, body, t, c.signal);
+        let v: T;
+        try {
+          v = await foodRequest<T>(path, body, t, c.signal);
+        } catch (e) {
+          const command = path === '/commands' ? draftRef.current.pending : null;
+          if (
+            !(e instanceof FoodError) ||
+            !(
+              e.code === 'session_ended' ||
+              (command && ['unavailable', 'auth_unavailable'].includes(e.code))
+            )
+          )
+            throw e;
+          // Reacquire a possibly refreshed token and read only. Never replay a paid
+          // command when its response was lost or its older token has expired.
+          t = await token.current();
+          if (!live.current || c.signal.aborted) throw e;
+          v = await foodRequest<T>(
+            command ? `/operations/${command.operationId}` : path,
+            undefined,
+            t,
+            c.signal,
+          );
+        }
         if (!live.current || c.signal.aborted) throw Error();
         return v;
       });
@@ -526,7 +549,8 @@ function AccountNutritionScreen({
     try {
       await run(async (r) => {
         await readDiary(r);
-        if (!draftRef.current.pending) setBlocked(false);
+        if (draftRef.current.pending) await readPending(r);
+        else setBlocked(false);
       });
     } finally {
       diaryLoading.current = false;
@@ -537,6 +561,8 @@ function AccountNutritionScreen({
     r: <T extends FoodState | FoodOperation>(path: string, body?: unknown) => Promise<T>,
   ) {
     const saved = draftRef.current;
+    if (!saved.pending || result.id !== saved.pending.operationId)
+      throw new FoodError('unavailable');
     if (result.status === 'pending') {
       setBlocked(true);
       setNotice('Interpretation is still pending. Check status to continue.');
@@ -549,6 +575,15 @@ function AccountNutritionScreen({
       return;
     }
     if (saved.pending?.kind === 'interpret') {
+      if (!result.candidate) {
+        const kept = { ...saved, pending: null, candidate: null };
+        await persist(kept);
+        change(kept);
+        setBlocked(false);
+        setError(foodMessage('food_context_expired'));
+        setView(saved.document ? 'review' : 'compose');
+        return;
+      }
       const next = {
         ...saved,
         pending: null,
@@ -599,7 +634,12 @@ function AccountNutritionScreen({
       try {
         await receipt(await r<FoodOperation>('/commands', command), r);
       } catch (e) {
-        if (e instanceof FoodError && !['unavailable'].includes(e.code)) {
+        if (e instanceof FoodError && e.code === 'food_operation_missing') {
+          setBlocked(false);
+          setNotice('The request was not found. Retry the same saved request when ready.');
+          return;
+        }
+        if (e instanceof FoodError && !['unavailable', 'auth_unavailable'].includes(e.code)) {
           if (e.code === 'food_changed')
             setState(await r<FoodState>(query(next.document?.date ?? next.date)));
           change({ ...next, pending: null });
@@ -609,23 +649,26 @@ function AccountNutritionScreen({
       }
     });
   }
-  async function check() {
-    await run(async (r) => {
-      const command = draftRef.current.pending;
-      if (!command) {
-        await readDiary(r);
+  async function readPending(
+    r: <T extends FoodState | FoodOperation>(path: string, body?: unknown) => Promise<T>,
+  ) {
+    const command = draftRef.current.pending;
+    if (!command) {
+      await readDiary(r);
+      setBlocked(false);
+      return;
+    }
+    try {
+      await receipt(await r<FoodOperation>(`/operations/${command.operationId}`), r);
+    } catch (e) {
+      if (e instanceof FoodError && e.code === 'food_operation_missing') {
         setBlocked(false);
-        return;
-      }
-      try {
-        await receipt(await r<FoodOperation>(`/operations/${command.operationId}`), r);
-      } catch (e) {
-        if (e instanceof FoodError && e.code === 'food_operation_missing') {
-          setBlocked(false);
-          setNotice('The request was not found. Retry the same saved request when ready.');
-        } else throw e;
-      }
-    });
+        setNotice('The request was not found. Retry the same saved request when ready.');
+      } else throw e;
+    }
+  }
+  async function check() {
+    await run(readPending);
   }
   const entry = state?.entries.find((e) => e.id === detail && !e.deletedAt);
   const entries = state?.entries.filter((e) => !e.deletedAt && e.document.date === date) ?? [];

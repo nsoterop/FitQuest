@@ -28,6 +28,8 @@ export const foodMessage = (code: string) =>
       library_changed: 'This saved meal changed. Reload and review the latest version.',
       library_full: 'Your library has reached its 200-item limit.',
       session_ended: 'Your session ended. Sign in again.',
+      auth_unavailable:
+        'Session verification is temporarily unavailable. Your saved request is kept; check food status before trying again.',
       food_changed: 'This entry or day changed. Reload and review your edit before saving.',
       operation_conflict: 'This request changed. Check its saved status before continuing.',
       food_candidate_used: 'This reviewed entry was already saved. Reload your diary.',

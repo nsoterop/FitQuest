@@ -46,7 +46,6 @@ export function foodService(
       }
       if (controller.signal.aborted)
         await store.settle(a, work.attempt, null, { transport: 'aborted' });
-      if (!(await authorize())) throw new OnboardingError(401, 'session_ended');
       let candidate = null;
       let error: string | null = result.failure ?? null;
       if (!error)
@@ -55,7 +54,12 @@ export function foodService(
         } catch {
           error = 'invalid_food';
         }
-      return store.finish(a, cmd.operationId, work.attempt, candidate, error);
+      // Keep the paid result behind the store's live-session/ownership guard before
+      // checking the original response token, which can expire during provider work.
+      // A newly verified request can then recover it without another AI dispatch.
+      const saved = await store.finish(a, cmd.operationId, work.attempt, candidate, error);
+      if (!(await authorize())) throw new OnboardingError(401, 'session_ended');
+      return saved;
     },
   };
 }

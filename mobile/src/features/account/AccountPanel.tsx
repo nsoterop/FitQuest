@@ -9,9 +9,19 @@ import { Action, Page, Notice, ui, colors } from '../../components/Design';
 import { AccountView } from './AccountView';
 import { privateDrafts } from '../onboarding/onboardingDraftStorage';
 
+function temporaryAuthFailure(error: { status?: number; name?: string }) {
+  return (
+    error.name === 'AuthRetryableFetchError' ||
+    error.status === 408 ||
+    error.status === 429 ||
+    (error.status !== undefined && error.status >= 500)
+  );
+}
+
 export function AccountPanel() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  const [verificationFailed, setVerificationFailed] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -28,6 +38,7 @@ export function AccountPanel() {
   const current = useRef<Session | null>(null);
   const hidden = useRef(false);
   const draftAccount = useRef<string | null>(null);
+  const retryVerification = useRef<() => void>(() => {});
 
   useEffect(() => {
     const client = supabase;
@@ -41,6 +52,7 @@ export function AccountPanel() {
     const apply = async (next: Session | null) => {
       const request = ++validation;
       if (!active) return;
+      setVerificationFailed(false);
       if (draftAccount.current && draftAccount.current !== next?.user.id) {
         current.current = null;
         setSession(null);
@@ -74,6 +86,7 @@ export function AccountPanel() {
       try {
         const { data, error } = await client.auth.getUser(next.access_token);
         if (!active || request !== validation || hidden.current) return;
+        if (error && temporaryAuthFailure(error)) throw error;
         if (
           error ||
           !data.user ||
@@ -94,7 +107,8 @@ export function AccountPanel() {
         if (active && request === validation) {
           current.current = null;
           setSession(null);
-          setMessage('Unable to verify your session. Please try signing in again.');
+          setVerificationFailed(true);
+          setMessage('Unable to verify your session right now. Your saved work is kept.');
         }
       } finally {
         if (active && request === validation) {
@@ -111,21 +125,30 @@ export function AccountPanel() {
       // Return synchronously; Supabase auth notifications must not await auth calls.
       void apply(next);
     });
-    const initial = revision;
-    void client.auth
-      .getSession()
-      .then(({ data, error }) => {
+    const restoreSession = async () => {
+      const initial = revision;
+      try {
+        const { data, error } = await client.auth.getSession();
+        if (!active || revision !== initial) return;
+        if (error && temporaryAuthFailure(error)) throw error;
+        await apply(error ? null : data.session);
+        if (error) setMessage('Unable to restore your session. Please sign in again.');
+      } catch {
         if (active && revision === initial) {
-          void apply(error ? null : data.session);
-          if (error) setMessage('Unable to restore your session. Please sign in again.');
-        }
-      })
-      .catch(() => {
-        if (active) {
+          current.current = null;
+          setSession(null);
+          setVerificationFailed(true);
           setReady(true);
-          setMessage('Unable to read secure session storage.');
+          setMessage('Unable to read or verify your saved session. Your saved work is kept.');
         }
-      });
+      }
+    };
+    retryVerification.current = () => {
+      setPendingLabel('Verifying your session…');
+      setReady(false);
+      void restoreSession();
+    };
+    void restoreSession();
     const refresh = (state: string) =>
       state === 'active' ? client.auth.startAutoRefresh() : client.auth.stopAutoRefresh();
     refresh(AppState.currentState);
@@ -161,6 +184,7 @@ export function AccountPanel() {
     return () => {
       active = false;
       validation++;
+      retryVerification.current = () => {};
       subscription.unsubscribe();
       appState.remove();
       links.remove();
@@ -214,6 +238,7 @@ export function AccountPanel() {
     if (!supabase || lock.current) return;
     lock.current = true;
     hidden.current = true;
+    setVerificationFailed(false);
     setAccountOpen(false);
     setJournalOpen(false);
     setConfirmation(false);
@@ -285,6 +310,17 @@ export function AccountPanel() {
         </Text>
         <Notice error>{message || 'Clearing your device draft…'}</Notice>
         <Action label="Retry sign out" busy={busy} onPress={() => void signOut()} />
+      </Page>
+    );
+  if (verificationFailed)
+    return (
+      <Page>
+        <Text accessibilityRole="header" style={ui.title}>
+          Verify your session.
+        </Text>
+        <Notice error>{message}</Notice>
+        <Action label="Retry session verification" onPress={() => retryVerification.current()} />
+        <Action label="Sign out" secondary onPress={() => void signOut()} />
       </Page>
     );
   if (session)

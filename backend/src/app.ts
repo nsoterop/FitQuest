@@ -684,7 +684,7 @@ export function buildApp(
           const next = await options.verifyAccount!(request.headers.authorization!.slice(7));
           return next?.userId === account.userId && next.sessionId === account.sessionId;
         } catch {
-          return false;
+          throw new OnboardingError(503, 'auth_unavailable');
         }
       });
     },

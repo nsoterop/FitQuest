@@ -19,7 +19,14 @@ export function supabaseVerifier(
     // getUser sends the token to this project's Auth server for verification.
     const { data, error } = await client.auth.getUser(token);
     if (error) {
-      if (error.status && error.status >= 400 && error.status < 500) return null;
+      if (
+        error.status &&
+        error.status >= 400 &&
+        error.status < 500 &&
+        error.status !== 408 &&
+        error.status !== 429
+      )
+        return null;
       throw new Error('Auth unavailable.');
     }
     if (!data.user || data.user.is_anonymous || !data.user.email_confirmed_at) return null;
