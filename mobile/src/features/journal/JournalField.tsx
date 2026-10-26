@@ -43,6 +43,7 @@ export function JournalField({
       <TextInput
         accessibilityLabel={label}
         value={value}
+        selectTextOnFocus={suggested}
         onChangeText={onChange}
         editable={!disabled}
         keyboardType={numeric ? (integer ? 'number-pad' : 'decimal-pad') : 'default'}
@@ -50,7 +51,7 @@ export function JournalField({
         maxLength={maxLength ?? (multiline ? 4000 : 160)}
         style={[
           ui.input,
-          suggested && { color: colors.muted },
+          suggested && { color: colors.action },
           multiline && { minHeight: 100, maxHeight: 145, textAlignVertical: 'top' },
         ]}
         onFocus={() => {
@@ -74,7 +75,16 @@ export function JournalField({
             Keyboard.dismiss();
             setShowDone(false);
           }}
-          style={{ minHeight: 44, justifyContent: 'center' }}
+          style={{
+            minHeight: 44,
+            paddingHorizontal: 14,
+            alignSelf: 'flex-start',
+            borderWidth: 1,
+            borderColor: '#B6C4F5',
+            borderRadius: 8,
+            backgroundColor: colors.actionWash,
+            justifyContent: 'center',
+          }}
         >
           <Text style={{ color: colors.action }}>Done</Text>
         </Pressable>

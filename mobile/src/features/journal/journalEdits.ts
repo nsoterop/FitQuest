@@ -12,11 +12,11 @@ export const journalSourceKey = (s: JournalSource | null | undefined) =>
 export function journalProjection(d: JournalDraft) {
   const incomplete: Record<string, string> = {};
   const activeIncomplete: Record<string, string> = {};
-  if (!d.document) return { document: null, incomplete, activeIncomplete };
+  if (!d.document) return { document: null, incomplete, activeIncomplete, retained: {} };
   const doc = structuredClone(d.document);
   const recognized = new Set<string>();
-  for (const r of doc.results)
-    for (const g of r.groups)
+  for (const r of doc.results) {
+    for (const g of r.groups) {
       for (const f of ['weight', 'sets', 'reps'] as const) {
         const key = `${r.id}:${g.id}:${f}`,
           raw = d.fields[key];
@@ -42,12 +42,31 @@ export function journalProjection(d: JournalDraft) {
           g[f] = Number(raw);
         }
       }
+      if (
+        doc.version === 2 &&
+        g.sets === 1 &&
+        g.weight === null &&
+        g.reps === null &&
+        ['weight', 'reps'].some((f) => Object.hasOwn(d.fields, `${r.id}:${g.id}:${f}`))
+      )
+        g.confirmed = false;
+    }
+  }
   for (const [key, raw] of Object.entries(d.fields))
     if (!recognized.has(key)) {
       incomplete[key] = raw;
       activeIncomplete[key] = raw;
     }
-  return { document: validJournalDocument(doc) ? doc : null, incomplete, activeIncomplete };
+  const retained = {
+    ...incomplete,
+    ...Object.fromEntries(Object.entries(d.fields).filter(([, raw]) => !raw.trim())),
+  };
+  return {
+    document: validJournalDocument(doc) ? doc : null,
+    incomplete,
+    activeIncomplete,
+    retained,
+  };
 }
 export function editedDocument(d: JournalDraft) {
   const result = journalProjection(d);
@@ -58,8 +77,7 @@ export function acknowledgeJournal(
   current: JournalDraft,
   journal: Journal,
 ): JournalDraft {
-  const projection = journalProjection(current),
-    incomplete = projection.incomplete;
+  const projection = journalProjection(current);
   // On relaunch the persisted draft can already contain edits made after the
   // pending command. Object identity alone cannot detect that durable history.
   const newer =
@@ -75,7 +93,7 @@ export function acknowledgeJournal(
     source: journal.snapshot.source,
     document,
     baseline: structuredClone(journal.document),
-    fields: newer ? current.fields : incomplete,
+    fields: newer ? current.fields : projection.retained,
     pending: null,
     dirty: newer || waiting,
     finishRequested: newer || waiting ? current.finishRequested : false,

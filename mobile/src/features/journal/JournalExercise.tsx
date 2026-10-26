@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Action, colors, ui } from '../../components/Design';
 import { Icon } from '../../components/Icon';
 import { JournalField } from './JournalField';
-import { confirmSet, emptySet, suggestion } from './journalSets';
+import { emptySet, suggestion } from './journalSets';
 import { operationId } from '../onboarding/onboardingApi';
 import {
   weightBasisLabel,
@@ -14,6 +14,7 @@ export function JournalExercise({
   result: r,
   hint,
   fields,
+  showRecommendations = true,
   disabled,
   onField,
   onChange,
@@ -21,6 +22,7 @@ export function JournalExercise({
   result: JournalResult;
   hint: ExerciseLogging;
   fields: Record<string, string>;
+  showRecommendations?: boolean;
   disabled: boolean;
   onField: (key: string, value: string) => void;
   onChange: (change: (row: JournalResult) => void) => void;
@@ -28,6 +30,7 @@ export function JournalExercise({
   const dimensions = useWindowDimensions(),
     stacked = dimensions.width < 360 || dimensions.fontScale > 1.1;
   const active = r.groups.filter((g) => !g.removed);
+  const canAdd = r.groups.length < 24 || r.groups.some((g) => g.removed && g.sets === 1);
   const [notesOpen, setNotesOpen] = useState(!!r.notes);
   return (
     <>
@@ -60,7 +63,9 @@ export function JournalExercise({
                     Original values retained; add individual sets below for new work.
                   </Text>
                   <Action
-                    label={`Remove legacy group for ${r.name}`}
+                    label="Remove entry"
+                    accessibilityLabel={`Remove legacy group for ${r.name}`}
+                    compact
                     secondary
                     disabled={disabled}
                     onPress={() =>
@@ -70,7 +75,6 @@ export function JournalExercise({
                 </View>
               );
             const confirmed = g.confirmed === true;
-            const valid = confirmSet(g, fields, r.id, hint, r.mode === 'weighted_reps');
             return (
               <View key={g.id} style={{ gap: 8 }}>
                 <Text style={ui.label}>
@@ -80,9 +84,9 @@ export function JournalExercise({
                     : g.weight !== null ||
                         g.reps !== null ||
                         Object.keys(fields).some((k) => k.startsWith(`${r.id}:${g.id}:`))
-                      ? 'Draft · Not confirmed'
+                      ? 'Draft'
                       : hint.reps || hint.load
-                        ? 'Suggested · Not recorded'
+                        ? 'Recommended'
                         : 'Not logged'}
                 </Text>
                 <View style={stacked ? { gap: 10 } : ui.row}>
@@ -91,13 +95,14 @@ export function JournalExercise({
                     : (['reps'] as const)
                   ).map((f) => {
                     const key = `${r.id}:${g.id}:${f}`,
-                      rec = suggestion(hint, g, f),
+                      rec = showRecommendations ? suggestion(hint, g, f) : '',
                       exact = /^\d+(\.\d+)?$/.test(rec);
-                    const value =
-                      fields[key] ?? (g[f] === null ? (exact ? rec : '') : String(g[f]));
+                    const value = fields[key] ?? (g[f] === null ? rec : String(g[f]));
                     const label =
                       f === 'weight'
-                        ? weightBasisLabel(hint.load?.basis ?? 'unspecified', g.unit)
+                        ? hint.load?.basis && hint.load.basis !== 'unspecified'
+                          ? weightBasisLabel(hint.load.basis, g.unit)
+                          : `Weight (${g.unit})`
                         : 'Reps';
                     return (
                       <View key={f} style={{ flex: 1, gap: 4 }}>
@@ -109,38 +114,19 @@ export function JournalExercise({
                           numeric
                           integer={f === 'reps'}
                           disabled={disabled}
-                          suggested={!confirmed}
+                          suggested={
+                            g[f] === null &&
+                            !!rec &&
+                            (fields[key] === undefined || (!exact && fields[key] === rec))
+                          }
                         />
                         {rec && !exact && (
-                          <Text style={ui.copy}>
-                            Suggested: {rec}
-                            {f === 'weight' ? ` ${g.unit}` : ''} · enter a specific value
-                          </Text>
+                          <Text style={ui.copy}>Enter the specific value you used.</Text>
                         )}
                       </View>
                     );
                   })}
                 </View>
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityLabel={`Confirm set ${i + 1} for ${r.name}`}
-                  accessibilityHint="Record these exact values as performed. Suggested ranges require a specific entered value."
-                  accessibilityState={{
-                    checked: confirmed,
-                    disabled: disabled || (!confirmed && !valid),
-                  }}
-                  disabled={disabled || (!confirmed && !valid)}
-                  onPress={() =>
-                    onChange((row) => {
-                      const index = row.groups.findIndex((x) => x.id === g.id);
-                      row.groups[index] = confirmed ? { ...g, confirmed: false } : valid!;
-                    })
-                  }
-                  style={[ui.row, { minHeight: 44, justifyContent: 'flex-start' }]}
-                >
-                  <Icon name={confirmed ? 'square-check' : 'square'} />
-                  <Text style={ui.copy}>{confirmed ? 'Set recorded' : 'Confirm set'}</Text>
-                </Pressable>
                 {r.mode === 'weighted_reps' && (
                   <Pressable
                     accessibilityRole="button"
@@ -150,44 +136,99 @@ export function JournalExercise({
                       onChange((row) => {
                         const item = row.groups.find((x) => x.id === g.id)!;
                         item.unit = item.unit === 'lb' ? 'kg' : 'lb';
-                        item.confirmed = false;
+                        item.confirmed = !showRecommendations && !!g.confirmed;
                       })
                     }
-                    style={{ minHeight: 44, justifyContent: 'center' }}
+                    accessibilityHint="Change unit without converting the entered number"
+                    style={{
+                      minHeight: 44,
+                      minWidth: 64,
+                      paddingHorizontal: 12,
+                      alignSelf: 'flex-start',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 1,
+                      borderColor: colors.line,
+                      borderRadius: 8,
+                      backgroundColor: colors.canvas,
+                    }}
                   >
-                    <Text style={{ color: colors.action }}>
-                      Unit: {g.unit} · change (values are not converted)
-                    </Text>
+                    <Text style={{ color: colors.action }}>{g.unit} ⇄</Text>
                   </Pressable>
                 )}
               </View>
             );
           })}
-          <Action
-            label={`Add set for ${r.name}`}
-            secondary
-            disabled={disabled || r.groups.length >= 24}
-            onPress={() =>
-              onChange((row) => row.groups.push(emptySet(operationId, hint.load?.unit)))
-            }
-          />
-          <Action
-            label={`Subtract set for ${r.name}`}
-            secondary
-            disabled={disabled || !active.some((g) => g.sets === 1)}
-            onPress={() =>
-              onChange((row) => {
-                const last = [...row.groups].reverse().find((g) => !g.removed && g.sets === 1);
-                if (last) last.removed = true;
-              })
-            }
-          />
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              alignSelf: 'flex-start',
+              borderWidth: 1,
+              borderColor: '#B6C4F5',
+              borderRadius: 10,
+              backgroundColor: colors.actionWash,
+              overflow: 'hidden',
+            }}
+          >
+            <Text style={[ui.label, { paddingHorizontal: 14 }]}>Sets · {active.length}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Add set for ${r.name}`}
+              accessibilityState={{ disabled: disabled || !canAdd }}
+              disabled={disabled || !canAdd}
+              onPress={() =>
+                onChange((row) => {
+                  const removed = row.groups.find((g) => g.removed && g.sets === 1);
+                  if (removed) removed.removed = false;
+                  else
+                    row.groups.push(emptySet(operationId, hint.load?.unit ?? active.at(-1)?.unit));
+                })
+              }
+              style={({ pressed }) => ({
+                minWidth: 48,
+                minHeight: 48,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderLeftWidth: 1,
+                borderColor: '#B6C4F5',
+                opacity: disabled || !canAdd || pressed ? 0.45 : 1,
+              })}
+            >
+              <Text style={{ fontSize: 24, color: colors.action }}>+</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Subtract set for ${r.name}`}
+              accessibilityState={{ disabled: disabled || !active.some((g) => g.sets === 1) }}
+              disabled={disabled || !active.some((g) => g.sets === 1)}
+              onPress={() =>
+                onChange((row) => {
+                  const last = [...row.groups].reverse().find((g) => !g.removed && g.sets === 1);
+                  if (last) last.removed = true;
+                })
+              }
+              style={({ pressed }) => ({
+                minWidth: 48,
+                minHeight: 48,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderLeftWidth: 1,
+                borderColor: '#B6C4F5',
+                opacity: disabled || !active.some((g) => g.sets === 1) || pressed ? 0.45 : 1,
+              })}
+            >
+              <Text style={{ fontSize: 24, color: colors.action }}>−</Text>
+            </Pressable>
+          </View>
           {r.groups
             .filter((g) => g.removed)
             .map((g) => (
               <Action
                 key={g.id}
-                label={`Undo removal of ${r.name} set ${r.groups.findIndex((x) => x.id === g.id) + 1}`}
+                label={`Restore set ${r.groups.findIndex((x) => x.id === g.id) + 1}`}
+                accessibilityLabel={`Undo removal of ${r.name} set ${r.groups.findIndex((x) => x.id === g.id) + 1}`}
+                compact
                 secondary
                 disabled={disabled}
                 onPress={() =>
@@ -209,7 +250,9 @@ export function JournalExercise({
         />
       ) : (
         <Action
-          label={`Add notes for ${r.name}`}
+          label="Add notes"
+          accessibilityLabel={`Add notes for ${r.name}`}
+          compact
           secondary
           disabled={disabled}
           onPress={() => setNotesOpen(true)}

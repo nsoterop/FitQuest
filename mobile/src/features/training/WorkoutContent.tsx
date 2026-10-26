@@ -14,10 +14,12 @@ export function WorkoutContent({
 }) {
   if ('workoutMarkdown' in session)
     return (
-      <>
-        <ExerciseInfo name={session.title} prescription={session.workoutMarkdown} />
-        <WorkoutMarkdown source={session.workoutMarkdown} />
-      </>
+      <View style={ui.row}>
+        <Text style={ui.label}>Session details</Text>
+        <ExerciseInfo name={session.title} prescription={session.workoutMarkdown}>
+          <WorkoutMarkdown source={session.workoutMarkdown} />
+        </ExerciseInfo>
+      </View>
     );
   return (
     <View>
@@ -37,7 +39,6 @@ export function WorkoutContent({
               description={row.logging?.description}
             />
           </View>
-          <Text style={[ui.copy, { color: colors.ink }]}>{row.prescription}</Text>
         </View>
       ))}
     </View>

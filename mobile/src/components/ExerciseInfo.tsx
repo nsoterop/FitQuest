@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
   findNodeHandle,
@@ -14,10 +14,12 @@ export function ExerciseInfo({
   name,
   prescription,
   description,
+  children,
 }: {
   name: string;
   prescription: string;
   description?: string | null;
+  children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false),
     trigger = useRef<View | null>(null),
@@ -74,9 +76,11 @@ export function ExerciseInfo({
                 contentContainerStyle={{ gap: 12, paddingBottom: 20 }}
               >
                 <Text style={ui.label}>Prescription</Text>
-                <Text selectable style={ui.copy}>
-                  {prescription}
-                </Text>
+                {children ?? (
+                  <Text selectable style={ui.copy}>
+                    {prescription}
+                  </Text>
+                )}
                 {!!description && (
                   <>
                     <Text style={ui.label}>Guidance</Text>
@@ -86,7 +90,12 @@ export function ExerciseInfo({
                   </>
                 )}
               </ScrollView>
-              <Action label={`Close information for ${name}`} secondary onPress={close} />
+              <Action
+                label="Close"
+                accessibilityLabel={`Close information for ${name}`}
+                secondary
+                onPress={close}
+              />
             </View>
           </View>
         )}

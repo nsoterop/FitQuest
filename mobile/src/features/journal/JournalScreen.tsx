@@ -1,9 +1,9 @@
 import { Icon } from '../../components/Icon';
 import { ExerciseInfo } from '../../components/ExerciseInfo';
+import { WorkoutMarkdown } from '../training/WorkoutMarkdown';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Action, Notice, Page, colors, ui } from '../../components/Design';
-import { WorkoutMarkdown } from '../training/WorkoutMarkdown';
 import { operationId } from '../onboarding/onboardingApi';
 import {
   journalToday,
@@ -22,7 +22,13 @@ import { privateJournalDrafts } from './journalStorage';
 import type { JournalDraft } from './journalDraft';
 import { journalRequest, JournalError } from './journalApi';
 import { JournalExercise } from './JournalExercise';
-import { editableJournal, loggingFor, emptySet, restoreJournalDraft } from './journalSets';
+import {
+  editableJournal,
+  loggingFor,
+  emptySet,
+  restoreJournalDraft,
+  finishVisibleSets,
+} from './journalSets';
 import { acknowledgeJournal, journalProjection, journalSourceKey } from './journalEdits';
 type Access = {
   userId: string;
@@ -120,7 +126,8 @@ function JournalEditor({
       const group = document?.results
         .find((r) => r.id === resultId)
         ?.groups.find((g) => g.id === groupId);
-      if (group && document?.version === 2) group.confirmed = false;
+      if (group && document?.version === 2)
+        group.confirmed = document.outcome !== 'in_progress' && !d.finishRequested;
       change({ ...d, document, fields: { ...d.fields, [key]: value } });
     }
   }
@@ -354,13 +361,24 @@ function JournalEditor({
     }
   }
   async function save() {
-    const d = current.current;
+    let d = current.current;
     if (!d?.document || !d.journal || lock.current || d.conflicted) return;
+    const journal = d.journal;
     if (d.pending) {
       await transmit(d);
       return;
     }
     if (!d.dirty) return;
+    if (d.finishRequested) {
+      const prepared = finishVisibleSets(d);
+      if (
+        JSON.stringify(prepared.document) !== JSON.stringify(d.document) ||
+        JSON.stringify(prepared.fields) !== JSON.stringify(d.fields)
+      ) {
+        d = prepared;
+        paint(d);
+      }
+    }
     const projection = journalProjection(d),
       doc = projection.document;
     if (!doc) {
@@ -369,8 +387,8 @@ function JournalEditor({
     }
     const incomplete = Object.keys(projection.activeIncomplete).length > 0;
     if (d.finishRequested && incomplete)
-      doc.outcome = d.journal.document.outcome === 'finished' ? 'finished' : 'in_progress';
-    if (JSON.stringify(doc) === JSON.stringify(d.baseline ?? d.journal.document)) {
+      doc.outcome = journal.document.outcome === 'finished' ? 'finished' : 'in_progress';
+    if (JSON.stringify(doc) === JSON.stringify(d.baseline ?? journal.document)) {
       if (incomplete) {
         try {
           await persist(d);
@@ -387,7 +405,7 @@ function JournalEditor({
         const clean = {
           ...d,
           document: doc,
-          fields: projection.incomplete,
+          fields: projection.retained,
           dirty: false,
           finishRequested: false,
         };
@@ -403,8 +421,8 @@ function JournalEditor({
       pending: {
         operationId: operationId(),
         kind: 'save' as const,
-        journalId: d.journal.id,
-        expectedRevision: d.journal.revision,
+        journalId: journal.id,
+        expectedRevision: journal.revision,
         document: doc,
       },
     };
@@ -414,7 +432,21 @@ function JournalEditor({
   function requestOutcome(outcome: 'finished' | 'in_progress') {
     const d = current.current;
     if (!d?.document) return;
-    change({ ...d, document: { ...d.document, outcome }, finishRequested: outcome === 'finished' });
+    const next =
+      outcome === 'finished'
+        ? finishVisibleSets(d)
+        : {
+            ...d,
+            document: d.journal
+              ? editableJournal({ ...d.journal, document: { ...d.document, outcome } }, operationId)
+              : { ...d.document, outcome },
+          };
+    change({
+      ...next,
+      document: { ...next.document!, outcome },
+      finishRequested: outcome === 'finished',
+    });
+    if (outcome === 'in_progress') setEditable(true);
     if (!lock.current) void save();
   }
   const doc = draft?.document,
@@ -566,7 +598,7 @@ function JournalEditor({
             Saved outcome: {(savedDoc ?? doc).outcome.replace('_', ' ')} ·{' '}
             {(savedDoc ?? doc).results.filter(resultLogged).length} activities logged ·{' '}
             {(savedDoc ?? doc).results.filter((r) => !r.removed && !resultLogged(r)).length}{' '}
-            unlogged. Finishing does not fill missing results.
+            unlogged. Blank entries stay unlogged.
           </Text>
           {!editable && <Action label="Edit log" secondary onPress={() => setEditable(true)} />}
           <View style={stacked ? { gap: 12 } : ui.row}>
@@ -592,10 +624,12 @@ function JournalEditor({
             />
           )}
           {draft.journal?.snapshot.workoutMarkdown && (
-            <>
-              <Text style={ui.label}>Original prescription</Text>
-              <WorkoutMarkdown source={draft.journal.snapshot.workoutMarkdown} />
-            </>
+            <View style={ui.row}>
+              <Text style={ui.label}>Session details</Text>
+              <ExerciseInfo name={doc.title} prescription={draft.journal.snapshot.workoutMarkdown}>
+                <WorkoutMarkdown source={draft.journal.snapshot.workoutMarkdown} />
+              </ExerciseInfo>
+            </View>
           )}
           {doc.results.map((r) => {
             const original = draft.journal?.snapshot.exercises.find((e) => e.id === r.id);
@@ -636,14 +670,14 @@ function JournalEditor({
                     <Icon name="ellipsis" />
                   </Pressable>
                 </View>
-                {original && <Text style={ui.copy}>Planned: {original.prescription}</Text>}
                 {menu === r.id && (
                   <>
                     <Text style={ui.label}>Change input type · entered values are retained</Text>
                     {loggingModes.map((mode) => (
                       <Action
                         key={mode}
-                        label={`${r.name}: ${modeLabel[mode]}`}
+                        label={modeLabel[mode]}
+                        accessibilityLabel={`${r.name}: ${modeLabel[mode]}`}
                         secondary
                         disabled={blocked}
                         onPress={() => {
@@ -653,7 +687,10 @@ function JournalEditor({
                       />
                     ))}
                     <Action
-                      label={r.removed ? `Restore ${r.name}` : `Remove ${r.name} from this log`}
+                      label={r.removed ? 'Restore exercise' : 'Remove exercise'}
+                      accessibilityLabel={
+                        r.removed ? `Restore ${r.name}` : `Remove ${r.name} from this log`
+                      }
                       secondary
                       disabled={blocked}
                       onPress={() => rowChange(r.id, (row) => (row.removed = !row.removed))}
@@ -664,7 +701,8 @@ function JournalEditor({
                   <>
                     <Text style={ui.copy}>Removed from this log. Values retained.</Text>
                     <Action
-                      label={`Undo removal of ${r.name}`}
+                      label="Restore exercise"
+                      accessibilityLabel={`Undo removal of ${r.name}`}
                       secondary
                       disabled={blocked}
                       onPress={() => rowChange(r.id, (row) => (row.removed = false))}
@@ -675,6 +713,7 @@ function JournalEditor({
                     result={r}
                     hint={loggingFor(draft.journal!, r.id)}
                     fields={draft.fields}
+                    showRecommendations={doc.outcome === 'in_progress' || !!draft.finishRequested}
                     disabled={blocked}
                     onField={fieldChange}
                     onChange={(fn) => rowChange(r.id, fn)}
@@ -742,6 +781,10 @@ function JournalEditor({
             disabled={!!draft.pending || !editable || !draft.dirty}
             onPress={() => void save()}
           />
+          <Text style={ui.copy}>
+            Finish records the values shown. Clear or remove sets you didn’t do; enter one number
+            for any range.
+          </Text>
           <Action
             label={doc.outcome === 'in_progress' ? 'Finish session' : 'Reopen session'}
             secondary

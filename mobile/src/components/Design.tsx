@@ -74,7 +74,7 @@ export const ui = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
   },
-  secondary: { backgroundColor: 'transparent' },
+  secondary: { backgroundColor: colors.actionWash, borderWidth: 1, borderColor: '#B6C4F5' },
   secondaryText: { color: colors.action },
   disabled: { opacity: 0.45 },
   row: {
@@ -110,6 +110,8 @@ export function Action({
   secondary = false,
   busy = false,
   icon,
+  accessibilityLabel,
+  compact = false,
 }: {
   label: string;
   onPress: () => void;
@@ -117,17 +119,25 @@ export function Action({
   secondary?: boolean;
   busy?: boolean;
   icon?: IconName;
+  accessibilityLabel?: string;
+  compact?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: disabled || busy, busy }}
       disabled={disabled || busy}
       onPress={onPress}
       style={({ pressed }) => [
         ui.button,
         secondary && ui.secondary,
+        compact && {
+          alignSelf: 'flex-start',
+          minHeight: 44,
+          paddingVertical: 10,
+          paddingHorizontal: 14,
+        },
         (disabled || busy || pressed) && ui.disabled,
       ]}
     >

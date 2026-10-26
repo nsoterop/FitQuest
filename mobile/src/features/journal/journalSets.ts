@@ -4,10 +4,8 @@ import type {
   SetGroup,
 } from '../../../../backend/src/shared/journalContract';
 import type { JournalDraft } from './journalDraft';
-import {
-  legacyExerciseLogging,
-  type ExerciseLogging,
-} from '../../../../backend/src/shared/exerciseLogging';
+import type { ExerciseLogging } from '../../../../backend/src/shared/exerciseLogging';
+import { prescriptionHints } from './prescriptionHints';
 export const emptySet = (id: () => string, unit: 'lb' | 'kg' = 'lb'): SetGroup => ({
   id: id(),
   weight: null,
@@ -19,11 +17,23 @@ export const emptySet = (id: () => string, unit: 'lb' | 'kg' = 'lb'): SetGroup =
 });
 export function loggingFor(j: Journal, resultId: string): ExerciseLogging {
   const e = j.snapshot.exercises.find((e) => e.id === resultId);
-  return e?.logging ?? legacyExerciseLogging(e?.prescription ?? '', e?.mode ?? 'completion');
+  const fallback = prescriptionHints(e?.prescription ?? '', e?.mode ?? 'completion');
+  if (!e?.logging) return fallback;
+  return {
+    ...e.logging,
+    setCount: e.logging.setCount ?? fallback.setCount,
+    reps: e.logging.reps ?? fallback.reps,
+    load: e.logging.load ?? fallback.load,
+  };
 }
 // Upgrade an older encrypted draft, never its durable operation command or server snapshot.
 export function restoreJournalDraft(d: JournalDraft, id: () => string): JournalDraft {
-  if (!d.document || !d.journal || d.document.version === 2) return d;
+  if (!d.document || !d.journal) return d;
+  if (d.document.version === 2) {
+    if (!d.dirty && !d.pending) return d;
+    const document = editableJournal({ ...d.journal, document: d.document }, id);
+    return JSON.stringify(document) === JSON.stringify(d.document) ? d : { ...d, document };
+  }
   const original = structuredClone(d.document),
     fields: Record<string, string> = { ...d.fields },
     touched = new Set<string>();
@@ -66,9 +76,13 @@ export function restoreJournalDraft(d: JournalDraft, id: () => string): JournalD
 // A local editing/view copy only; reading never writes a historical document back to the API.
 export function editableJournal(j: Journal, id: () => string): JournalDocument {
   const d = structuredClone(j.document);
-  if (d.version === 2) return d;
+  const legacy = d.version === 1;
   d.version = 2;
   for (const r of d.results) {
+    if (!legacy) {
+      seedRecommendedSets(j, d, r.id, id);
+      continue;
+    }
     r.notes = '';
     const hint = loggingFor(j, r.id);
     const expanded: SetGroup[] = [];
@@ -93,36 +107,76 @@ export function editableJournal(j: Journal, id: () => string): JournalDocument {
       } else expanded.push({ ...g, confirmed: true });
     }
     r.groups = expanded;
-    if (
-      r.mode !== 'completion' &&
-      r.groups.length === 1 &&
-      !r.groups[0]!.removed &&
-      r.groups[0]!.confirmed === false
-    ) {
-      while (r.groups.length < (hint.setCount ?? 1)) r.groups.push(emptySet(id, hint.load?.unit));
-    }
+    seedRecommendedSets(j, d, r.id, id);
   }
   return d;
 }
+function seedRecommendedSets(j: Journal, d: JournalDocument, resultId: string, id: () => string) {
+  const r = d.results.find((r) => r.id === resultId)!;
+  if (
+    d.outcome !== 'in_progress' ||
+    r.mode === 'completion' ||
+    r.removed ||
+    r.groups.length !== 1 ||
+    r.groups[0]!.removed ||
+    r.groups[0]!.sets !== 1
+  )
+    return;
+  const hint = loggingFor(j, resultId);
+  const first = r.groups[0]!;
+  if (
+    (hint.setCount ?? 1) > 1 &&
+    !first.confirmed &&
+    first.weight === null &&
+    first.reps === null &&
+    hint.load
+  )
+    first.unit = hint.load.unit;
+  while (r.groups.length < (hint.setCount ?? 1))
+    r.groups.push(emptySet(id, hint.load?.unit ?? r.groups[0]!.unit));
+}
 export function suggestion(hint: ExerciseLogging, g: SetGroup, f: 'weight' | 'reps') {
+  if (g.confirmed) return '';
   const range = f === 'weight' ? (g.unit === hint.load?.unit ? hint.load : null) : hint.reps;
   return range ? (range.min === range.max ? String(range.min) : `${range.min}–${range.max}`) : '';
 }
-export function confirmSet(
-  g: SetGroup,
-  fields: Record<string, string>,
-  resultId: string,
-  hint: ExerciseLogging,
-  weighted: boolean,
-): SetGroup | null {
-  const next = { ...g, confirmed: true };
-  for (const f of weighted ? (['weight', 'reps'] as const) : (['reps'] as const)) {
-    const raw =
-      fields[`${resultId}:${g.id}:${f}`] ?? (g[f] === null ? suggestion(hint, g, f) : String(g[f]));
-    if (!(f === 'weight' ? /^\d+(\.\d+)?$/ : /^\d+$/).test(raw)) return null;
-    const number = Number(raw);
-    if (!Number.isFinite(number) || number > 1000000) return null;
-    next[f] = number;
+// Finish is the explicit recording action. Opening/autosaving never turns a
+// recommendation into performed work. Ranges stay raw until replaced or cleared.
+export function finishVisibleSets(d: JournalDraft): JournalDraft {
+  if (!d.document || !d.journal || d.document.version !== 2) return d;
+  const document = structuredClone(d.document),
+    fields = { ...d.fields };
+  document.outcome = 'finished';
+  for (const r of document.results) {
+    if (r.removed || r.mode === 'completion') continue;
+    const hint = loggingFor(d.journal, r.id);
+    for (const g of r.groups) {
+      if (g.removed || g.sets !== 1) continue;
+      let valid = true,
+        entered = false;
+      const numericFields: readonly ('weight' | 'reps')[] =
+        r.mode === 'weighted_reps' ? ['weight', 'reps'] : ['reps'];
+      for (const f of numericFields) {
+        const key = `${r.id}:${g.id}:${f}`;
+        const raw = fields[key] ?? (g[f] === null ? suggestion(hint, g, f) : String(g[f]));
+        if (!raw.trim()) {
+          g[f] = null;
+          continue;
+        }
+        if (
+          (f === 'weight' ? /^\d+(\.\d+)?$/ : /^\d+$/).test(raw.trim()) &&
+          Number(raw) <= 1000000
+        ) {
+          g[f] = Number(raw);
+          entered = true;
+        } else {
+          fields[key] = raw;
+          g[f] = null;
+          valid = false;
+        }
+      }
+      g.confirmed = valid && entered;
+    }
   }
-  return next;
+  return { ...d, document, fields };
 }

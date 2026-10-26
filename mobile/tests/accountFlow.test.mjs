@@ -181,6 +181,12 @@ function text(screen) {
   return JSON.stringify(screen.toJSON());
 }
 const press = (screen, label) => input(screen, label).props.onPress();
+async function exerciseInfoText(screen, name) {
+  await act(async () => press(screen, `Information for ${name}`));
+  const content = renderedTrainingText(screen);
+  await act(async () => press(screen, `Close information for ${name}`));
+  return content;
+}
 async function chooseBirthday(screen, date) {
   const [year, month, day] = date.split('-').map(Number);
   const monthName = new Date(Date.UTC(year, month - 1, day)).toLocaleString('en-US', {
@@ -4588,6 +4594,7 @@ test('document weeks render all metadata before acceptance, reveal safe Markdown
   assert.equal(generates, 1);
   assert.doesNotMatch(renderedTrainingText(screen), /Crab reach/);
   await act(async () => press(screen, 'Session 1 on 2026-10-05'));
+  await act(async () => press(screen, 'Information for Skill and strength'));
   assert.match(
     renderedTrainingText(screen).replace(/\s+/g, ' '),
     /Crab reach: 3 sets of 5–8 per side/,
@@ -4601,7 +4608,7 @@ test('document weeks render all metadata before acceptance, reveal safe Markdown
   await act(async () => press(screen, 'Week'));
   await act(async () => press(screen, 'Session 1 on 2026-10-05'));
   assert.equal(generates, 1);
-  assert.match(renderedTrainingText(screen).replace(/\s+/g, ' '), /Cushion balance/);
+  assert.match(await exerciseInfoText(screen, 'Skill and strength'), /Cushion balance/);
   await act(async () => press(screen, 'Back to week'));
   await act(async () => input(screen, 'Plan feedback').props.onChangeText('Change Tuesday only.'));
   await act(async () => {
@@ -4610,14 +4617,14 @@ test('document weeks render all metadata before acceptance, reveal safe Markdown
   });
   assert.equal(reviews, 1);
   await act(async () => press(screen, 'Session 1 on 2026-10-05'));
-  assert.match(renderedTrainingText(screen).replace(/\s+/g, ' '), /Cushion balance/);
+  assert.match(await exerciseInfoText(screen, 'Skill and strength'), /Cushion balance/);
   await act(async () => press(screen, 'Back to week'));
   await act(async () => screen.unmount());
   screen = await mountTraining();
   await act(async () => press(screen, 'Week'));
   assert.equal(reviews, 1);
   await act(async () => press(screen, 'Session 1 on 2026-10-05'));
-  assert.match(renderedTrainingText(screen).replace(/\s+/g, ' '), /Cushion balance/);
+  assert.match(await exerciseInfoText(screen, 'Skill and strength'), /Cushion balance/);
   await act(async () => press(screen, 'Back to week'));
   failReview = false;
   await act(async () => {
@@ -4641,7 +4648,7 @@ test('document weeks render all metadata before acceptance, reveal safe Markdown
   assert.equal(reviews, 2);
   await act(async () => press(screen, 'Session 1 on 2026-10-06'));
   assert.match(
-    renderedTrainingText(screen).replace(/\s+/g, ' '),
+    (await exerciseInfoText(screen, 'Skill and strength')).replace(/\s+/g, ' '),
     /Gentle floor flow for 10 minutes/,
   );
   await act(async () => screen.unmount());
@@ -4716,7 +4723,10 @@ test('Today follows saved session order, retains date on workout back, resets fo
   assert.match(renderedTrainingText(screen), /Today\./);
   assert.ok(input(screen, 'View workout: Skill and strength'));
   await act(async () => press(screen, 'Open session 2: Later easy practice'));
-  assert.match(renderedTrainingText(screen).replace(/\s+/g, ' '), /Easy dance practice/);
+  assert.match(
+    (await exerciseInfoText(screen, 'Later easy practice')).replace(/\s+/g, ' '),
+    /Easy dance practice/,
+  );
   await act(async () => press(screen, 'Back to day'));
   assert.ok(input(screen, 'View workout: Later easy practice'));
   await act(async () => press(screen, 'Select 2026-10-06'));
@@ -5402,11 +5412,11 @@ test('server-confirmed initial acceptance opens Today; every session tap opens i
   assert.equal(hasTrainingAccess(screen), true);
   assert.match(renderedTrainingText(screen), /Today\./);
   await act(async () => press(screen, 'Open session 2: Later easy practice'));
-  assert.match(renderedTrainingText(screen), /Easy dance practice/);
+  assert.match(await exerciseInfoText(screen, 'Later easy practice'), /Easy dance practice/);
   assert.doesNotMatch(renderedTrainingText(screen), /Crab reach/);
   await act(async () => press(screen, 'Back to day'));
   await act(async () => press(screen, 'Open session 1: Skill and strength'));
-  assert.match(renderedTrainingText(screen), /Crab reach/);
+  assert.match(await exerciseInfoText(screen, 'Skill and strength'), /Crab reach/);
   assert.equal(accepts, 1);
   await act(async () => screen.unmount());
 });
@@ -5427,7 +5437,7 @@ test('accepted history survives a successful pending revision and relaunch witho
   assert.match(renderedTrainingText(screen), /Skill and strength/);
   assert.doesNotMatch(renderedTrainingText(screen), /New draft session/);
   await act(async () => press(screen, 'Open session 2: Later easy practice'));
-  assert.match(renderedTrainingText(screen), /Easy dance practice/);
+  assert.match(await exerciseInfoText(screen, 'Later easy practice'), /Easy dance practice/);
   await act(async () => press(screen, 'Back to day'));
   await act(async () => press(screen, 'Week'));
   assert.match(renderedTrainingText(screen), /New draft session/);
@@ -5627,12 +5637,16 @@ test('new exercise rows stay private until acceptance, render exact ordered plai
     .filter((x) => typeof x === 'string');
   for (const row of document.days[0].sessions[0].exercises) {
     assert(texts.includes(row.exercise));
-    assert(texts.includes(row.prescription));
+    assert(!texts.includes(row.prescription));
+    assert((await exerciseInfoText(screen, row.exercise)).includes(row.prescription));
   }
   assert(texts.indexOf('Dumbbell squat') < texts.indexOf('Run / walk intervals'));
   await act(async () => press(screen, 'Back to day'));
   await act(async () => press(screen, 'Open session 2: Later easy practice'));
-  assert.match(renderedTrainingText(screen), /10–15 minutes; pause for 30 seconds/);
+  assert.match(
+    await exerciseInfoText(screen, document.days[0].sessions[1].exercises[0].exercise),
+    /10–15 minutes; pause for 30 seconds/,
+  );
   assert.doesNotMatch(renderedTrainingText(screen), /Dumbbell squat/);
   await act(async () => screen.unmount());
   screen = await mount();
@@ -5671,7 +5685,7 @@ test('new pending revision keeps legacy accepted Markdown accessible without con
   t.after(async () => act(async () => screen.unmount()));
   assert(hasTrainingAccess(screen));
   await act(async () => press(screen, 'Open session 1: Skill and strength'));
-  assert.match(renderedTrainingText(screen), /Crab reach/);
+  assert.match(await exerciseInfoText(screen, 'Skill and strength'), /Crab reach/);
   await act(async () => press(screen, 'Back to day'));
   await act(async () => press(screen, 'Week'));
   assert.doesNotMatch(renderedTrainingText(screen), /Crab reach/);
@@ -6113,7 +6127,7 @@ async function journalEdit(screen, label, value) {
     await flush();
   });
 }
-test('journal uses individual suggested set rows with explicit confirmation, retained edits and removal Undo', async (t) => {
+test('journal uses blue editable recommendations, compact set controls and Finish recording without confirmation checkboxes', async (t) => {
   globalThis.__fitquestSecure.clear();
   const j = journalFixture(),
     server = journalServer(j);
@@ -6127,14 +6141,12 @@ test('journal uses individual suggested set rows with explicit confirmation, ret
     ['Reps', '8'],
   ])
     await journalEdit(screen, 'Dumbbell squat · set 1 · ' + field, value);
-  await act(async () => press(screen, 'Confirm set 1 for Dumbbell squat'));
   await act(async () => press(screen, 'Add set for Dumbbell squat'));
   for (const [field, value] of [
     ['Weight (lb)', '35'],
     ['Reps', '6'],
   ])
     await journalEdit(screen, 'Dumbbell squat · set 4 · ' + field, value);
-  await act(async () => press(screen, 'Confirm set 4 for Dumbbell squat'));
   await act(async () => press(screen, 'Options for Dumbbell squat'));
   await act(async () => press(screen, 'Dumbbell squat: Completion only'));
   assert(input(screen, 'Completed Dumbbell squat'));
@@ -6160,10 +6172,191 @@ test('journal uses individual suggested set rows with explicit confirmation, ret
   assert.equal(server.current.document.outcome, 'finished');
   assert.equal(server.current.document.results[0].groups[0].weight, 0);
   assert.equal(server.current.document.results[0].groups[3].reps, 6);
-  assert.equal(server.current.document.results[0].groups[1].confirmed, false);
-  assert.equal(server.current.document.results[0].groups[1].weight, null);
-  assert.equal(server.current.document.results[1].groups[0].reps, null);
+  assert.equal(server.current.document.results[0].groups[1].confirmed, true);
+  assert.equal(server.current.document.results[0].groups[1].weight, 40);
+  assert.equal(server.current.document.results[1].groups[0].reps, 6);
   assert.equal(server.current.document.results[2].completed, null);
+});
+test('saved nullable hints prefill blue editable ranges, seed v2 rows and keep prescription text exclusively in the popup', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture();
+  j.document.version = 2;
+  for (const r of j.document.results) {
+    r.notes = '';
+    for (const g of r.groups) Object.assign(g, { sets: 1, confirmed: false });
+  }
+  const prescription = 'Sets: 3; Reps: 8–12; Load: 20 lb per hand; rest 60 seconds.';
+  Object.assign(j.snapshot.exercises[0], {
+    prescription,
+    logging: { version: 1, setCount: null, reps: null, load: null, description: null },
+  });
+  const server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(input(screen, 'Dumbbell squat · set 3 · Reps').props.value, '8–12');
+  const weight = input(screen, 'Dumbbell squat · set 1 · Weight (lb)');
+  assert.equal(weight.props.value, '20');
+  assert.equal(weight.props.editable, true);
+  assert.equal(weight.props.selectTextOnFocus, true);
+  const { colors } = await import('../src/components/Design.tsx');
+  assert(weight.props.style.some((s) => s?.color === colors.action));
+  assert.equal(
+    screen.root.findAllByProps({ accessibilityLabel: 'Confirm set 1 for Dumbbell squat' }).length,
+    0,
+  );
+  assert(!renderedTrainingText(screen).includes(prescription));
+  assert((await exerciseInfoText(screen, 'Dumbbell squat')).includes(prescription));
+  assert(!renderedTrainingText(screen).includes(prescription));
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Weight (lb)', '25');
+  assert.equal(
+    input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.selectTextOnFocus,
+    false,
+  );
+  assert.equal(server.commands.length, 0);
+});
+test('Finish retains recommended ranges until specific values or deliberate blanks resolve them, without inventing unknown load', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture();
+  j.snapshot.exercises[0].prescription = '3 sets of 8–10 reps; RPE 7.';
+  const server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '');
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Reps').props.value, '8–10');
+  await act(async () => {
+    press(screen, 'Finish session');
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.outcome, 'in_progress');
+  assert.match(text(screen), /Finish pending/);
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Reps', '9');
+  await journalEdit(screen, 'Dumbbell squat · set 2 · Reps', '');
+  await act(async () => {
+    press(screen, 'Subtract set for Dumbbell squat');
+    await flush();
+  });
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 40));
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.outcome, 'finished');
+  const groups = server.current.document.results[0].groups;
+  assert.equal(groups[0].reps, 9);
+  assert.equal(groups[0].weight, null);
+  assert.equal(groups[0].confirmed, true);
+  assert.equal(groups[1].reps, null);
+  assert.equal(groups[1].confirmed, false);
+  assert(groups[2].removed);
+});
+test('editing a finished recorded set updates its actual values without a confirmation checkbox', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  await act(async () => {
+    press(screen, 'Finish session');
+    await flush();
+    await flush();
+  });
+  await act(async () => press(screen, 'Edit log'));
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Weight (lb)', '25');
+  await act(async () => {
+    press(screen, 'Save changes');
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.outcome, 'finished');
+  assert.equal(server.current.document.results[0].groups[0].weight, 25);
+  assert.equal(server.current.document.results[0].groups[0].confirmed, true);
+});
+test('clearing a recommended value survives idle save, relaunch and Finish without restoring the recommendation', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j);
+  let screen = await mountJournal(j);
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Weight (lb)', '');
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Keep deliberate blank');
+  await act(async () => {
+    press(screen, 'Save workout');
+    await flush();
+    await flush();
+  });
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '');
+  await act(async () => screen.unmount());
+  screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '');
+  await act(async () => {
+    press(screen, 'Finish session');
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.results[0].groups[0].weight, null);
+  assert.equal(server.current.document.results[0].groups[0].reps, 8);
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '');
+});
+test('clearing all values on a finished set removes its actual report and unit corrections retain recorded values', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  await act(async () => {
+    press(screen, 'Finish session');
+    await flush();
+    await flush();
+  });
+  await act(async () => press(screen, 'Edit log'));
+  await act(async () => press(screen, 'Change weight unit for Dumbbell squat set 1'));
+  await act(async () => {
+    press(screen, 'Save changes');
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.results[0].groups[0].unit, 'kg');
+  assert.equal(server.current.document.results[0].groups[0].weight, 40);
+  assert.equal(server.current.document.results[0].groups[0].confirmed, true);
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Weight (kg)', '');
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Reps', '');
+  await act(async () => {
+    press(screen, 'Save changes');
+    await flush();
+    await flush();
+  });
+  const g = server.current.document.results[0].groups[0];
+  assert.equal(g.weight, null);
+  assert.equal(g.reps, null);
+  assert.equal(g.confirmed, false);
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Reps').props.value, '');
+});
+test('reopening a finished old one-row log seeds recommendations only after the explicit reopen', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture();
+  j.document.version = 2;
+  j.document.outcome = 'finished';
+  for (const r of j.document.results) {
+    r.notes = '';
+    for (const g of r.groups) Object.assign(g, { sets: 1, confirmed: false });
+  }
+  const server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(
+    screen.root.findAllByProps({ accessibilityLabel: 'Dumbbell squat · set 3 · Reps' }).length,
+    0,
+  );
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Reps').props.value, '');
+  await act(async () => {
+    press(screen, 'Reopen session');
+    await flush();
+    await flush();
+  });
+  assert.equal(input(screen, 'Dumbbell squat · set 3 · Reps').props.value, '8');
+  assert.equal(server.current.document.outcome, 'in_progress');
+  assert(server.current.document.results[0].groups.every((g) => !g.confirmed));
 });
 test('journal exercise notes expand on request, restore automatically and save with sets; info popup retains the full source', async (t) => {
   globalThis.__fitquestSecure.clear();
@@ -6318,7 +6511,7 @@ test('journal idle autosave keeps newer edits editable while the first response 
   assert.equal(server.commands.length, 2);
   assert.equal(server.commands[1].expectedRevision, 2);
 });
-test('journal Finish queues the latest edits behind an in-flight autosave without confirming suggestions', async (t) => {
+test('journal Finish queues the latest edits behind an in-flight autosave and records visible exact recommendations', async (t) => {
   globalThis.__fitquestSecure.clear();
   const j = journalFixture(),
     server = journalServer(j),
@@ -6357,13 +6550,12 @@ test('journal Finish queues the latest edits behind an in-flight autosave withou
   assert.equal(server.current.document.notes, 'Latest note before Finish');
   assert.equal(server.commands.length, 2);
   assert.equal(server.commands[1].expectedRevision, 2);
-  assert(
-    server.current.document.results.every(
-      (r) =>
-        r.completed === null &&
-        r.groups.every((g) => !g.confirmed && g.weight === null && g.reps === null),
-    ),
-  );
+  assert.equal(server.current.document.results[0].groups[0].weight, 40);
+  assert.equal(server.current.document.results[0].groups[0].reps, 8);
+  assert.equal(server.current.document.results[0].groups[0].confirmed, true);
+  assert.equal(server.current.document.results[1].groups[0].weight, null);
+  assert.equal(server.current.document.results[1].groups[0].reps, 6);
+  assert.equal(server.current.document.results[2].completed, null);
 });
 test('journal offline Finish remains durable and distinct until the same operation is acknowledged on relaunch', async (t) => {
   globalThis.__fitquestSecure.clear();
@@ -6418,7 +6610,7 @@ test('journal Finish preserves invalid raw text locally, saves valid notes, then
     await flush();
   });
   assert.equal(server.current.document.outcome, 'finished');
-  assert.equal(server.current.document.results[0].groups[0].confirmed, false);
+  assert.equal(server.current.document.results[0].groups[0].confirmed, true);
 });
 test('journal relaunch replays the original operation and then syncs newer already-durable notes', async (t) => {
   globalThis.__fitquestSecure.clear();
@@ -7157,6 +7349,8 @@ test('current saved plans render hostile exercise and nutrition text literally w
   assert(strings().includes(rationale));
   await act(async () => press(screen, 'Session 1 on 2026-10-05'));
   assert(strings().includes(exercise));
+  assert(!strings().includes(prescription));
+  await act(async () => press(screen, `Information for ${exercise}`));
   assert(strings().includes(prescription));
   assert.equal(
     screen.root.findAll(
