@@ -58,9 +58,14 @@ export function acknowledgeJournal(
   current: JournalDraft,
   journal: Journal,
 ): JournalDraft {
-  const newer = current !== sent;
   const projection = journalProjection(current),
     incomplete = projection.incomplete;
+  // On relaunch the persisted draft can already contain edits made after the
+  // pending command. Object identity alone cannot detect that durable history.
+  const newer =
+    current !== sent ||
+    (sent.pending?.kind === 'save' &&
+      JSON.stringify(projection.document) !== JSON.stringify(sent.pending.document));
   const waiting = Object.keys(projection.activeIncomplete).length > 0;
   const document = newer ? current.document : structuredClone(journal.document);
   if (document && current.finishRequested && waiting) document.outcome = 'finished';

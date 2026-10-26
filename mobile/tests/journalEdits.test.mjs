@@ -99,3 +99,23 @@ test('an old acknowledged save advances the revision without replacing newer raw
   assert.equal(clean.dirty, false);
   assert.deepEqual(clean.fields, {});
 });
+
+test('replayed durable commands cannot replace edits already persisted before relaunch', () => {
+  const d = fixture();
+  d.pending = {
+    kind: 'save',
+    operationId: randomUUID(),
+    journalId: d.journal.id,
+    expectedRevision: 1,
+    document: structuredClone(d.document),
+  };
+  d.document.notes = 'Newer note persisted while the request was in flight';
+  d.dirty = true;
+  const saved = { ...d.journal, revision: 2, document: structuredClone(d.pending.document) };
+  const merged = acknowledgeJournal(d, d, saved);
+  assert.equal(merged.document.notes, d.document.notes);
+  assert.equal(merged.dirty, true);
+  assert.equal(merged.pending, null);
+  assert.equal(merged.journal.revision, 2);
+  assert.equal(merged.baseline.notes, '');
+});

@@ -14,6 +14,7 @@ registerHooks({
 });
 const { editableJournal, loggingFor, confirmSet, suggestion, restoreJournalDraft } =
   await import('../src/features/journal/journalSets.ts');
+const { acknowledgeJournal } = await import('../src/features/journal/journalEdits.ts');
 const { validJournalDocument, resultLogged } =
   await import('../../backend/src/shared/journalContract.ts');
 function fixture() {
@@ -118,6 +119,16 @@ test('older encrypted drafts retain raw partial numbers and stable pending opera
   assert(restored.document.results[0].groups.every((g) => !g.confirmed && g.reps === 8));
   assert.equal(Object.values(restored.fields).filter((v) => v === '12.').length, 2);
   assert.deepEqual(restored.pending, pending);
+  const replayed = acknowledgeJournal(restored, restored, {
+    ...j,
+    revision: 2,
+    document: pending.document,
+  });
+  assert.equal(replayed.document.version, 2);
+  assert.equal(replayed.document.results[0].groups.length, 2);
+  assert.equal(Object.values(replayed.fields).filter((v) => v === '12.').length, 2);
+  assert(replayed.dirty);
+
   const incomplete = restoreJournalDraft({ ...d, fields: { [key + 'sets']: '2.' } }, randomUUID);
   assert.equal(incomplete.fields[key + 'sets'], '2.');
 });

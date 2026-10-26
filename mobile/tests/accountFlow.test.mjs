@@ -6420,6 +6420,43 @@ test('journal Finish preserves invalid raw text locally, saves valid notes, then
   assert.equal(server.current.document.outcome, 'finished');
   assert.equal(server.current.document.results[0].groups[0].confirmed, false);
 });
+test('journal relaunch replays the original operation and then syncs newer already-durable notes', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    base = globalThis.fetch;
+  let offline = true;
+  globalThis.fetch = async (url, options) => {
+    if (offline && options.method === 'POST') throw Error('synthetic offline');
+    return base(url, options);
+  };
+  let screen = await mountJournal(j);
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Earlier pending note');
+  await act(async () => {
+    press(screen, 'Save workout');
+    await flush();
+    await flush();
+  });
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Newer already-durable note');
+  const original = (await privateJournalDrafts.list('alice'))[0].pending.operationId;
+  await act(async () => screen.unmount());
+  offline = false;
+  screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(
+    input(screen, 'Notes for your coach · Optional').props.value,
+    'Newer already-durable note',
+  );
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+    await flush();
+  });
+  assert.equal(server.commands[0].operationId, original);
+  assert.equal(server.commands[0].document.notes, 'Earlier pending note');
+  assert.equal(server.current.document.notes, 'Newer already-durable note');
+  assert.equal(server.commands[1].expectedRevision, 2);
+});
 test('journal detects a newer remote revision after its save receipt without replacing retained edits', async (t) => {
   globalThis.__fitquestSecure.clear();
   const j = journalFixture(),
