@@ -1,0 +1,51 @@
+{
+  "source": "33423d1fb723afac09968d35a7d0279ac5575e5e",
+  "ci": "https://github.com/nsoterop/FitQuest/actions/runs/40383950916",
+  "tests": {
+    "mobile": 201,
+    "backendWithIsolatedPostgres": 351,
+    "installer": 5,
+    "repository": 7
+  },
+  "backend": {
+    "source": "33423d1fb723afac09968d35a7d0279ac5575e5e",
+    "deployment": "dep-dbfqedd9fdbs739pr60g",
+    "status": "Live"
+  },
+  "previewGroup": "70c30c7b-9228-4702-b8aa-eb9ef0de2236",
+  "nativeBuild": "5c579f01-e433-4c2a-bb83-bac14b7104d9",
+  "migration": {
+    "projectRef": "wqvxddvihlobnalxpzow",
+    "version": "20261026182728",
+    "name": "account_weight_units",
+    "sourceMD5": "20722029dd32195a2dfe8059ec7d76cc",
+    "sourceSHA256": "380d3e43a2df9957ebe49e33432464728048a1d7313b2ecf375c1d8a197c0e2d",
+    "sourceBytesMatchHostedLedger": true,
+    "forcedRLS": true,
+    "ownerPolicyRole": "fitquest_app",
+    "existingRecordsRewritten": false
+  },
+  "hostedReadOnly": {
+    "verifiedTLS": true,
+    "restrictedRole": true,
+    "transactionReadOnly": true,
+    "zeroRowAccess": true,
+    "relrowsecurity": true,
+    "relforcerowsecurity": true,
+    "can_read": true,
+    "can_insert": true,
+    "can_update_unit": true,
+    "can_reassign_owner": false
+  },
+  "otaIntegrity": {
+    "manifestId": "01a179a7-ea6b-7ce7-9d01-4ff137deffc9",
+    "runtime": "3500763d3c624db350764adaff2dac94a933129f",
+    "verifiedFiles": 76,
+    "totalBytes": 2180634,
+    "bundleSHA256": "2b4bb35d81b8ae86205c9c79aa26f38958459d185e06cfdd357683a001a3f7e5",
+    "identityMatches": true
+  },
+  "phoneLaunchVerified": false,
+  "nativeBuildCreated": false,
+  "developmentServerStarted": false
+}

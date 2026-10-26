@@ -4,7 +4,7 @@ Everything here is dated evidence, not current setup instructions, an active wor
 
 ## Releases and audits
 
-- [October 26 workout logging and UI correction](releases/2026-10-26.md): durable autosave, exercise information/notes, editable recommendations, compact controls and Finish recording visible values; Live API and matching build-5 preview OTA, with no migration or reset.
+- [October 26 workout logging and UI correction](releases/2026-10-26.md): durable autosave, compact tables, editable recommendations, inline activity instructions and synced account weight units; Live API and matching build-5 preview OTA, with the approved additive preference migration and no reset.
 
 - [October 11 delivery](releases/2026-10-11.md): saved-workout completion indicators, matching Live backend `4895564`, then update-enabled preview build 5 and verified baseline OTA, with no migration or data reset.
 - [October 10 releases](releases/2026-10-10.md): initial security/UX rollout, birthday backend `1859ef8`, mobile corrections, main integration and finished standalone preview build 3. Each section retains its own source/CI and delivery scope; account policy remains disabled.
@@ -47,3 +47,5 @@ These captures use synthetic fixtures. Their checks and limitations apply to the
 - [Workout logging](verification/2026-10-26/workout-logging/README.md): synthetic native normal/large-text checks, exact-source CI, Live API and compatible served-OTA integrity; physical-phone acceptance pending.
 
 - [Workout UI correction](verification/2026-10-26/workout-ui-correction/README.md): synthetic normal/large-text recommendations, compact controls and Finish checks; exact-source CI and served OTA integrity.
+
+- [Workout tables and synced units](verification/2026-10-26/workout-table-and-units/README.md): normal/large-text native checks, isolated account/revision tests, applied private preference migration, Live API and served OTA hashes.

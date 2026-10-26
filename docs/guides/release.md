@@ -1,6 +1,6 @@
 # Release procedure and boundaries
 
-The [October 26 workout-logging release](../archive/releases/2026-10-26.md) and subsequent UI correction are delivered: public-main exact-source CI passed for mobile `8412c86`, the existing API remains Live at `2b4f83b`, and compatible preview OTA group `a28ef5f7-afac-40c3-bddf-69b212f4380f` matches build 5's native runtime. No migration or native build was required. [Phone instructions](phone-preview.md) distinguish published artifacts from owner acceptance. Saved plans/data, accounting and production channel are preserved. Follow the owner's current assignment and [agent rules](../../AGENTS.md); historical releases do not grant further build, OTA, migration or reset authority.
+The [October 26 workout-logging and table corrections](../archive/releases/2026-10-26.md#table-layout-and-synced-weight-units) are delivered from `33423d1`: exact-source CI passed, existing API is Live, and compatible preview OTA group `70c30c7b-9228-4702-b8aa-eb9ef0de2236` matches build 5. The owner separately approved additive account-preference migration `20261026182728`, which is applied and verified; no native build was required. [Phone instructions](phone-preview.md) distinguish publication from owner acceptance. Existing plans/records, accounting and production channel are preserved. Follow the owner's current assignment and [agent rules](../../AGENTS.md); historical releases do not grant further build, OTA, migration or reset authority.
 
 ## Source publication
 
