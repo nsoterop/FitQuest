@@ -136,6 +136,7 @@ export function journalStore(pool: Pool) {
       a: Account,
       planId: string,
       revision: number,
+      includeFinished = false,
     ): Promise<JournalCompletions> => {
       if (!foodId(planId) || !Number.isSafeInteger(revision) || revision < 1 || revision > 1000000)
         fail('invalid_request', 400);
@@ -159,9 +160,9 @@ export function journalStore(pool: Pool) {
               (snapshot->'source'->>'sessionIndex')::integer AS "sessionIndex"
              FROM fitquest.workout_journals
              WHERE user_id=$1 AND source_key=ANY($2::text[])
-               AND document->>'outcome'='completed'
+               AND document->>'outcome'=ANY($3::text[])
              ORDER BY date,"sessionIndex" LIMIT 84`,
-            [a.userId, sources],
+            [a.userId, sources, includeFinished ? ['completed', 'finished'] : ['completed']],
           )
         ).rows;
         return { planId, revision, sessions };

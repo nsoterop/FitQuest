@@ -9,6 +9,7 @@ import {
   type JournalList,
   type JournalCompletions,
 } from '../../../../backend/src/shared/journalContract';
+import { foodId } from '../../../../backend/src/shared/foodContract';
 export const journalMessage = (code: string) =>
   (
     ({
@@ -63,14 +64,20 @@ export async function journalRequest<
     if (!v || typeof v !== 'object') throw Error();
     if (path.startsWith('/operations/') || command) {
       if (
-        typeof v.id !== 'string' ||
-        typeof v.journalId !== 'string' ||
-        !Number.isInteger(v.revision)
+        !foodId(v.id) ||
+        !foodId(v.journalId) ||
+        !Number.isSafeInteger(v.revision) ||
+        v.revision < 1 ||
+        v.revision > 1000000 ||
+        (command &&
+          (v.id !== command.operationId ||
+            (command.kind === 'save' &&
+              (v.journalId !== command.journalId || v.revision !== command.expectedRevision + 1))))
       )
         throw Error();
     } else if (path.startsWith('/session-states?')) {
       if (!validJournalSessionStates(v)) throw Error();
-    } else if (path.startsWith('/completed-sessions?')) {
+    } else if (path.startsWith('/completed-sessions?') || path.startsWith('/finished-sessions?')) {
       if (!validJournalCompletions(v)) throw Error();
     } else if (path.startsWith('?') || path === '') {
       if (!Array.isArray(v.items) || v.items.length > 50) throw Error();

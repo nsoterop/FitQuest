@@ -3,9 +3,12 @@ import { Icon } from '../../components/Icon';
 
 export function WorkoutCompletionBadge() {
   return (
-    <View style={styles.badge}>
+    <View
+      style={styles.badge}
+      accessibilityLabel="Session finished; individual sets may remain unlogged"
+    >
       <Icon name="square-check" color="#166534" />
-      <Text style={styles.label}>Completed</Text>
+      <Text style={styles.label}>Finished</Text>
     </View>
   );
 }

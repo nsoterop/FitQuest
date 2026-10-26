@@ -48,7 +48,8 @@ export function JournalExercise({
         </Pressable>
       ) : (
         <>
-          {active.map((g, i) => {
+          {active.map((g) => {
+            const i = r.groups.findIndex((x) => x.id === g.id);
             if (g.sets !== 1)
               return (
                 <View key={g.id}>
@@ -76,9 +77,13 @@ export function JournalExercise({
                   Set {i + 1} ·{' '}
                   {confirmed
                     ? 'Recorded'
-                    : Object.keys(fields).some((k) => k.startsWith(`${r.id}:${g.id}:`))
+                    : g.weight !== null ||
+                        g.reps !== null ||
+                        Object.keys(fields).some((k) => k.startsWith(`${r.id}:${g.id}:`))
                       ? 'Draft · Not confirmed'
-                      : 'Suggested · Not recorded'}
+                      : hint.reps || hint.load
+                        ? 'Suggested · Not recorded'
+                        : 'Not logged'}
                 </Text>
                 <View style={stacked ? { gap: 10 } : ui.row}>
                   {(r.mode === 'weighted_reps'
@@ -179,10 +184,10 @@ export function JournalExercise({
           />
           {r.groups
             .filter((g) => g.removed)
-            .map((g, i) => (
+            .map((g) => (
               <Action
                 key={g.id}
-                label={`Undo removal of ${r.name} set ${i + 1}`}
+                label={`Undo removal of ${r.name} set ${r.groups.findIndex((x) => x.id === g.id) + 1}`}
                 secondary
                 disabled={disabled}
                 onPress={() =>

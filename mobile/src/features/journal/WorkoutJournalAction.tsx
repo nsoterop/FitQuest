@@ -37,11 +37,13 @@ export function WorkoutJournalAction({
         if (controller.signal.aborted) return;
         if (local)
           setLabel(
-            local.journal?.document.outcome !== 'in_progress' && local.journal?.document.outcome
-              ? 'View workout'
-              : hasJournalWork(local)
-                ? 'Continue workout'
-                : 'Start workout',
+            local.dirty || local.pending
+              ? 'Continue workout'
+              : local.journal?.document.outcome !== 'in_progress' && local.journal?.document.outcome
+                ? 'View workout'
+                : hasJournalWork(local)
+                  ? 'Continue workout'
+                  : 'Start workout',
           );
         const state = await journalRequest<JournalSessionStates>(
           `/session-states?planId=${source.planId}&revision=${source.revision}`,

@@ -9,7 +9,6 @@ import {
   journalToday,
   loggingModes,
   resultLogged,
-  validJournalDocument,
   type Journal,
   type JournalCommand,
   type JournalDocument,
@@ -23,8 +22,8 @@ import { privateJournalDrafts } from './journalStorage';
 import type { JournalDraft } from './journalDraft';
 import { journalRequest, JournalError } from './journalApi';
 import { JournalExercise } from './JournalExercise';
-import { editableJournal, loggingFor, emptySet } from './journalSets';
-import { acknowledgeJournal, editedDocument, journalSourceKey } from './journalEdits';
+import { editableJournal, loggingFor, emptySet, restoreJournalDraft } from './journalSets';
+import { acknowledgeJournal, journalProjection, journalSourceKey } from './journalEdits';
 type Access = {
   userId: string;
   accessToken: () => Promise<string>;
@@ -77,7 +76,6 @@ function JournalEditor({
     [retry, setRetry] = useState(0),
     [editable, setEditable] = useState(true),
     [menu, setMenu] = useState<string | null>(null),
-    [outcomes, setOutcomes] = useState(false),
     [latest, setLatest] = useState<Journal | null>(null),
     [newName, setNewName] = useState(''),
     [adding, setAdding] = useState(false);
@@ -134,7 +132,7 @@ function JournalEditor({
       try {
         const all = await privateJournalDrafts.list(userId);
         if (!active) return;
-        const found = draftKey
+        const foundRaw = draftKey
           ? all.find((d) => d.key === draftKey)
           : journalId
             ? all.find((d) => d.journal?.id === journalId)
@@ -143,7 +141,9 @@ function JournalEditor({
                   .filter((d) => journalSourceKey(d.source) === journalSourceKey(source))
                   .sort((a, b) => b.savedAt - a.savedAt)[0]
               : undefined;
+        const found = foundRaw ? restoreJournalDraft(foundRaw, operationId) : undefined;
         if (found) {
+          if (found !== foundRaw) await persist(found);
           paint(found);
           setNotice(
             found.pending ? 'Waiting to sync' : found.dirty ? 'Saved on this device' : 'Saved',
@@ -154,6 +154,12 @@ function JournalEditor({
           if (found.journal && !found.dirty && !found.pending)
             await loadJournal(found.journal.id, found);
           else if (found.pending) await transmit(found);
+          else if (found.conflicted && found.journal) {
+            setLatest(await request<Journal>('/' + found.journal.id));
+            setError(
+              'This log changed elsewhere. Review the saved version before applying your retained edits.',
+            );
+          }
           return;
         }
         if (journalId) {
@@ -201,8 +207,8 @@ function JournalEditor({
     };
   }, [userId, retry]);
   useEffect(() => {
-    if (!draft?.dirty || draft.pending || busy || latest || !editable) return;
-    const timer = setTimeout(() => void save(), 1000);
+    if (!draft?.dirty || draft.pending || draft.conflicted || busy || latest || !editable) return;
+    const timer = setTimeout(() => void save(), draft.finishRequested ? 0 : 1000);
     return () => clearTimeout(timer);
   }, [draft, busy, latest, editable]);
   useEffect(() => {
@@ -211,8 +217,8 @@ function JournalEditor({
       if (!d) return;
       if (state === 'active') {
         if (d.pending) void transmit(d);
-        else if (d.dirty && !latest) void save();
-      } else if (!d.pending && d.dirty) void save();
+        else if (d.dirty && !latest && !d.conflicted) void save();
+      } else if (!d.pending && d.dirty && !d.conflicted) void save();
     });
     return () => subscription.remove();
   }, [latest]);
@@ -230,23 +236,34 @@ function JournalEditor({
     try {
       const j = await request<Journal>('/' + id);
       if (!live.current) return;
+      const prepared = editableJournal(j, operationId);
       const loaded: JournalDraft = {
         key: old?.key ?? id,
         journal: j,
         source: j.snapshot.source,
-        document: editableJournal(j, operationId),
+        document: prepared,
+        baseline: structuredClone(prepared),
         pending: null,
-        fields: {},
+        fields: old?.fields ?? {},
         dirty: false,
         savedAt: Date.now(),
       };
-      const d =
-        old && current.current && current.current !== old
+      const changedWithRaw =
+        !!old?.journal && Object.keys(old.fields).length > 0 && old.journal.revision !== j.revision;
+      const d = changedWithRaw
+        ? { ...old!, pending: null, dirty: true, conflicted: true }
+        : old && current.current && current.current !== old
           ? acknowledgeJournal(old, current.current, j)
           : loaded;
       paint(d);
       await persist(d);
-      setEditable(j.document.outcome === 'in_progress');
+      if (changedWithRaw) {
+        setLatest(j);
+        setError(
+          'This log changed elsewhere. Review the saved version before applying recovered raw edits.',
+        );
+      }
+      setEditable((current.current?.dirty ?? false) || j.document.outcome === 'in_progress');
     } finally {
       lock.current = false;
       if (live.current) setBusy(false);
@@ -259,27 +276,58 @@ function JournalEditor({
     setError('');
     controller.current = new AbortController();
     const timer = setTimeout(() => controller.current?.abort(), 30000);
+    let onDevice = false,
+      acknowledged = false;
     try {
       await persist(d);
+      onDevice = true;
+      if (live.current) setNotice('Saving…');
       // A durable operation may have committed before its response was lost.
       // Reposting the identical command remains receipt-idempotent on older servers.
       const receipt = await request<JournalReceipt>('/commands', d.pending);
       const j = await request<Journal>('/' + receipt.journalId);
       if (!live.current) return;
+      if (j.id !== receipt.journalId || j.revision < receipt.revision)
+        throw new JournalError('unavailable');
+      if (j.revision !== receipt.revision && d.pending.kind === 'save') {
+        const retained = {
+          ...(current.current ?? d),
+          pending: null,
+          dirty: true,
+          conflicted: true,
+        };
+        paint(retained);
+        await persist(retained);
+        setLatest(j);
+        setError(
+          'This log changed elsewhere after your save. Review the saved version before applying retained edits.',
+        );
+        return;
+      }
+      acknowledged = true;
       const next = acknowledgeJournal(d, current.current ?? d, j);
-      if (!next.dirty) next.document = editableJournal(j, operationId);
+      if (!next.dirty) {
+        next.document = editableJournal(j, operationId);
+        next.baseline = structuredClone(next.document);
+      }
       paint(next);
       await persist(next);
       if (live.current) {
-        setEditable(j.document.outcome === 'in_progress');
+        setEditable((current.current?.dirty ?? false) || j.document.outcome === 'in_progress');
         setLatest(null);
       }
     } catch (e) {
       if (live.current) {
+        if (onDevice)
+          setNotice(acknowledged ? 'Saved on server' : 'Saved on device · Waiting to sync');
         setError(
-          e instanceof JournalError
-            ? e.message
-            : 'Unable to confirm this save. Your pending request remains on this device.',
+          !onDevice
+            ? 'Could not save this device draft. Keep this screen open and retry saving.'
+            : acknowledged
+              ? 'Saved to the server, but device recovery could not be updated. Retry device saving.'
+              : e instanceof JournalError
+                ? e.message
+                : 'Unable to confirm this save. Your pending request remains on this device.',
         );
         if (e instanceof JournalError && e.code === 'session_ended') onSessionEnded?.();
         if (
@@ -305,36 +353,53 @@ function JournalEditor({
       if (live.current) setBusy(false);
     }
   }
-  async function save(outcome?: JournalDocument['outcome']) {
+  async function save() {
     const d = current.current;
-    if (!d?.document || !d.journal || busy) return;
+    if (!d?.document || !d.journal || lock.current || d.conflicted) return;
     if (d.pending) {
       await transmit(d);
       return;
     }
-    const doc = editedDocument(d);
+    if (!d.dirty) return;
+    const projection = journalProjection(d),
+      doc = projection.document;
     if (!doc) {
-      setNotice('Saved on device · Complete or clear unfinished numeric entries to sync');
+      setNotice('Saved on device · Check the performed date, time zone and entries before syncing');
       return;
     }
-    if (outcome) doc.outcome = outcome;
-    try {
-      if (!validJournalDocument(doc)) throw Error();
-    } catch {
-      setError(
-        'Use non-negative numbers for weight and whole numbers for sets and reps. Blank stays unlogged; zero is allowed.',
-      );
-      return;
-    }
-    if (JSON.stringify(doc) === JSON.stringify(d.journal.document)) {
-      const clean = { ...d, document: doc, fields: {}, dirty: false };
-      paint(clean);
-      await persist(clean).catch(() => setError('Could not save this device draft. Retry saving.'));
+    const incomplete = Object.keys(projection.activeIncomplete).length > 0;
+    if (d.finishRequested && incomplete)
+      doc.outcome = d.journal.document.outcome === 'finished' ? 'finished' : 'in_progress';
+    if (JSON.stringify(doc) === JSON.stringify(d.baseline ?? d.journal.document)) {
+      if (incomplete) {
+        try {
+          await persist(d);
+          if (current.current === d)
+            setNotice(
+              d.finishRequested
+                ? 'Saved on device · Complete or clear unfinished entries to finish'
+                : 'Saved on device · Waiting to sync unfinished entries',
+            );
+        } catch {
+          setError('Could not save this device draft. Keep this screen open and retry saving.');
+        }
+      } else {
+        const clean = {
+          ...d,
+          document: doc,
+          fields: projection.incomplete,
+          dirty: false,
+          finishRequested: false,
+        };
+        paint(clean);
+        await persist(clean).catch(() =>
+          setError('Could not save this device draft. Retry saving.'),
+        );
+      }
       return;
     }
     const next = {
       ...d,
-      document: doc,
       pending: {
         operationId: operationId(),
         kind: 'save' as const,
@@ -345,6 +410,12 @@ function JournalEditor({
     };
     paint(next);
     await transmit(next);
+  }
+  function requestOutcome(outcome: 'finished' | 'in_progress') {
+    const d = current.current;
+    if (!d?.document) return;
+    change({ ...d, document: { ...d.document, outcome }, finishRequested: outcome === 'finished' });
+    if (!lock.current) void save();
   }
   const doc = draft?.document,
     savedDoc = draft?.journal?.document,
@@ -358,18 +429,27 @@ function JournalEditor({
   function reapply() {
     if (!draft?.document || !latest) return;
     const document = structuredClone(draft.document);
-    for (const r of latest.document.results) {
+    const prepared = editableJournal(latest, operationId);
+    for (const r of prepared.results) {
       const mine = document.results.find((x) => x.id === r.id);
       if (!mine) document.results.push(r);
       else
         for (const g of r.groups) if (!mine.groups.some((x) => x.id === g.id)) mine.groups.push(g);
     }
-    const next = { ...draft, journal: latest, document, pending: null, dirty: true };
+    const next = {
+      ...draft,
+      journal: latest,
+      baseline: prepared,
+      document,
+      pending: null,
+      dirty: true,
+      conflicted: false,
+    };
     paint(next);
     setEditable(true);
     setLatest(null);
-    setError('Review your retained changes and save explicitly.');
-    void persist(next);
+    setError('Your retained edits will sync after you finish reviewing them.');
+    void persist(next).catch(() => setError('Could not save this device draft. Retry saving.'));
   }
   return (
     <Page onBack={onBack} backLabel="Back" scrollKey="journal-editor">
@@ -381,6 +461,24 @@ function JournalEditor({
         {notice}
       </Text>
       {!!error && <Notice error>{error}</Notice>}
+      {error.includes('device') && draft && (
+        <Action
+          label="Retry device save"
+          secondary
+          onPress={() =>
+            void persist(current.current!)
+              .then(() => setError(''))
+              .catch(() =>
+                setError(
+                  'Could not save this device draft. Keep this screen open and retry saving.',
+                ),
+              )
+          }
+        />
+      )}
+      {draft?.finishRequested && (draft.dirty || draft.pending) && (
+        <Notice>Finish pending · Latest entries are waiting for save confirmation.</Notice>
+      )}
       {!draft && <Action label="Retry loading journal" onPress={() => setRetry((n) => n + 1)} />}
       {!!draft?.pending && (
         <Action label="Retry saved request" busy={busy} onPress={() => void transmit(draft)} />
@@ -414,6 +512,50 @@ function JournalEditor({
       )}
       {doc && draft && (
         <>
+          {Object.entries(draft.fields)
+            .filter(([key]) => {
+              const [rowId, groupId, field] = key.split(':');
+              return (
+                field === 'sets' ||
+                doc.results.find((r) => r.id === rowId)?.groups.find((g) => g.id === groupId)
+                  ?.sets !== 1
+              );
+            })
+            .map(([key, raw]) => (
+              <View key={key} style={{ gap: 8 }}>
+                <Text style={ui.copy}>
+                  Recovered unfinished numeric entry: {raw || '(blank)'}. This older draft is kept
+                  on this device.
+                </Text>
+                <Action
+                  label={`Keep recovered numeric entry as notes ${key}`}
+                  secondary
+                  onPress={() => {
+                    const currentDraft = current.current;
+                    if (!currentDraft?.document) return;
+                    const document = structuredClone(currentDraft.document),
+                      row = document.results.find((r) => r.id === key.split(':')[0]);
+                    if (!row) return;
+                    const notes = [
+                      row.notes ?? '',
+                      `Recovered unfinished ${key.split(':')[2]}: ${raw}`,
+                    ]
+                      .filter(Boolean)
+                      .join('\n');
+                    if (notes.length > 2000) {
+                      setError(
+                        'The recovered text will exceed the exercise-note limit. Shorten the note before adding it.',
+                      );
+                      return;
+                    }
+                    row.notes = notes;
+                    const fields = { ...currentDraft.fields };
+                    delete fields[key];
+                    change({ ...currentDraft, document, fields });
+                  }}
+                />
+              </View>
+            ))}
           {draft.source && (
             <Text style={ui.copy}>
               Planned {draft.source.date} · session {draft.source.sessionIndex + 1} · accepted
@@ -597,39 +739,17 @@ function JournalEditor({
           <Action
             label={draft.journal && draft.journal.revision > 1 ? 'Save changes' : 'Save workout'}
             busy={busy}
-            disabled={!!draft.pending || !editable}
+            disabled={!!draft.pending || !editable || !draft.dirty}
             onPress={() => void save()}
           />
           <Action
             label={doc.outcome === 'in_progress' ? 'Finish session' : 'Reopen session'}
             secondary
-            disabled={busy || !!draft.pending || (doc.outcome === 'in_progress' && !editable)}
+            disabled={doc.outcome === 'in_progress' && !editable}
             onPress={() =>
-              doc.outcome === 'in_progress' ? setOutcomes(!outcomes) : void save('in_progress')
+              requestOutcome(doc.outcome === 'in_progress' ? 'finished' : 'in_progress')
             }
           />
-          {outcomes && (
-            <View style={ui.row}>
-              {(['completed', 'partial', 'skipped'] as const).map((outcome) => (
-                <Action
-                  key={outcome}
-                  label={
-                    outcome === 'completed'
-                      ? 'Record completed'
-                      : outcome === 'partial'
-                        ? 'Record partial'
-                        : 'Record skipped'
-                  }
-                  secondary
-                  disabled={blocked}
-                  onPress={() => {
-                    setOutcomes(false);
-                    void save(outcome);
-                  }}
-                />
-              ))}
-            </View>
-          )}
         </>
       )}
     </Page>

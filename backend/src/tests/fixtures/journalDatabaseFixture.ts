@@ -116,6 +116,24 @@ export async function verifyJournalDatabase(
         { code: 'journal_client_update_required' },
       );
       assert.equal((await store.read(f.a, j.id)).revision, saved.revision);
+      const finished = await store.command(f.a, {
+        operationId: randomUUID(),
+        kind: 'save',
+        journalId: j.id,
+        expectedRevision: saved.revision,
+        document: { ...doc, outcome: 'finished' },
+      });
+      assert.deepEqual((await store.completedSessions(f.a, f.plan.id, 1)).sessions, []);
+      assert.equal((await store.completedSessions(f.a, f.plan.id, 1, true)).sessions.length, 1);
+      assert.equal((await store.read(f.a, j.id)).document.results[0]!.groups[0]!.confirmed, false);
+      await store.command(f.a, {
+        operationId: randomUUID(),
+        kind: 'save',
+        journalId: j.id,
+        expectedRevision: finished.revision,
+        document: doc,
+      });
+      assert.equal((await store.completedSessions(f.a, f.plan.id, 1, true)).sessions.length, 0);
     },
   );
   await t.test(

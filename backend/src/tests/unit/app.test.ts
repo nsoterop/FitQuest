@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Writable } from 'node:stream';
 import { buildApp } from '../../app.js';
+import type { Journal } from '../../shared/journalContract.js';
 import type { ProfileStore, SavedProfile } from '../../features/account/profileStore.js';
 import {
   planningConsentVersion,
@@ -73,6 +74,107 @@ test('workout completion route verifies the account, returns minimal status and 
     revision: 2,
     sessions: [{ date: '2026-10-05', sessionIndex: 0 }],
   });
+});
+
+test('logging capability protects v2 writes and reads while preserving v1 journal snapshot transport', async (t) => {
+  const unused = async () => {
+    throw Error('Unexpected journal operation');
+  };
+  let writes = 0;
+  const j: Journal = {
+    id: accounts.alice.userId,
+    revision: 1,
+    createdAt: '2026-10-26T12:00:00Z',
+    updatedAt: '2026-10-26T12:00:00Z',
+    snapshot: {
+      source: null,
+      schemaVersion: null,
+      acceptedAt: null,
+      timeZone: null,
+      session: null,
+      fingerprint: 'synthetic',
+      workoutMarkdown: null,
+      exercises: [
+        {
+          id: accounts.alice.userId,
+          position: 0,
+          name: 'Synthetic row',
+          prescription: '2 × 8 reps.',
+          mode: 'reps',
+          logging: {
+            version: 1,
+            setCount: 2,
+            reps: { min: 8, max: 8 },
+            load: null,
+            description: null,
+          },
+        },
+      ],
+    },
+    document: {
+      version: 1,
+      title: 'Synthetic',
+      performedDate: '2026-10-26',
+      timeZone: 'UTC',
+      outcome: 'in_progress',
+      notes: '',
+      results: [],
+    },
+  };
+  const app = buildApp(false, {
+    ...dependencies(),
+    journal: {
+      sessionStates: unused,
+      list: unused,
+      readOperation: unused,
+      completedSessions: unused,
+      read: async () => j,
+      command: async (_a, c) => {
+        writes++;
+        return { id: c.operationId, journalId: j.id, revision: 2 };
+      },
+    },
+  });
+  t.after(() => app.close());
+  const legacy = await app.inject({ method: 'GET', url: '/workout-journal/' + j.id, headers });
+  assert.equal(legacy.statusCode, 200);
+  assert.equal(legacy.json().snapshot.exercises[0].logging, undefined);
+  assert.equal(j.snapshot.exercises[0]!.logging!.setCount, 2);
+  const modernHeaders = { ...headers, 'x-fitquest-logging': '2' };
+  const modern = await app.inject({
+    method: 'GET',
+    url: '/workout-journal/' + j.id,
+    headers: modernHeaders,
+  });
+  assert.equal(modern.json().snapshot.exercises[0].logging.setCount, 2);
+  j.document.version = 2;
+  const denied = await app.inject({ method: 'GET', url: '/workout-journal/' + j.id, headers });
+  assert.equal(denied.statusCode, 409);
+  assert.equal(denied.json().code, 'journal_client_update_required');
+  assert.equal(denied.headers['cache-control'], 'no-store');
+  const payload = {
+    operationId: accounts.alice.sessionId,
+    kind: 'save',
+    journalId: j.id,
+    expectedRevision: 1,
+    document: j.document,
+  };
+  const blocked = await app.inject({
+    method: 'POST',
+    url: '/workout-journal/commands',
+    headers,
+    payload,
+  });
+  assert.equal(blocked.statusCode, 409);
+  assert.equal(writes, 0);
+  const allowed = await app.inject({
+    method: 'POST',
+    url: '/workout-journal/commands',
+    headers: modernHeaders,
+    payload,
+  });
+  assert.equal(allowed.statusCode, 200);
+  assert.equal(writes, 1);
 });
 
 test('GET /health returns the public API health contract', async (t) => {

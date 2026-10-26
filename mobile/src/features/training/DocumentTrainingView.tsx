@@ -121,7 +121,7 @@ export function DocumentToday({
               accessibilityLabel={`View workout: ${session.title}`}
               accessibilityValue={
                 completed.has(completionKey(selectedDate, featured))
-                  ? { text: 'Completed' }
+                  ? { text: 'Finished' }
                   : undefined
               }
               onPress={() => onOpen({ date: selectedDate, index: featured })}
@@ -153,7 +153,7 @@ export function DocumentToday({
               accessibilityLabel={`Open session ${i + 1}: ${s.title}`}
               accessibilityState={{ selected: featured === i }}
               accessibilityValue={
-                completed.has(completionKey(selectedDate, i)) ? { text: 'Completed' } : undefined
+                completed.has(completionKey(selectedDate, i)) ? { text: 'Finished' } : undefined
               }
               onPress={() => {
                 onSelect({ date: selectedDate, index: i });
@@ -175,7 +175,7 @@ export function DocumentToday({
             </Pressable>
           ))}
           <Text style={ui.copy}>
-            Completed badges reflect sessions you finished in your workout log.
+            Finished badges reflect saved session finishes; individual sets may remain unlogged.
           </Text>
         </>
       )}
@@ -213,7 +213,7 @@ export function DocumentWeek({
               accessibilityHint={`${s.title}. ${s.goal}. ${s.timing ?? ''} About ${rangeText(s.durationMinutes)} minutes.${s.optional ? ' Optional session.' : ''}`}
               accessibilityRole={plan.reviewState === 'accepted' ? 'button' : undefined}
               accessibilityValue={
-                completed.has(completionKey(d.date, i)) ? { text: 'Completed' } : undefined
+                completed.has(completionKey(d.date, i)) ? { text: 'Finished' } : undefined
               }
               disabled={plan.reviewState !== 'accepted'}
               onPress={() => onOpen({ date: d.date, index: i })}

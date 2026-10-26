@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { JournalCompletions } from '../../../../backend/src/shared/journalContract';
 import { JournalError, journalRequest } from '../journal/journalApi';
 import type { TrainingPlan } from './trainingApi';
+import { privateJournalDrafts } from '../journal/journalStorage';
+import { journalSourceKey } from '../journal/journalEdits';
 
 export const completionKey = (date: string, index: number) => `${date}:${index}`;
 const empty: ReadonlySet<string> = new Set();
@@ -42,15 +44,33 @@ export function useWorkoutCompletions({
         const t = await token.current();
         if (c.signal.aborted) return;
         const value = await journalRequest<JournalCompletions>(
-          `/completed-sessions?planId=${encodeURIComponent(planId)}&revision=${revision}`,
+          `/finished-sessions?planId=${encodeURIComponent(planId)}&revision=${revision}`,
           t,
           c.signal,
         );
         if (value.planId !== planId || value.revision !== revision) throw Error();
+        const local = await privateJournalDrafts.list(userId);
+        const pending = new Set(
+          local.filter((d) => d.dirty || d.pending).map((d) => journalSourceKey(d.source)),
+        );
         if (!c.signal.aborted)
           setSaved({
             key,
-            completed: new Set(value.sessions.map((s) => completionKey(s.date, s.sessionIndex))),
+            completed: new Set(
+              value.sessions
+                .filter(
+                  (s) =>
+                    !pending.has(
+                      journalSourceKey({
+                        planId,
+                        revision,
+                        date: s.date,
+                        sessionIndex: s.sessionIndex,
+                      }),
+                    ),
+                )
+                .map((s) => completionKey(s.date, s.sessionIndex)),
+            ),
             error: false,
           });
       } catch (e) {

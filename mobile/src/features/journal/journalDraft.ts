@@ -14,6 +14,9 @@ export type JournalDraft = {
   fields: Record<string, string>;
   dirty: boolean;
   savedAt: number;
+  baseline?: JournalDocument;
+  finishRequested?: boolean;
+  conflicted?: boolean;
 };
 // No expiry and no onboarding/sign-out cleanup. Every key is scoped to its verified account.
 export function journalDrafts(storage: ReturnType<typeof secureSessionStorage>) {

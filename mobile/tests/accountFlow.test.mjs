@@ -5483,7 +5483,7 @@ test('sign-in and session restoration show one loading screen then Today without
       requests = [];
     globalThis.fetch = async (url, options) => {
       requests.push({ url, method: options.method ?? 'GET' });
-      if (url.includes('/completed-sessions?'))
+      if (url.includes('/finished-sessions?'))
         return {
           status: 200,
           json: async () => ({ planId: saved.plans[0].id, revision: 1, sessions: [] }),
@@ -5981,7 +5981,7 @@ test('workout action distinguishes empty, actual input, finished and local parti
   await act(async () => screen.unmount());
   await privateJournalDrafts.write('alice', {
     key: j.id,
-    journal: j,
+    journal: { ...j, document: { ...j.document, outcome: 'completed' } },
     source: j.snapshot.source,
     document: j.document,
     pending: null,
@@ -6141,7 +6141,7 @@ test('journal uses individual suggested set rows with explicit confirmation, ret
   await act(async () => press(screen, 'Options for Dumbbell squat'));
   await act(async () => press(screen, 'Dumbbell squat: Weight and reps'));
   await act(async () => press(screen, 'Subtract set for Dumbbell squat'));
-  await act(async () => press(screen, 'Undo removal of Dumbbell squat set 1'));
+  await act(async () => press(screen, 'Undo removal of Dumbbell squat set 4'));
   assert.equal(input(screen, 'Dumbbell squat · set 4 · Reps').props.value, '6');
   await journalEdit(
     screen,
@@ -6152,13 +6152,12 @@ test('journal uses individual suggested set rows with explicit confirmation, ret
   screen = await mountJournal(j);
   t.after(async () => act(async () => screen.unmount()));
   assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '0');
-  await act(async () => press(screen, 'Finish session'));
   await act(async () => {
-    press(screen, 'Record partial');
+    press(screen, 'Finish session');
     await flush();
     await flush();
   });
-  assert.equal(server.current.document.outcome, 'partial');
+  assert.equal(server.current.document.outcome, 'finished');
   assert.equal(server.current.document.results[0].groups[0].weight, 0);
   assert.equal(server.current.document.results[0].groups[3].reps, 6);
   assert.equal(server.current.document.results[0].groups[1].confirmed, false);
@@ -6272,7 +6271,10 @@ test('journal rapid raw edits restore by semantic source after navigation, inclu
     await new Promise((r) => setTimeout(r, 1100));
     await flush();
   });
-  assert.equal(server.commands.length, 0);
+  assert.equal(server.commands.length, 1);
+  assert.equal(server.current.document.results[0].groups[0].weight, null);
+  assert.equal(server.current.document.results[0].groups[0].confirmed, false);
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '12.');
 });
 test('journal idle autosave keeps newer edits editable while the first response is delayed', async (t) => {
   globalThis.__fitquestSecure.clear();
@@ -6315,6 +6317,220 @@ test('journal idle autosave keeps newer edits editable while the first response 
   assert.equal(server.current.document.notes, 'Newer edit');
   assert.equal(server.commands.length, 2);
   assert.equal(server.commands[1].expectedRevision, 2);
+});
+test('journal Finish queues the latest edits behind an in-flight autosave without confirming suggestions', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    base = globalThis.fetch;
+  let release,
+    held = false;
+  const gate = new Promise((r) => (release = r));
+  globalThis.fetch = async (url, options) => {
+    if (options.method === 'POST' && !held) {
+      held = true;
+      await gate;
+    }
+    return base(url, options);
+  };
+  const screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Earlier note');
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+  });
+  assert(held);
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Latest note before Finish');
+  await act(async () => press(screen, 'Finish session'));
+  assert.match(text(screen), /Finish pending/);
+  await act(async () => {
+    release();
+    await flush();
+    await flush();
+  });
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 30));
+    await flush();
+  });
+  assert.equal(server.current.document.outcome, 'finished');
+  assert.equal(server.current.document.notes, 'Latest note before Finish');
+  assert.equal(server.commands.length, 2);
+  assert.equal(server.commands[1].expectedRevision, 2);
+  assert(
+    server.current.document.results.every(
+      (r) =>
+        r.completed === null &&
+        r.groups.every((g) => !g.confirmed && g.weight === null && g.reps === null),
+    ),
+  );
+});
+test('journal offline Finish remains durable and distinct until the same operation is acknowledged on relaunch', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    base = globalThis.fetch;
+  let offline = true;
+  globalThis.fetch = async (url, options) => {
+    if (offline && options.method === 'POST') throw Error('synthetic offline');
+    return base(url, options);
+  };
+  let screen = await mountJournal(j);
+  await act(async () => {
+    press(screen, 'Finish session');
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.outcome, 'in_progress');
+  assert.match(text(screen), /Finish pending/);
+  const stored = (await privateJournalDrafts.list('alice'))[0];
+  assert.equal(stored.finishRequested, true);
+  assert.equal(stored.pending.document.outcome, 'finished');
+  const operation = stored.pending.operationId;
+  await act(async () => screen.unmount());
+  offline = false;
+  screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  assert.equal(server.current.document.outcome, 'finished');
+  assert.equal(server.commands[0].operationId, operation);
+  assert(!text(screen).includes('Finish pending'));
+});
+test('journal Finish preserves invalid raw text locally, saves valid notes, then finishes only after correction', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Weight (lb)', '12.');
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Valid note while typing');
+  await act(async () => {
+    press(screen, 'Finish session');
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.outcome, 'in_progress');
+  assert.equal(server.current.document.notes, 'Valid note while typing');
+  assert.equal(input(screen, 'Dumbbell squat · set 1 · Weight (lb)').props.value, '12.');
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Weight (lb)', '12.5');
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 30));
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.outcome, 'finished');
+  assert.equal(server.current.document.results[0].groups[0].confirmed, false);
+});
+test('journal detects a newer remote revision after its save receipt without replacing retained edits', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    base = globalThis.fetch;
+  let raced = false;
+  globalThis.fetch = async (url, options) => {
+    const response = await base(url, options);
+    if (options.method === 'POST' && !raced) {
+      raced = true;
+      server.advance();
+    }
+    return response;
+  };
+  const screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  await journalEdit(screen, 'Notes for your coach · Optional', 'My retained note');
+  await act(async () => {
+    press(screen, 'Save workout');
+    await flush();
+    await flush();
+  });
+  assert.match(text(screen), /changed elsewhere after your save/);
+  assert.equal(input(screen, 'Notes for your coach · Optional').props.value, 'My retained note');
+  const stored = (await privateJournalDrafts.list('alice'))[0];
+  assert(stored.conflicted);
+  assert.equal(stored.pending, null);
+  await act(async () => {
+    press(screen, 'Keep my edits on this version');
+    await flush();
+  });
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Reviewed retained note');
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+  });
+  assert.equal(server.commands.at(-1).expectedRevision, server.current.revision - 1);
+  assert.equal(server.current.document.notes, 'Reviewed retained note');
+});
+test('journal session expiry retains pending raw edits only for the original account', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    base = globalThis.fetch;
+  let ended = 0;
+  globalThis.fetch = async (url, options) =>
+    options.method === 'POST'
+      ? { status: 401, json: async () => ({ code: 'session_ended' }) }
+      : base(url, options);
+  let screen = await mountJournal(j, { onSessionEnded: () => ended++ });
+  await journalEdit(screen, 'Dumbbell squat · set 1 · Weight (lb)', '12.');
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Private original-account note');
+  await act(async () => {
+    press(screen, 'Save workout');
+    await flush();
+    await flush();
+  });
+  assert.equal(ended, 1);
+  const stored = (await privateJournalDrafts.list('alice'))[0];
+  assert(stored.pending);
+  assert(Object.values(stored.fields).includes('12.'));
+  await act(async () => screen.unmount());
+  globalThis.fetch = base;
+  screen = await mountJournal(j, { userId: 'bob', accessToken: async () => 'bob-token' });
+  t.after(async () => act(async () => screen.unmount()));
+  assert.doesNotMatch(text(screen), /Private original-account note/);
+  assert.equal(server.commands.length, 0);
+  assert.equal(
+    (await privateJournalDrafts.list('alice'))[0].pending.operationId,
+    stored.pending.operationId,
+  );
+});
+test('journal unchanged opening and reverted edits do not make cloud saves', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j),
+    screen = await mountJournal(j);
+  t.after(async () => act(async () => screen.unmount()));
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+  });
+  assert.equal(server.commands.length, 0);
+  await journalEdit(screen, 'Notes for your coach · Optional', 'Temporary');
+  await journalEdit(screen, 'Notes for your coach · Optional', '');
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 1100));
+    await flush();
+  });
+  assert.equal(server.commands.length, 0);
+});
+test('journal subtraction preserves incomplete input for Undo without blocking an otherwise valid Finish', async (t) => {
+  globalThis.__fitquestSecure.clear();
+  const j = journalFixture(),
+    server = journalServer(j);
+  let screen = await mountJournal(j);
+  await journalEdit(screen, 'Dumbbell squat · set 3 · Weight (lb)', '12.');
+  await act(async () => press(screen, 'Subtract set for Dumbbell squat'));
+  await act(async () => {
+    press(screen, 'Finish session');
+    await flush();
+    await flush();
+  });
+  assert.equal(server.current.document.outcome, 'finished');
+  assert.equal(server.current.document.results[0].groups[2].removed, true);
+  await act(async () => screen.unmount());
+  screen = await mountJournal(server.current);
+  t.after(async () => act(async () => screen.unmount()));
+  await act(async () => press(screen, 'Edit log'));
+  await act(async () => press(screen, 'Undo removal of Dumbbell squat set 3'));
+  assert.equal(input(screen, 'Dumbbell squat · set 3 · Weight (lb)').props.value, '12.');
 });
 test('journal local storage failure is actionable and does not claim Saved or dispatch cloud work', async (t) => {
   globalThis.__fitquestSecure.clear();
@@ -7731,7 +7947,7 @@ test('Today and Week show confirmed completion per session and refresh after fin
   let checks = 0,
     writes = 0;
   globalThis.fetch = async (url, options) => {
-    if (url.includes('/completed-sessions?')) {
+    if (url.includes('/finished-sessions?')) {
       checks++;
       const query = new URL(url).searchParams;
       assert.equal(query.get('planId'), p.id);
@@ -7741,8 +7957,9 @@ test('Today and Week show confirmed completion per session and refresh after fin
         json: async () => ({
           planId: p.id,
           revision: 1,
-          sessions:
-            j.document.outcome === 'completed' ? [{ date: p.dates[0], sessionIndex: 0 }] : [],
+          sessions: ['completed', 'finished'].includes(j.document.outcome)
+            ? [{ date: p.dates[0], sessionIndex: 0 }]
+            : [],
         }),
       };
     }
@@ -7783,7 +8000,7 @@ test('Today and Week show confirmed completion per session and refresh after fin
   };
   const screen = await mountTraining({ initialTab: 'today' });
   t.after(() => act(async () => screen.unmount()));
-  const done = (label) => input(screen, label).props.accessibilityValue?.text === 'Completed';
+  const done = (label) => input(screen, label).props.accessibilityValue?.text === 'Finished';
   assert.equal(done('View workout: Skill and strength'), false);
   assert.equal(writes, 0);
   await act(async () => {
@@ -7801,17 +8018,16 @@ test('Today and Week show confirmed completion per session and refresh after fin
     await flush();
   });
   await act(async () => {
-    press(screen, 'Record completed');
     await flush();
     await flush();
   });
-  assert.equal(j.document.outcome, 'completed');
+  assert.equal(j.document.outcome, 'finished');
   await act(async () => {
     press(screen, 'Back');
     await flush();
     await flush();
   });
-  assert.match(renderedTrainingText(screen), /Completed/);
+  assert.match(renderedTrainingText(screen), /Finished/);
   await act(async () => {
     press(screen, 'Back to day');
     await flush();
@@ -7863,7 +8079,7 @@ test('completion failures are retryable without blocking workouts and foreground
     writes = 0;
   globalThis.fetch = async (url, options) => {
     if (options.method === 'POST') writes++;
-    if (url.includes('/completed-sessions?')) {
+    if (url.includes('/finished-sessions?')) {
       if (fail) throw Error('Invented outage');
       return {
         status: 200,
@@ -7886,7 +8102,7 @@ test('completion failures are retryable without blocking workouts and foreground
     press(screen, 'Retry workout completion');
     await flush();
   });
-  assert.equal(input(screen, 'Session 1 on 2026-10-05').props.accessibilityValue.text, 'Completed');
+  assert.equal(input(screen, 'Session 1 on 2026-10-05').props.accessibilityValue.text, 'Finished');
   complete = false;
   await act(async () => {
     for (const listener of globalThis.__fitquestAppStateListeners) listener('active');

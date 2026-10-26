@@ -106,9 +106,7 @@ export function buildApp(
       reply.code(409);
       return JSON.stringify({ code: 'journal_client_update_required' });
     }
-    return request.url.startsWith('/training')
-      ? JSON.stringify(legacyLoggingPayload(value))
-      : payload;
+    return JSON.stringify(legacyLoggingPayload(value));
   });
 
   const textField = { type: 'string', minLength: 1, maxLength: 100, pattern: '\\S' };
@@ -590,6 +588,12 @@ export function buildApp(
     privateRoute,
     async (r) =>
       journal().sessionStates(accounts.get(r)!, r.query.planId, Number(r.query.revision)),
+  );
+  app.get<{ Querystring: { planId: string; revision: string } }>(
+    '/workout-journal/finished-sessions',
+    privateRoute,
+    async (r) =>
+      journal().completedSessions(accounts.get(r)!, r.query.planId, Number(r.query.revision), true),
   );
   app.get<{ Querystring: { planId: string; revision: string } }>(
     '/workout-journal/completed-sessions',

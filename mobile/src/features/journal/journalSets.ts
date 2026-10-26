@@ -3,6 +3,7 @@ import type {
   JournalDocument,
   SetGroup,
 } from '../../../../backend/src/shared/journalContract';
+import type { JournalDraft } from './journalDraft';
 import {
   legacyExerciseLogging,
   type ExerciseLogging,
@@ -19,6 +20,48 @@ export const emptySet = (id: () => string, unit: 'lb' | 'kg' = 'lb'): SetGroup =
 export function loggingFor(j: Journal, resultId: string): ExerciseLogging {
   const e = j.snapshot.exercises.find((e) => e.id === resultId);
   return e?.logging ?? legacyExerciseLogging(e?.prescription ?? '', e?.mode ?? 'completion');
+}
+// Upgrade an older encrypted draft, never its durable operation command or server snapshot.
+export function restoreJournalDraft(d: JournalDraft, id: () => string): JournalDraft {
+  if (!d.document || !d.journal || d.document.version === 2) return d;
+  const original = structuredClone(d.document),
+    fields: Record<string, string> = { ...d.fields },
+    touched = new Set<string>();
+  for (const r of original.results)
+    for (const g of r.groups)
+      for (const f of ['weight', 'sets', 'reps'] as const) {
+        const key = `${r.id}:${g.id}:${f}`,
+          raw = d.fields[key];
+        if (raw === undefined) continue;
+        touched.add(g.id);
+        if (!raw.trim()) {
+          g[f] = null;
+          delete fields[key];
+        } else if (
+          (f === 'weight' ? /^\d+(\.\d+)?$/ : /^\d+$/).test(raw) &&
+          Number(raw) <= 1000000
+        ) {
+          g[f] = Number(raw);
+          delete fields[key];
+        } else {
+          fields[key] = raw;
+          g[f] = null;
+        }
+      }
+  const document = editableJournal({ ...d.journal, document: original }, id);
+  for (const r of document.results) {
+    const old = original.results.find((x) => x.id === r.id)!;
+    let origin = old.groups[0]?.id;
+    for (const g of r.groups) {
+      if (old.groups.some((x) => x.id === g.id)) origin = g.id;
+      if (origin && touched.has(origin)) g.confirmed = false;
+      for (const f of ['weight', 'reps'] as const) {
+        const raw = fields[`${r.id}:${origin}:${f}`];
+        if (raw !== undefined) fields[`${r.id}:${g.id}:${f}`] = raw;
+      }
+    }
+  }
+  return { ...d, document, fields, baseline: undefined };
 }
 // A local editing/view copy only; reading never writes a historical document back to the API.
 export function editableJournal(j: Journal, id: () => string): JournalDocument {

@@ -12,7 +12,7 @@ registerHooks({
     }
   },
 });
-const { editableJournal, loggingFor, confirmSet, suggestion } =
+const { editableJournal, loggingFor, confirmSet, suggestion, restoreJournalDraft } =
   await import('../src/features/journal/journalSets.ts');
 const { validJournalDocument, resultLogged } =
   await import('../../backend/src/shared/journalContract.ts');
@@ -89,4 +89,35 @@ test('legacy actual groups expand only when unambiguous and retain original iden
   g.sets = null;
   assert.equal(editableJournal(j, randomUUID).results[0].groups.length, 1);
   assert.equal(editableJournal(j, randomUUID).results[0].groups[0].sets, null);
+});
+test('older encrypted drafts retain raw partial numbers and stable pending operations while upgrading set-count meaning', () => {
+  const j = fixture(),
+    r = j.document.results[0],
+    g = r.groups[0],
+    key = `${r.id}:${g.id}:`;
+  const pending = {
+    kind: 'save',
+    operationId: randomUUID(),
+    document: structuredClone(j.document),
+  };
+  const d = {
+    key: randomUUID(),
+    journal: j,
+    document: structuredClone(j.document),
+    source: null,
+    pending,
+    fields: { [key + 'sets']: '2', [key + 'weight']: '12.', [key + 'reps']: '8' },
+    dirty: true,
+    savedAt: 1,
+  };
+  const before = structuredClone(d),
+    restored = restoreJournalDraft(d, randomUUID);
+  assert.deepEqual(d, before);
+  assert.equal(restored.document.version, 2);
+  assert.equal(restored.document.results[0].groups.length, 2);
+  assert(restored.document.results[0].groups.every((g) => !g.confirmed && g.reps === 8));
+  assert.equal(Object.values(restored.fields).filter((v) => v === '12.').length, 2);
+  assert.deepEqual(restored.pending, pending);
+  const incomplete = restoreJournalDraft({ ...d, fields: { [key + 'sets']: '2.' } }, randomUUID);
+  assert.equal(incomplete.fields[key + 'sets'], '2.');
 });
